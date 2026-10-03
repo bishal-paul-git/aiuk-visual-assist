@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { Chip, EmptyState, PageHeader, Panel, Segmented, Table, Td, Th, Toggle, Tr } from "@/components/ui/primitives";
 import { humanRequiredMatrix, policies, policyCategories } from "@/lib/data/policies";
-import { useAppState } from "@/lib/store";
+import { actions, useAppState } from "@/lib/store";
 import { ClientTag } from "@/components/clients/shared";
 import { PolicyStatusChip } from "@/components/policies/shared";
 import { PolicyDrawer } from "@/components/policies/PolicyDrawer";
@@ -13,7 +13,8 @@ export default function PoliciesPage() {
   const clientFilter = useAppState((s) => s.clientFilter);
   const [cat, setCat] = useState<PolicyCategory | "all">("all");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [enabled, setEnabled] = useState<Record<string, boolean>>(() => Object.fromEntries(policies.map((p) => [p.id, p.status !== "draft"])));
+  const enabledOv = useAppState((s) => s.policyEnabled);
+  const enabled = useMemo(() => Object.fromEntries(policies.map((p) => [p.id, enabledOv[p.id] ?? p.status !== "draft"])), [enabledOv]);
   const rows = useMemo(() => policies.filter((p) => (cat === "all" || p.category === cat) && (clientFilter === "all" || p.clientIds.includes(clientFilter))), [cat, clientFilter]);
   const open = policies.find((p) => p.id === openId) ?? null;
   return (
@@ -36,7 +37,7 @@ export default function PoliciesPage() {
                 <Td className="num text-right">{p.workflowsAffected.length}</Td>
                 <Td className="text-ink-soft">{p.owner}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{p.updated}</Td>
-                <Td><span onClick={(e) => e.stopPropagation()}><Toggle on={enabled[p.id]} onChange={(v) => setEnabled((s) => ({ ...s, [p.id]: v }))} label={`Enforce ${p.name}`} /></span></Td>
+                <Td><span onClick={(e) => e.stopPropagation()}><Toggle on={enabled[p.id]} onChange={(v) => actions.setPolicyEnabled(p.id, v)} label={`Enforce ${p.name}`} /></span></Td>
               </Tr>
             ))}
             {rows.length === 0 && <tr><Td colSpan={11}><EmptyState title="No policies in this category" hint="Choose another category or the global client switcher." /></Td></tr>}
@@ -52,7 +53,7 @@ export default function PoliciesPage() {
           ))}</tbody>
         </Table>
       </Panel>
-      <PolicyDrawer key={openId ?? "none"} policy={open} enabled={open ? enabled[open.id] : true} onToggle={(v) => open && setEnabled((s) => ({ ...s, [open.id]: v }))} onClose={() => setOpenId(null)} />
+      <PolicyDrawer key={openId ?? "none"} policy={open} enabled={open ? enabled[open.id] : true} onToggle={(v) => open && actions.setPolicyEnabled(open.id, v)} onClose={() => setOpenId(null)} />
     </>
   );
 }

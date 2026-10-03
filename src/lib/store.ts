@@ -38,6 +38,9 @@ export interface AppState {
   qaNotes: Record<string, string[]>;
   integrationStatus: Record<string, string>;
   featureFlags: Record<string, boolean>;
+  /** Edited policy rules keyed by `${policyId}:${ruleId}` — persists across drawer open/close. */
+  policyRuleEdits: Record<string, { condition: string; action: string; effect: "allow" | "restrict" | "block" | "escalate" | "log" }>;
+  policyEnabled: Record<string, boolean>;
   user: { name: string; email: string; role: string } | null;
 }
 
@@ -48,6 +51,8 @@ export const appStore = createStore<AppState>({
   qaNotes: {},
   integrationStatus: {},
   featureFlags: {},
+  policyRuleEdits: {},
+  policyEnabled: {},
   user: { name: "Amelia Hart", email: "amelia.hart@absoluteintelligence.co.uk", role: "Platform Administrator" },
 });
 
@@ -99,5 +104,7 @@ export const actions = {
   addQaNote: (id: string, text: string) => appStore.set((s) => ({ qaNotes: { ...s.qaNotes, [id]: [...(s.qaNotes[id] ?? []), text] } })),
   setIntegrationStatus: (id: string, st: string) => appStore.set((s) => ({ integrationStatus: { ...s.integrationStatus, [id]: st } })),
   setFlag: (id: string, on: boolean) => appStore.set((s) => ({ featureFlags: { ...s.featureFlags, [id]: on } })),
+  editPolicyRule: (key: string, patch: AppState["policyRuleEdits"][string]) => appStore.set((s) => ({ policyRuleEdits: { ...s.policyRuleEdits, [key]: patch } })),
+  setPolicyEnabled: (id: string, on: boolean) => appStore.set((s) => ({ policyEnabled: { ...s.policyEnabled, [id]: on } })),
   signIn: () => appStore.set({}),
 };

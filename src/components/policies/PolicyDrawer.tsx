@@ -5,15 +5,16 @@ import { ArrowRight, Pencil } from "lucide-react";
 import { Button, Chip, Drawer, Field, KeyValue, Modal, Select, Table, Td, TextArea, Th, Toggle, Tr } from "@/components/ui/primitives";
 import { workflowById } from "@/lib/data/workflows";
 import { clientById } from "@/lib/data/clients";
+import { actions, useAppState } from "@/lib/store";
 import type { Policy, PolicyRule } from "@/lib/types/policies";
 import { PolicyStatusChip, effectMeta } from "./shared";
 import { ClientTag } from "@/components/clients/shared";
 
 export function PolicyDrawer({ policy, enabled, onToggle, onClose }: { policy: Policy | null; enabled: boolean; onToggle: (v: boolean) => void; onClose: () => void }) {
   const [edit, setEdit] = useState<PolicyRule | null>(null);
-  const [overrides, setOverrides] = useState<Record<string, Pick<PolicyRule, "condition" | "action" | "effect">>>({});
+  const overrides = useAppState((s) => s.policyRuleEdits);
   if (!policy) return <Drawer open={false} onClose={onClose} title="">{null}</Drawer>;
-  const rules = policy.rules.map((r) => ({ ...r, ...overrides[`${policy.id}:${r.id}`] }));
+  const rules = policy.rules.map((r) => ({ ...r, ...overrides[`${policy.id}:${r.id}`], edited: !!overrides[`${policy.id}:${r.id}`] }));
   return (
     <>
       <Drawer open onClose={onClose} width="max-w-xl" title={<span className="flex items-center gap-2"><span className="font-mono text-xs text-ink-mute">{policy.id}</span>{policy.name}</span>} subtitle={`${policy.category} · ${policy.scope === "global" ? "Global" : "Tenant"} scope · ${policy.version}`}
@@ -38,7 +39,7 @@ export function PolicyDrawer({ policy, enabled, onToggle, onClose }: { policy: P
                       <p className="mt-1 flex items-start gap-1.5"><ArrowRight size={13} className="mt-1 shrink-0 text-ink-mute" /><span>{r.action}</span></p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <Chip tone={effectMeta[r.effect].tone}>{effectMeta[r.effect].label}</Chip>
+                      <Chip tone={effectMeta[r.effect].tone}>{effectMeta[r.effect].label}</Chip>{r.edited && <Chip tone="warn">Edited · draft</Chip>}
                       <button onClick={() => setEdit(r)} className="inline-flex items-center gap-1 text-2xs font-medium text-brand-strong hover:underline"><Pencil size={11} />Edit rule</button>
                     </div>
                   </div>
@@ -70,7 +71,7 @@ export function PolicyDrawer({ policy, enabled, onToggle, onClose }: { policy: P
           </section>
         </div>
       </Drawer>
-      <EditRuleModal key={edit?.id ?? "none"} rule={edit} onClose={() => setEdit(null)} onSave={(patch) => { if (edit) setOverrides((o) => ({ ...o, [`${policy.id}:${edit.id}`]: patch })); setEdit(null); }} />
+      <EditRuleModal key={edit?.id ?? "none"} rule={edit} onClose={() => setEdit(null)} onSave={(patch) => { if (edit) actions.editPolicyRule(`${policy.id}:${edit.id}`, patch); setEdit(null); }} />
     </>
   );
 }
@@ -82,7 +83,7 @@ function EditRuleModal({ rule, onClose, onSave }: { rule: PolicyRule | null; onC
   return (
     <Modal open={!!rule} onClose={onClose} title="Edit rule" footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={() => onSave({ condition, action, effect })}>Save to draft</Button></>}>
       <div className="space-y-3">
-        <p className="rounded border border-line bg-subtle px-3 py-2 text-xs text-ink-soft">Visual only. Changes apply to this view and would create a new draft version for compliance review.</p>
+        <p className="rounded border border-line bg-subtle px-3 py-2 text-xs text-ink-soft">Changes are saved as a draft for this session (demo, not sent to a backend) and would create a new version for compliance review.</p>
         <Field label="Condition"><TextArea rows={2} value={condition} onChange={(e) => setCondition(e.target.value)} /></Field>
         <Field label="Action"><TextArea rows={2} value={action} onChange={(e) => setAction(e.target.value)} /></Field>
         <Field label="Effect"><Select className="w-full" value={effect} onChange={(v) => setEffect(v as PolicyRule["effect"])} options={Object.entries(effectMeta).map(([value, m]) => ({ value, label: m.label }))} /></Field>
