@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens (RGB triplets so Tailwind alpha modifiers work) */
+:root {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --canvas: 244 246 249;
+  --surface: 255 255 255;
+  --subtle: 238 241 245;
+  --line: 223 228 235;
+  --ink: 15 23 42;
+  --ink-soft: 71 85 105;
+  --ink-mute: 126 138 156;
+  --brand: 13 126 143;
+  --brand-strong: 9 94 108;
+  --brand-soft: 224 242 245;
+  --nav: 11 18 32;
+  --nav-hover: 22 31 49;
+  --nav-line: 33 44 66;
+  --nav-ink: 160 172 192;
+  --ok: 21 128 61;
+  --ok-soft: 220 243 228;
+  --warn: 180 83 9;
+  --warn-soft: 254 240 214;
+  --bad: 190 24 52;
+  --bad-soft: 253 228 232;
+  --info: 37 99 235;
+  --info-soft: 222 234 254;
+  --human: 109 40 217;
+  --human-soft: 237 229 254;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  @apply bg-canvas text-ink antialiased;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 13.5px;
+  font-feature-settings: "cv11", "ss01", "tnum";
+}
+* { @apply border-line; }
+::selection { background: rgb(var(--brand) / 0.2); }
+:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 1px; }
+
+@layer components {
+  .label { @apply text-2xs font-semibold uppercase tracking-wider text-ink-mute; }
+  .num { font-variant-numeric: tabular-nums; }
+  .scroll-thin { scrollbar-width: thin; }
+}
+
+@keyframes pulse-ring { 0% { transform: scale(.8); opacity: .8 } 100% { transform: scale(2.2); opacity: 0 } }
+@keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+@keyframes scan { 0% { transform: translateY(-10%) } 100% { transform: translateY(110%) } }
+@keyframes slide-in { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes rise { from { transform: translateY(8px); opacity: 0 } to { transform: none; opacity: 1 } }
+.anim-blink { animation: blink 1s steps(2, start) infinite; }
+.anim-slide-in { animation: slide-in .18s ease-out; }
+.anim-fade-in { animation: fade-in .15s ease-out; }
+.anim-rise { animation: rise .2s ease-out; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
