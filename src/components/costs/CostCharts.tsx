@@ -1,7 +1,7 @@
 "use client";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, Tooltip, XAxis, YAxis } from "recharts";
 import { Panel, Table, Td, Th, Tr } from "@/components/ui/primitives";
-import { axisProps, chartColors, series, tooltipStyle } from "@/components/ui/charts";
+import { ChartBox, axisProps, chartColors, series, tooltipStyle } from "@/components/ui/charts";
 import { ChartCard } from "@/components/analytics/ChartCard";
 import { categoryDefs, costByClient, costByWorkflow, monthlyTrend, type CostSummary } from "@/lib/data/costs";
 import { gbp } from "@/lib/data/sessions";
@@ -63,12 +63,12 @@ export function WorkflowCost() {
 }
 function BarChartInline({ rows }: { rows: ReturnType<typeof costByWorkflow> }) {
   return (
-    <div style={{ height: 150 }}>
-      <BarChart width={520} height={150} data={rows} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 8 }} style={{ maxWidth: "100%" }}>
+    <ChartBox height={150}>
+      <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 8 }}>
         <CartesianGrid stroke={chartColors.grid} horizontal={false} /><XAxis type="number" {...axisProps} tickFormatter={(v) => `£${v}`} /><YAxis type="category" dataKey="name" width={140} {...axisProps} />
         <Tooltip {...tooltipStyle} formatter={(v: number) => gbp(v, 0)} /><Bar name="Spend" dataKey="total" fill={chartColors.brand} radius={[0, 2, 2, 0]} />
       </BarChart>
-    </div>
+    </ChartBox>
   );
 }
 
