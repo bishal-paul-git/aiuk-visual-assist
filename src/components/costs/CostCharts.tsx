@@ -39,7 +39,7 @@ export function ClientCost() {
   const data = costByClient();
   return (
     <ChartCard title="Cost by client" subtitle="Last 30 days, fictional £" height={210}>
-      <BarChart data={data} margin={m}>{grid}<XAxis dataKey="name" {...axisProps} /><YAxis {...axisProps} tickFormatter={(v) => `£${v}`} /><Tooltip {...tooltipStyle} formatter={(v: number) => gbp(v, 0)} />
+      <BarChart data={data} margin={m}>{grid}<XAxis dataKey="name" interval={0} {...axisProps} tick={{ fontSize: 10, fill: "#7e8a9c" }} /><YAxis {...axisProps} tickFormatter={(v) => `£${v}`} /><Tooltip {...tooltipStyle} formatter={(v: number) => gbp(v, 0)} />
         <Bar name="Spend" dataKey="total" radius={[2, 2, 0, 0]}>{data.map((_, i) => <Cell key={i} fill={colorOf(i)} />)}</Bar></BarChart>
     </ChartCard>
   );

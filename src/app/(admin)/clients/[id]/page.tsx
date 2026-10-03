@@ -50,13 +50,13 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         { id: "overview", label: "Overview" }, { id: "users", label: "Users", count: clientUsers[client.id]?.length }, { id: "agents", label: "AI agents", count: na },
         { id: "workflows", label: "Workflows", count: nw }, { id: "policies", label: "Policies", count: np }, { id: "integrations", label: "Integrations" }, { id: "settings", label: "Settings" },
       ]} />
-      {tab === "overview" && <OverviewTab client={client} />}
-      {tab === "users" && <UsersTab client={client} />}
-      {tab === "agents" && <AgentsTab client={client} />}
-      {tab === "workflows" && <WorkflowsTab client={client} />}
-      {tab === "policies" && <PoliciesTab client={client} />}
-      {tab === "integrations" && <IntegrationsTab client={client} />}
-      {tab === "settings" && <SettingsTab client={client} accent={accent} onAccent={setAccent} displayName={displayName} onDisplayName={setDisplayName} />}
+      <div hidden={tab !== "overview"}><OverviewTab client={client} /></div>
+      <div hidden={tab !== "users"}><UsersTab client={client} /></div>
+      <div hidden={tab !== "agents"}><AgentsTab client={client} /></div>
+      <div hidden={tab !== "workflows"}><WorkflowsTab client={client} /></div>
+      <div hidden={tab !== "policies"}><PoliciesTab client={client} /></div>
+      <div hidden={tab !== "integrations"}><IntegrationsTab client={client} /></div>
+      <div hidden={tab !== "settings"}><SettingsTab client={client} accent={accent} onAccent={setAccent} displayName={displayName} onDisplayName={setDisplayName} /></div>
     </>
   );
 }

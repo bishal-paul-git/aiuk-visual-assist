@@ -28,17 +28,17 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
         { id: "knowledge", label: "Knowledge", count: agent.knowledge.length }, { id: "tools", label: "Tools", count: agent.tools.length }, { id: "workflows", label: "Workflows", count: agent.workflowIds.length },
         { id: "escalation", label: "Escalation rules" }, { id: "versions", label: "Version history" }, { id: "test", label: "Test conversation" },
       ]} />
-      {tab === "identity" && <T.IdentityTab agent={agent} />}
-      {tab === "greeting" && <T.GreetingTab agent={agent} />}
-      {tab === "voice" && <T.VoiceTab agent={agent} />}
-      {tab === "model" && <T.ModelTab agent={agent} />}
-      {tab === "languages" && <T.LanguagesTab agent={agent} />}
-      {tab === "knowledge" && <T.KnowledgeTab agent={agent} />}
-      {tab === "tools" && <T.ToolsTab agent={agent} />}
-      {tab === "workflows" && <T.WorkflowsTab agent={agent} />}
-      {tab === "escalation" && <T.EscalationTab agent={agent} />}
-      {tab === "versions" && <T.VersionsTab agent={agent} />}
-      {tab === "test" && <T.TestTab agent={agent} />}
+      <div hidden={tab !== "identity"}><T.IdentityTab agent={agent} /></div>
+      <div hidden={tab !== "greeting"}><T.GreetingTab agent={agent} /></div>
+      <div hidden={tab !== "voice"}><T.VoiceTab agent={agent} /></div>
+      <div hidden={tab !== "model"}><T.ModelTab agent={agent} /></div>
+      <div hidden={tab !== "languages"}><T.LanguagesTab agent={agent} /></div>
+      <div hidden={tab !== "knowledge"}><T.KnowledgeTab agent={agent} /></div>
+      <div hidden={tab !== "tools"}><T.ToolsTab agent={agent} /></div>
+      <div hidden={tab !== "workflows"}><T.WorkflowsTab agent={agent} /></div>
+      <div hidden={tab !== "escalation"}><T.EscalationTab agent={agent} /></div>
+      <div hidden={tab !== "versions"}><T.VersionsTab agent={agent} /></div>
+      <div hidden={tab !== "test"}><T.TestTab agent={agent} /></div>
     </>
   );
 }

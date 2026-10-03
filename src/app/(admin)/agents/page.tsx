@@ -34,7 +34,7 @@ export default function AgentsPage() {
                 <Td><AgentStatusChip status={a.status} /></Td>
                 <Td className="text-ink-soft">{a.voice}</Td>
                 <Td className="text-ink-soft">{a.language}</Td>
-                <Td className="max-w-[180px] truncate text-ink-soft" title={a.model}>{a.model}</Td>
+                <Td className="max-w-[180px] text-ink-soft"><span className="block truncate" title={a.model}>{a.model}</span></Td>
                 <Td>{a.workflowIds.map((w) => <Link key={w} href={`/workflows/${w}`} className="block text-ink-soft hover:text-brand-strong hover:underline">{workflowById(w)?.name ?? w}</Link>)}</Td>
                 <Td className="font-mono text-xs">{a.version}</Td>
                 <Td className="num text-right">{num(a.sessions30d)}</Td>
