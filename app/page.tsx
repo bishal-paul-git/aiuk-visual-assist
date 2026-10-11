@@ -33,7 +33,7 @@ export default function Home() {
         </p>
 
         <Link href="/demo" className="mt-6 inline-flex items-center gap-2 rounded-md bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy-2">
-          <MonitorPlay className="size-4" aria-hidden /> Open the demo stage — phone and agent console side by side
+          <MonitorPlay className="size-4" aria-hidden /> Watch the walkthrough: phone and agent console side by side
         </Link>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">

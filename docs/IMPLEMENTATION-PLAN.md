@@ -104,7 +104,8 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 |---|---|
 | Unit tests: workflow logic, policy checks, frame-selection rules, validation, state transitions | ✅ `tests/` (Vitest) |
 | End-to-end workflow tests through the orchestrator for every scenario (clear, glare, never-clear, wrong object, loose cable, model outage, customer asks for human, return to AI, max duration) | ✅ |
-| Browser E2E (Playwright), network simulation, security tests | ⬜ |
+| Browser E2E (Playwright) | ✅ `e2e/` — the demo walkthrough drives the real customer page and agent console for an AI-resolved and a human-resolved session; runs in CI |
+| Network simulation, security tests | ⬜ |
 | AI evaluation sets with real images | ⬜ — needs real model |
 
 ---
@@ -151,12 +152,14 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 npm install
 npm run dev        # http://localhost:3000
 npm test           # unit + orchestrator E2E tests
+npm run build:static && npm run test:e2e   # browser E2E (Playwright) against the static demo
 npm run typecheck
 npm run lint
 ```
 
 Optional: set `ANTHROPIC_API_KEY` (and optionally `VISUAL_ASSIST_MODEL`, default `claude-opus-5-5`) to enable **Live AI** sessions. Without it, every session uses the simulated provider.
 
+- `/demo` — demo stage. **Play walkthrough** scripts the customer and the agent through a whole session with captions (`lib/demo/walkthrough.ts`); **Start session** lets you drive both sides yourself.
 - `/` — entry point; **Start test session** creates a live router session and gives you the customer link.
 - `/assist/<token>` — customer experience (use a phone on the same network over HTTPS for the real camera, or the demo camera).
 - `/console` — Human Agent Console (pick an agent identity top right).
