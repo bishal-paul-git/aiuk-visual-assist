@@ -1,5 +1,5 @@
 import type { SessionState } from "@/lib/domain/session";
-import type { SessionChannel, WorkflowDefinition } from "@/lib/domain/types";
+import type { AuditEvent, DomainEventType, SessionChannel, WorkflowDefinition } from "@/lib/domain/types";
 import { agents, getPolicy, getTenant, getWorkflow } from "@/lib/config/catalog";
 import {
   createSession,
@@ -53,7 +53,7 @@ interface Entry {
   listeners: Set<() => void>;
 }
 
-interface StoredFrame {
+export interface StoredFrame {
   sessionId: string;
   mime: string;
   data: Uint8Array;
@@ -269,14 +269,17 @@ export class SessionRuntime {
 
   storeFrame(sessionId: string, mime: string, data: Uint8Array): string {
     const frameId = `mem_${uuid().slice(0, 12)}`;
-    this.frames.set(frameId, { sessionId, mime, data, createdAt: Date.now() });
+    const frame = { sessionId, mime, data, createdAt: Date.now() };
+    this.frames.set(frameId, frame);
+    this.onFrameStored?.(frameId, frame);
     return frameId;
   }
 
   /** Resolve a frame reference ("mem:<id>") to stored bytes, scoped to its session. */
   getFrame(sessionId: string, frameReference: string): StoredFrame | undefined {
     if (!frameReference.startsWith("mem:")) return undefined;
-    const f = this.frames.get(frameReference.slice(4));
+    const frameId = frameReference.slice(4);
+    const f = this.frames.get(frameId) ?? this.frameLoader?.(sessionId, frameId);
     return f && f.sessionId === sessionId ? f : undefined;
   }
 
@@ -368,6 +371,54 @@ export class SessionRuntime {
 
   private notifyGlobal() {
     for (const fn of this.globalListeners) fn();
+  }
+
+  // -------------------------------------------------------------------------
+  // Persistence & integration hooks (server edition; see lib/server/store)
+  // -------------------------------------------------------------------------
+
+  /** Called after a selected-evidence frame is stored (used to persist it). */
+  onFrameStored?: (frameId: string, frame: StoredFrame) => void;
+  /** Fallback for frames not held in memory (e.g. read lazily from a durable store). */
+  frameLoader?: (sessionId: string, frameId: string) => StoredFrame | undefined;
+
+  /** Put a previously persisted frame back into memory. */
+  restoreFrame(frameId: string, frame: StoredFrame) {
+    this.frames.set(frameId, frame);
+  }
+
+  allSessionIds(): string[] {
+    return [...this.sessions.keys()];
+  }
+
+  /**
+   * Append an audit event raised outside the orchestrator (e.g. link delivery
+   * by an integration). The state is replaced, not mutated, and the sequence
+   * number advances so snapshots and subscribers see the change.
+   */
+  recordAudit(sessionId: string, eventType: DomainEventType, payload: Record<string, unknown>, actor: Actor): boolean {
+    const entry = this.sessions.get(sessionId);
+    if (!entry) return false;
+    const event: AuditEvent = {
+      id: `aud_${uuid().slice(0, 12)}`,
+      tenantId: entry.state.session.tenantId,
+      sessionId,
+      actorType: actor.type,
+      actorId: actor.id,
+      eventType,
+      payload,
+      timestamp: new Date().toISOString(),
+      context: {
+        workflowVersion: entry.workflow.version,
+        policyVersion: entry.deps.policy.version,
+        modelVersion: entry.state.session.modelVersion,
+        promptVersion: entry.deps.agent.promptVersion,
+      },
+    };
+    entry.state = { ...entry.state, audit: [...entry.state.audit, event], seq: entry.state.seq + 1 };
+    this.notify(entry);
+    this.onCommit?.(sessionId);
+    return true;
   }
 }
 

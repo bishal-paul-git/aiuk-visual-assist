@@ -389,9 +389,32 @@ export interface CostEvent {
   category: "media" | "speech_to_text" | "text_to_speech" | "vision_inference" | "llm_turn" | "workflow_action";
   quantity: number;
   unit: "minute" | "frame" | "turn" | "character" | "call";
+  /** Cost in GBP. Measured when `basis` is "measured", otherwise a unit-rate estimate. */
   estimatedCost: number;
   currency: "GBP";
   timestamp: ISODateString;
+  /**
+   * "measured": priced from token usage reported by the model provider.
+   * "estimated" (or absent, for older records): flat unit rate from COST_RATES.
+   */
+  basis?: "estimated" | "measured";
+  /** Provider-reported token usage behind a measured cost. */
+  usage?: ModelUsage;
+}
+
+/** Token usage for one model call, as reported by the provider (e.g. Anthropic `usage`). */
+export interface ModelUsageParts {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+}
+
+export interface ModelUsage extends ModelUsageParts {
+  /** Per-model breakdown when more than one model ran (e.g. a server-side fallback). */
+  parts?: ModelUsageParts[];
+  latencyMs?: number;
 }
 
 export interface AgentNote {
@@ -468,4 +491,6 @@ export type DomainEventType =
   | "config.workflow_submitted"
   | "config.workflow_published"
   | "config.workflow_retired"
-  | "config.workflow_discarded";
+  | "config.workflow_discarded"
+  | "notification.sent"
+  | "notification.failed";

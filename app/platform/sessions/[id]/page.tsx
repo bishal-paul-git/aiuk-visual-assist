@@ -544,7 +544,14 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                     <tr key={c.id}>
                       <Td className="tabular whitespace-nowrap">{formatTimeSec(c.timestamp)}</Td>
                       <Td>{humanize(c.category)}</Td>
-                      <Td className="text-xs">{c.provider}</Td>
+                      <Td className="text-xs">
+                        {c.provider}
+                        <div className="text-[11px] text-muted">
+                          {c.basis === "measured" && c.usage
+                            ? `Measured · ${c.usage.inputTokens + c.usage.cacheCreationInputTokens + c.usage.cacheReadInputTokens} in / ${c.usage.outputTokens} out tokens`
+                            : "Estimated"}
+                        </div>
+                      </Td>
                       <Td align="right">
                         {Number.isInteger(c.quantity) ? c.quantity : c.quantity.toFixed(2)} {c.unit}
                       </Td>

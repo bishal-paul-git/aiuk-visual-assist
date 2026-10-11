@@ -2,6 +2,7 @@ import { getRuntime } from "@/lib/server/runtime";
 import { jsonError, readJson, resolveAgent, str } from "@/lib/server/http";
 import type { Command } from "@/lib/session/orchestrator";
 import type { SessionOutcome } from "@/lib/domain/types";
+import { requestLogger } from "@/lib/server/log";
 
 const OUTCOMES: SessionOutcome[] = ["resolved_by_human", "escalated_unresolved", "customer_abandoned", "out_of_scope", "failed"];
 
@@ -67,6 +68,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const rt = getRuntime();
   if (!rt.get(id)) return jsonError("Session not found", 404);
   const { error } = rt.dispatch(id, command, actor);
-  if (error) return jsonError(error, 409);
+  if (error) {
+    requestLogger(request, { sessionId: id }).warn("command.rejected", { command: command.type, actorId: actor.id, error });
+    return jsonError(error, 409);
+  }
   return Response.json({ ok: true });
 }

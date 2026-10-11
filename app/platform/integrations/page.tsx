@@ -6,6 +6,9 @@ import { humanize } from "@/lib/domain/labels";
 import { Badge, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
 import { withinDays } from "@/components/platform/config-data";
 import { Chips, IntegrationStatusBadge, Note } from "@/components/platform/config-ui";
+import { LinkDeliveryPanel } from "@/components/platform/link-delivery-panel";
+import { getNotifications } from "@/lib/server/notifications";
+import { STATIC_EXPORT } from "@/lib/server/platform-data";
 
 export const metadata = { title: "Integrations" };
 
@@ -148,6 +151,8 @@ export default async function IntegrationsPage() {
           </Panel>
         ))}
       </div>
+
+      <LinkDeliveryPanel states={rt.states()} notifications={getNotifications()} staticDemo={STATIC_EXPORT} />
 
       <Note className="mt-4" icon={<Info className="size-3.5" />}>
         p95 latency, error rate and last sync are catalogue values for sandbox connections, not live monitoring. Observed calls are computed from session records,

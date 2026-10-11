@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, ExternalLink, FlaskConical, Headset, Sparkles, Smartphone, X } from "lucide-react";
+import { CheckCircle2, Copy, ExternalLink, FlaskConical, Headset, Mail, MessageSquare, Send, Sparkles, Smartphone, X, XCircle } from "lucide-react";
 import { SCENARIOS } from "@/lib/providers/mock/scenarios";
-import { BASE_PATH, getTransport } from "@/lib/client/transport";
+import { BASE_PATH, STATIC_DEMO, getTransport, type LinkDelivery } from "@/lib/client/transport";
+import { normaliseEmail, normalisePhone } from "@/lib/notifications/validate";
 import { buttonClass, cx } from "@/components/ui/primitives";
 
 interface Created {
   id: string;
   customerPath: string;
   consolePath: string;
+  delivery?: LinkDelivery[];
 }
 
 /**
@@ -25,6 +27,8 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
   const [created, setCreated] = useState<Created>();
   const [copied, setCopied] = useState(false);
   const [live, setLive] = useState<{ liveReasoning: boolean; model: string | null }>();
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
     if (!open || live) return;
@@ -35,11 +39,28 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
   }, [open, live]);
 
   async function create() {
-    setBusy(true);
     setError(undefined);
+    const deliverTo: { sms?: string; email?: string } = {};
+    if (!STATIC_DEMO && phone.trim()) {
+      const p = normalisePhone(phone);
+      if (!p) return setError("Enter the mobile number in international format, e.g. +44 7700 900123.");
+      deliverTo.sms = p;
+    }
+    if (!STATIC_DEMO && email.trim()) {
+      const e = normaliseEmail(email);
+      if (!e) return setError("Enter a valid email address.");
+      deliverTo.email = e;
+    }
+    setBusy(true);
     try {
       const t = await getTransport();
-      const r = await t.createSession({ workflowKey: "router-troubleshooting", tenantId: "tnt_northline", scenario, channel });
+      const r = await t.createSession({
+        workflowKey: "router-troubleshooting",
+        tenantId: "tnt_northline",
+        scenario,
+        channel,
+        ...(deliverTo.sms || deliverTo.email ? { deliverTo } : {}),
+      });
       if (!r.ok) throw new Error(r.error);
       setCreated(r);
     } catch (e) {
@@ -144,6 +165,42 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
                     <option value="contact_centre">Contact-centre transfer</option>
                   </select>
                 </label>
+                {!STATIC_DEMO && (
+                  <fieldset className="rounded-md border border-line p-3">
+                    <legend className="flex items-center gap-1.5 px-1 text-xs font-semibold text-ink-2">
+                      <Send className="size-3.5" aria-hidden /> Send the link to the customer <span className="font-normal text-muted">(optional)</span>
+                    </legend>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] font-medium text-ink-2">Mobile (SMS)</span>
+                        <input
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="off"
+                          placeholder="+44 7700 900123"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="h-9 w-full rounded-md border border-line-strong bg-surface px-2 text-sm"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] font-medium text-ink-2">Email</span>
+                        <input
+                          type="email"
+                          autoComplete="off"
+                          placeholder="customer@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="h-9 w-full rounded-md border border-line-strong bg-surface px-2 text-sm"
+                        />
+                      </label>
+                    </div>
+                    <p className="mt-2 text-[11px] text-muted">
+                      Sent through the configured SMS and email providers. Without provider credentials the message is kept in the outbox on the Integrations page
+                      instead of being delivered.
+                    </p>
+                  </fieldset>
+                )}
                 {error && <p className="text-xs text-danger">{error}</p>}
                 <div className="flex justify-end">
                   <button type="button" className={buttonClass("primary")} disabled={busy} onClick={create}>
@@ -154,6 +211,24 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
             ) : (
               <div className="space-y-4 p-5">
                 <p className="text-sm text-ink-2">Session created. Open the customer link on a phone (or this device), then follow along in the console.</p>
+                {created.delivery && created.delivery.length > 0 && (
+                  <ul className="space-y-1.5" aria-label="Link delivery">
+                    {created.delivery.map((d) => (
+                      <li key={d.channel} className="flex items-start gap-2 rounded-md border border-line px-3 py-2 text-xs">
+                        {d.channel === "sms" ? <MessageSquare className="mt-0.5 size-3.5 shrink-0 text-muted" aria-hidden /> : <Mail className="mt-0.5 size-3.5 shrink-0 text-muted" aria-hidden />}
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium text-ink">
+                            {d.channel === "sms" ? "SMS" : "Email"} to {d.to}
+                          </span>
+                          <span className="block text-muted">
+                            {d.ok ? (d.simulated ? "Recorded in the outbox — not delivered (no provider configured)" : `Accepted by ${d.provider}`) : (d.error ?? "Not sent")}
+                          </span>
+                        </span>
+                        {d.ok ? <CheckCircle2 className="size-4 shrink-0 text-ok" aria-label="Sent" /> : <XCircle className="size-4 shrink-0 text-danger" aria-label="Failed" />}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="flex items-center gap-2 rounded-md border border-line bg-surface-2 p-2">
                   <code className="min-w-0 flex-1 truncate text-xs text-ink">{link}</code>
                   <button

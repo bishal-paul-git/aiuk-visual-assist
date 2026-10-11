@@ -25,6 +25,17 @@ export interface CreateSessionInput {
   tenantId: string;
   scenario: string;
   channel: string;
+  /** Server edition only: send the customer link by SMS and/or email. */
+  deliverTo?: { sms?: string; email?: string };
+}
+
+export interface LinkDelivery {
+  channel: "sms" | "email";
+  to: string;
+  provider: string;
+  simulated: boolean;
+  ok: boolean;
+  error?: string;
 }
 
 export interface Transport {
@@ -41,7 +52,9 @@ export interface Transport {
   /** Latest live preview as a displayable URL, or null. `revoke` means the caller owns an object URL. */
   latestPreview(id: string): Promise<{ url: string; revoke: boolean } | null>;
   frameUrl(sessionId: string, frame: Pick<VisualEvent, "id" | "frameReference">): string;
-  createSession(input: CreateSessionInput): Promise<{ ok: true; id: string; customerPath: string; consolePath: string } | { ok: false; error: string }>;
+  createSession(
+    input: CreateSessionInput,
+  ): Promise<{ ok: true; id: string; customerPath: string; consolePath: string; delivery?: LinkDelivery[] } | { ok: false; error: string }>;
   capabilities(): Promise<{ liveReasoning: boolean; model: string | null; mode: "server" | "browser" }>;
 }
 
@@ -96,8 +109,8 @@ const serverTransport: Transport = {
   async createSession(input) {
     const r = await postJson("/api/sessions", input);
     if (!r.ok) return { ok: false, error: r.error ?? "Could not create session" };
-    const d = r.data as { id: string; token: string };
-    return { ok: true, id: d.id, customerPath: customerPath(d.token), consolePath: consolePath(d.id) };
+    const d = r.data as { id: string; token: string; delivery?: LinkDelivery[] };
+    return { ok: true, id: d.id, customerPath: customerPath(d.token), consolePath: consolePath(d.id), delivery: d.delivery };
   },
   async capabilities() {
     const r = await fetch("/api/capabilities").then((x) => x.json()).catch(() => ({ liveReasoning: false, model: null }));

@@ -43,10 +43,10 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Real multimodal reasoning | ✅ (needs key) | `lib/providers/claude/reasoning.ts` — Claude (`claude-opus-5-5`, low effort, server-side refusal fallback) with JSON-schema output, validated against each workflow's `observationVocabulary`; enabled when `ANTHROPIC_API_KEY` is set. Scenario sessions keep using the simulator (`lib/providers/routing.ts`) |
 | Sensitive visual data policy (docs/06 §4) | ✅ | Vision layer flags people, cards, ID, screens, plates; tenant policy decides escalate / ask to re-frame / allow |
 | Workflow versioning (draft → review → publish, retire, pinning) | ✅ | `lib/workflow/registry.ts`, `/platform/workflows/[id]/edit`; config changes audited; structural (step/rule) editing still to come |
-| Provider abstraction (video transport, speech, identity, storage, notifications) | 🟡 | Voice is browser-native behind hooks (`lib/client/speech.ts`); media transport is an interim preview relay; storage is in-memory |
+| Provider abstraction (video transport, speech, identity, storage, notifications) | 🟡 | Storage: `SessionStore` (memory / file) in `lib/server/store/`. Notifications: `NotificationProvider` (Twilio SMS, Resend-style email, console outbox) in `lib/server/notifications/`. Voice is browser-native behind hooks; media transport is an interim preview relay |
 | Multi-tenancy | 🟡 | All entities tenant-scoped; config per tenant (workflow, policy, agent, retention, branding, flags). No auth-enforced isolation yet |
-| Durable data platform | ⬜ | In-memory runtime (`lib/server/runtime.ts`) — Phase 3 |
-| Observability (logs/metrics/traces) | 🟡 | Audit + cost + latency captured per session; OpenTelemetry export not yet |
+| Durable data platform | 🟡 | File store under `DATA_DIR` (atomic JSON snapshots + frame files, debounced write-through, restore on boot). Postgres adapter shape documented in `lib/server/store/types.ts` — Phase 3. See `PRODUCTION-READINESS.md` |
+| Observability (logs/metrics/traces) | 🟡 | `/api/health` (liveness/readiness), `/api/metrics` (Prometheus), structured JSON logs with request/session ids (`lib/server/log.ts`). OpenTelemetry traces not yet |
 
 ### 2.2 Customer Visual Assistance (docs/03 §2)
 
@@ -62,7 +62,7 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Captions / transcript | ✅ | Live caption of current instruction + full transcript sheet |
 | Connection quality visible | ✅ | SSE status + upload latency → good/fair/weak/reconnecting, reported to the orchestrator |
 | Transparency when a human can see the camera | ✅ | "Your camera is visible to …" indicator |
-| QR / SMS / website / authenticated entry | 🟡 | Channel recorded on session; SMS/QR delivery integrations not built |
+| QR / SMS / website / authenticated entry | 🟡 | SMS and email link delivery built (`deliverTo` on session create, audited, masked); QR and authenticated entry not built |
 
 ### 2.3 Human Agent Console (docs/03 §3)
 
@@ -96,7 +96,7 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Command allow-lists per role; input validation; frame size limits | ✅ |
 | SSO, MFA, RBAC, encryption at rest, key rotation, retention/deletion jobs, redaction | ⬜ 🔮 Phases 4–6 |
 | DPIA, data-residency records | ⬜ (residency fields exist per tenant) |
-| Horizontal scale, durable store, DR | ⬜ 🔮 |
+| Horizontal scale, durable store, DR | 🟡 Durable on one instance (`DATA_DIR`); multi-instance and DR need Postgres + shared event bus 🔮 |
 
 ### 2.6 QA (docs/08)
 
@@ -123,7 +123,7 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 - 50+ unit/E2E tests.
 
 ### Phase 2 — Technical POC: real router interaction (in progress)
-1. ✅ **Real multimodal reasoning provider** behind `ReasoningProvider` — structured JSON output (docs/05 §2) validated against the workflow vocabulary; refusals/invalid output escalate. Remaining: per-token cost capture from `usage`, prompt-version registry, evaluation set with real images.
+1. ✅ **Real multimodal reasoning provider** behind `ReasoningProvider` — structured JSON output (docs/05 §2) validated against the workflow vocabulary; refusals/invalid output escalate. ✅ Per-token cost capture from `usage` (measured vs estimated, fallback-aware). Remaining: prompt-version registry, evaluation set with real images.
 2. **Real voice layer** — streaming ASR/TTS with barge-in/turn-taking, behind the existing hooks.
 3. **WebRTC media layer** — SFU rooms with customer, AI and human participants; replaces the preview relay; human join uses the same room.
 4. **Media gateway service** — server-side frame selection on the video track (scene change, scheduled low-rate sample), alongside the client stability gate.
@@ -132,11 +132,11 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 ### Phase 3 — Internal alpha
 - Durable event store + session store (Postgres), orchestrator as a service, outbox for effects.
 - ✅ Workflow versioning (draft → review → publish, pinning, audit). Remaining: durable storage, four-eyes approval, structural builder, policy versioning.
-- OpenTelemetry traces with session correlation IDs; alerting.
+- ✅ Health/metrics endpoints and JSON logs with correlation ids. Remaining: OpenTelemetry traces, alerting.
 - QA tooling: human review queue, evaluation sets with labelled images, calibration reports.
 
 ### Phase 4 — Client pilot (Northline)
-- SSO for agents/admins, tenant-enforced RBAC, real CRM/line-test/engineer-booking integrations, SMS link delivery, privacy controls and DPIA.
+- SSO for agents/admins, tenant-enforced RBAC, real CRM/line-test/engineer-booking integrations, privacy controls and DPIA. (✅ SMS/email link delivery adapters — needs pilot credentials.)
 
 ### Phase 5 — Production pilot
 - Retention/deletion jobs, redaction, incident process, resilience (provider failover, retries), cost attribution per tenant, production monitoring.
@@ -166,7 +166,7 @@ Optional: set `ANTHROPIC_API_KEY` (and optionally `VISUAL_ASSIST_MODEL`, default
 - `/platform` — AIUK Management Platform.
 - Seeded in-flight sessions: `/assist/demo-escalated`, `/assist/demo-glare`, `/assist/demo-power-cycle`, `/assist/demo-human`.
 
-The runtime is in-process and in-memory: restarting the server resets live sessions and regenerates seed history.
+By default the runtime is in-memory: restarting resets live sessions and regenerates seed history. For durable runs use `npm run build && DATA_DIR=./data npm start` — see `PRODUCTION-READINESS.md` for all environment variables, `/api/health` and `/api/metrics`.
 
 ---
 
@@ -193,6 +193,6 @@ lib/analytics/metrics.ts  Metrics derived from session records
 1. **Return to AI after a customer asks for a person** — treated as mandatory-human (customer must not be bounced back to AI). Configurable per policy via `mandatoryHumanReasons`.
 2. **"Join" vs "Take over"** — join adds the agent to the interaction (observe/assist) without changing ownership; take over transfers ownership and stops AI workflow progression. AI continues to analyse requested frames as a copilot after takeover (docs/01 §8.6 "optional AI copilot"), but cannot advance the workflow.
 3. **Agent preview before WebRTC** — a 1 fps JPEG relay, active only while a human is present or the session is escalated, never analysed or retained. The customer is told when their camera is visible to a person.
-4. **Costs** use placeholder unit rates in `lib/domain/pricing.ts` until provider contracts exist.
+4. **Costs** use placeholder unit rates in `lib/domain/pricing.ts` until provider contracts exist, except live model calls, which are priced from provider-reported tokens at list price (labelled *measured*).
 5. **Repeat-contact rate, field-visit avoidance and CSAT** need CRM integration and are shown as not yet measurable rather than estimated.
 6. **Customer-facing brand** (e.g. "Northline") is per-tenant configuration; the reference image's third-party router branding is not used.
