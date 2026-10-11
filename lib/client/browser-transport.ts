@@ -10,6 +10,7 @@ import { getScenario } from "@/lib/providers/mock/scenarios";
 import type { Actor, Command } from "@/lib/session/orchestrator";
 import type { FrameTrigger, SessionChannel } from "@/lib/domain/types";
 import { consolePath, customerPath, syntheticFrameUrl, type Result, type Transport } from "./transport";
+import { demoCustomerLabel } from "@/lib/domain/labels";
 
 /**
  * Browser-hosted runtime for the static demo (GitHub Pages). Every tab runs
@@ -251,7 +252,7 @@ export function createBrowserTransport(): Transport {
           workflowKey: input.workflowKey,
           tenantId: input.tenantId,
           channel: input.channel as SessionChannel,
-          customerLabel: `Test customer ${new Date().toISOString().slice(11, 16)}`,
+          customerLabel: demoCustomerLabel(),
           scenario,
         });
         return { ok: true, id, customerPath: customerPath(token), consolePath: consolePath(id) };

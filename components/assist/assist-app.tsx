@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Camera,
   CameraOff,
@@ -100,6 +100,24 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     if (view.customerState === "consent") await send({ type: "customer.consent", accepted: true, noticeVersion: NOTICE_VERSION });
     setPhase("live");
   }
+
+  // --- Demo walkthrough: accept the notice and use the demo camera ---------
+  // The demo stage opens this page with ?autoplay=1. Everything after this
+  // (the conversation, the agent) is driven through the normal commands.
+  const autoplay = useAutoplay();
+  const startRef = useRef(startWith);
+  startRef.current = startWith;
+  useEffect(() => {
+    if (!autoplay || ended) return;
+    if (phase === "consent") {
+      const t = setTimeout(() => setPhase("permissions"), 2500);
+      return () => clearTimeout(t);
+    }
+    if (phase === "permissions") {
+      const t = setTimeout(() => void startRef.current("demo"), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [autoplay, phase, ended]);
 
   // --- Media gateway: stability-gated evidence capture ---------------------
   const req = view.evidenceRequest;
@@ -253,8 +271,8 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
         </div>
         <div className="flex items-center gap-1.5">
           {view.scenario && (
-            <span className="flex items-center gap-1 rounded-full border border-dashed border-white/30 px-2 py-0.5 text-[10px] text-white/70" title="Test session — AI responses are simulated">
-              <FlaskConical className="size-3" aria-hidden /> Test
+            <span className="flex items-center gap-1 rounded-full border border-dashed border-white/30 px-2 py-0.5 text-[10px] text-white/70" title="Demo session: AI responses are simulated">
+              <FlaskConical className="size-3" aria-hidden /> Demo
             </span>
           )}
           <QualityIndicator quality={quality} />
@@ -609,5 +627,14 @@ function TranscriptSheet({ view, onClose }: { view: CustomerView; onClose: () =>
         ))}
       </ol>
     </div>
+  );
+}
+
+const noSubscribe = () => () => {};
+function useAutoplay(): boolean {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => new URLSearchParams(window.location.search).get("autoplay") === "1",
+    () => false,
   );
 }

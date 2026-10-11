@@ -403,11 +403,16 @@ function CaptureRequest({ disabled, onRequest }: { disabled: boolean; onRequest:
 }
 
 function Transcript({ view }: { view: AgentView }) {
-  const endRef = useRef<HTMLLIElement>(null);
+  const listRef = useRef<HTMLOListElement>(null);
   const count = view.state.transcript.length;
-  useEffect(() => endRef.current?.scrollIntoView({ block: "end" }), [count]);
+  // Scroll only the transcript itself: scrollIntoView would also scroll the
+  // page (and any page embedding the console).
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [count]);
   return (
-    <ol className="flex-1 space-y-3 overflow-y-auto p-3" aria-live="polite">
+    <ol ref={listRef} className="flex-1 space-y-3 overflow-y-auto p-3" aria-live="polite">
       {view.state.transcript.map((t) => (
         <li key={t.id} className={cx("flex gap-2.5", t.speaker === "system" && "justify-center")}>
           {t.speaker === "system" ? (
@@ -438,7 +443,6 @@ function Transcript({ view }: { view: AgentView }) {
           )}
         </li>
       ))}
-      <li ref={endRef} aria-hidden />
     </ol>
   );
 }

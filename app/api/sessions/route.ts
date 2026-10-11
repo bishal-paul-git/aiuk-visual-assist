@@ -2,6 +2,7 @@ import { getRuntime } from "@/lib/server/runtime";
 import { jsonError, readJson, str } from "@/lib/server/http";
 import { getScenario } from "@/lib/providers/mock/scenarios";
 import type { SessionChannel } from "@/lib/domain/types";
+import { demoCustomerLabel } from "@/lib/domain/labels";
 
 const CHANNELS: SessionChannel[] = ["secure_link", "sms", "qr", "website", "contact_centre"];
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   // "live" runs on the configured model provider; anything else is a simulation scenario.
   const requested = str(body.scenario, 60) ?? undefined;
   const scenario = requested === "live" ? undefined : getScenario(requested).key;
-  const customerLabel = str(body.customerLabel, 60) ?? `Test customer ${new Date().toISOString().slice(11, 16)}`;
+  const customerLabel = str(body.customerLabel, 60) ?? demoCustomerLabel();
   try {
     const { id, token } = getRuntime().create({ workflowId, workflowKey, tenantId, channel, customerLabel, scenario });
     return Response.json({ id, token, customerPath: `/assist/${token}`, consolePath: `/console/sessions/${id}` }, { status: 201 });
