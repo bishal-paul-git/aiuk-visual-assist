@@ -1,6 +1,3 @@
-import { users } from "@/lib/config/catalog";
-import type { Actor } from "@/lib/session/orchestrator";
-
 export function jsonError(message: string, status = 400) {
   return Response.json({ error: message }, { status });
 }
@@ -23,16 +20,6 @@ export function decodeImageDataUrl(value: unknown): { mime: string; data: Uint8A
   const m = DATA_URL.exec(value);
   if (!m) return null;
   return { mime: m[1], data: new Uint8Array(Buffer.from(m[2], "base64")) };
-}
-
-/**
- * POC agent identity. Real deployments resolve the actor from the SSO session
- * (docs/06 §2); until then the console selects a known catalog user.
- */
-export function resolveAgent(value: unknown): Actor | null {
-  const id = typeof value === "string" ? value : "usr_sarah";
-  const user = users.find((u) => u.id === id && (u.role === "agent" || u.role === "supervisor"));
-  return user ? { type: "human_agent", id: user.id, name: user.name } : null;
 }
 
 export function str(value: unknown, max = 2000): string | null {

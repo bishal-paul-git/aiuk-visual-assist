@@ -9,6 +9,7 @@ import { seedSessions } from "@/lib/runtime/seed";
 export { SessionRuntime, MAX_FRAME_BYTES } from "@/lib/runtime/session-runtime";
 
 const GLOBAL_KEY = "__aiukVisualAssistRuntime";
+export const RETENTION_INTERVAL_MS = 10 * 60_000;
 
 /** Process-wide singleton (survives dev hot reloads). */
 export function getRuntime(): SessionRuntime {
@@ -17,7 +18,13 @@ export function getRuntime(): SessionRuntime {
   if (!rt) {
     rt = new SessionRuntime(new RoutingReasoningProvider(new MockReasoningProvider(), liveProvider()), new MockToolExecutor());
     seedSessions(rt);
-    const timer = setInterval(() => rt!.tick(), 10_000);
+    rt.runRetention();
+    const timer = setInterval(() => {
+      rt!.tick();
+      // Retention job (docs/06 §3): delete expired evidence and transcripts.
+      const last = rt!.retentionStatus ? Date.parse(rt!.retentionStatus.lastRunAt) : 0;
+      if (Date.now() - last >= RETENTION_INTERVAL_MS) rt!.runRetention();
+    }, 10_000);
     if (typeof timer === "object" && "unref" in timer) timer.unref();
     g[GLOBAL_KEY] = rt;
   }

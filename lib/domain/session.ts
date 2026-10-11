@@ -124,4 +124,13 @@ export interface SessionState {
   audit: AuditEvent[];
   costs: CostEvent[];
   consent?: { acceptedAt: ISODateString; noticeVersion: string; evidenceMode: string };
+  /** What the retention job has deleted from this session (docs/06 §3). */
+  retention?: RetentionRecord;
+}
+
+export interface RetentionRecord {
+  evidencePurgedAt?: ISODateString;
+  framesPurged?: number;
+  transcriptPurgedAt?: ISODateString;
+  transcriptEventsPurged?: number;
 }

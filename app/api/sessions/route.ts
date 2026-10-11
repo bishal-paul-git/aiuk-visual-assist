@@ -3,11 +3,18 @@ import { jsonError, readJson, str } from "@/lib/server/http";
 import { getScenario } from "@/lib/providers/mock/scenarios";
 import type { SessionChannel } from "@/lib/domain/types";
 import { demoCustomerLabel } from "@/lib/domain/labels";
+import { getWorkflow } from "@/lib/config/catalog";
+import { scopeTenantFilter } from "@/lib/auth/rbac";
+import { authorize, authError } from "@/lib/server/auth";
 
 const CHANNELS: SessionChannel[] = ["secure_link", "sms", "qr", "website", "contact_centre"];
 
 export async function GET(request: Request) {
-  const tenantId = new URL(request.url).searchParams.get("tenant") ?? undefined;
+  const auth = await authorize("session.view");
+  if (!auth.ok) return auth.response;
+  // Non-platform roles only ever see their own tenant.
+  const tenantId = scopeTenantFilter(auth.user, new URL(request.url).searchParams.get("tenant") ?? undefined);
+  if (tenantId === null) return authError(403, "This belongs to another client organisation.");
   return Response.json({ sessions: getRuntime().summaries({ tenantId }) });
 }
 
@@ -18,6 +25,10 @@ export async function POST(request: Request) {
   const workflowKey = str(body.workflowKey, 100) ?? undefined;
   const tenantId = str(body.tenantId, 100) ?? undefined;
   const workflowId = workflowKey ? undefined : (str(body.workflowId, 100) ?? "wf_router_v3");
+  const ownerTenant = tenantId ?? (workflowId ? getWorkflow(workflowId)?.tenantId : undefined);
+  if (!ownerTenant) return jsonError("Unknown workflow", 422);
+  const auth = await authorize("session.create", { tenantId: ownerTenant });
+  if (!auth.ok) return auth.response;
   const channel = (str(body.channel, 40) ?? "secure_link") as SessionChannel;
   if (!CHANNELS.includes(channel)) return jsonError("Unknown channel");
   // "live" runs on the configured model provider; anything else is a simulation scenario.

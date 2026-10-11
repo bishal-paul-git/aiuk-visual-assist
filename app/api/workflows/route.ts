@@ -1,6 +1,6 @@
 import { getWorkflowRegistry, WorkflowRegistryError } from "@/lib/workflow/registry";
 import { jsonError, readJson, str } from "@/lib/server/http";
-import { resolveAdmin } from "@/lib/server/admin";
+import { authorizeConfig } from "@/lib/server/admin";
 
 /** Create a new draft version from an existing version. */
 export async function POST(request: Request) {
@@ -10,8 +10,9 @@ export async function POST(request: Request) {
   const reg = getWorkflowRegistry();
   const base = reg.get(fromId);
   if (!base) return jsonError("Workflow not found", 404);
-  const actor = resolveAdmin(body?.actorId, base);
-  if (!actor) return jsonError("Not permitted", 403);
+  const auth = await authorizeConfig("workflow.edit", base);
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   try {
     const draft = reg.createDraft(fromId, actor);
     return Response.json({ id: draft.id, version: draft.version }, { status: 201 });

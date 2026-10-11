@@ -12,6 +12,7 @@ import type {
   SessionOutcome,
   Speaker,
   ToolAction,
+  TranscriptEvent,
   VisualEvent,
   VisualObservation,
   WorkflowDefinition,
@@ -21,6 +22,7 @@ import type { EvidenceRequest, MediaState, SessionState, StepRecord } from "@/li
 import { assessEvidence, getStep, selectNext, type StepFacts } from "@/lib/workflow/engine";
 import { canReturnToAi, checkTool, detectHumanRequest, findDuplicate, isMandatoryHuman } from "@/lib/policy/engine";
 import { COST_RATES } from "@/lib/domain/pricing";
+import { redactPii } from "@/lib/privacy/redact";
 
 /**
  * Session Orchestrator (docs/02 §3.5).
@@ -534,8 +536,8 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
 
     case "human.message": {
       if (!cmd.text.trim()) return "Empty message";
-      ctx.addTranscript("human_agent", ctx.actor.name, cmd.text.trim(), 1);
-      s.instruction = { text: cmd.text.trim(), from: "human", at: ctx.now };
+      const t = ctx.addTranscript("human_agent", ctx.actor.name, cmd.text.trim(), 1);
+      s.instruction = { text: t.text, from: "human", at: ctx.now };
       return;
     }
 
@@ -553,8 +555,9 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
         requestedBy: "human",
         requestedAt: ctx.now,
       };
-      ctx.addTranscript("human_agent", ctx.actor.name, cmd.prompt, 1);
-      s.instruction = { text: cmd.prompt, from: "human", at: ctx.now };
+      const t = ctx.addTranscript("human_agent", ctx.actor.name, cmd.prompt, 1);
+      s.evidenceRequest.prompt = t.text;
+      s.instruction = { text: t.text, from: "human", at: ctx.now };
       s.customerState = "show_object";
       return;
     }
@@ -727,8 +730,22 @@ class Ctx {
   }
 
   addTranscript(speaker: Speaker, name: string, text: string, confidence: number) {
-    const t = { id: this.deps.id("utt"), sessionId: this.s.session.id, speaker, speakerName: name, timestamp: this.now, text, confidence };
+    const t: TranscriptEvent = { id: this.deps.id("utt"), sessionId: this.s.session.id, speaker, speakerName: name, timestamp: this.now, text, confidence };
+    // Customer and agent text is free-form: remove personal data before it is stored (docs/06 §3).
+    if (speaker === "customer" || speaker === "human_agent") {
+      const r = redactPii(text);
+      if (r.total > 0) {
+        t.text = r.text;
+        t.redactions = r.redactions;
+      }
+    }
     this.s.transcript.push(t);
+    if (t.redactions) this.audit("privacy.redacted", {
+        transcriptId: t.id,
+        speaker,
+        types: t.redactions.map((x) => x.type).join(", "),
+        count: t.redactions.reduce((n, x) => n + x.count, 0),
+      });
     return t;
   }
 

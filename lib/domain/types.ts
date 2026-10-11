@@ -268,6 +268,16 @@ export interface TranscriptEvent {
   confidence: number;
   /** Interpreted intent, set once the reasoning layer has processed the turn. */
   intent?: string;
+  /** Personal data removed from `text` before it was stored (docs/06 §3). */
+  redactions?: RedactionCount[];
+}
+
+/** Kinds of personal data removed from transcript text before storage. */
+export type RedactionType = "card_number" | "email" | "phone" | "postcode" | "account_number";
+
+export interface RedactionCount {
+  type: RedactionType;
+  count: number;
 }
 
 export type FrameTrigger =
@@ -291,6 +301,8 @@ export interface VisualEvent {
   height: number;
   bytes: number;
   processingStatus: "pending" | "analysing" | "analysed" | "failed";
+  /** Set when the frame was deleted under the tenant's retention policy; `frameReference` is then "purged". */
+  purgedAt?: ISODateString;
 }
 
 export const OBSERVATION_STATUSES = [
@@ -468,4 +480,10 @@ export type DomainEventType =
   | "config.workflow_submitted"
   | "config.workflow_published"
   | "config.workflow_retired"
-  | "config.workflow_discarded";
+  | "config.workflow_discarded"
+  | "security.signed_in"
+  | "security.signed_out"
+  | "security.sign_in_failed"
+  | "security.permission_denied"
+  | "privacy.redacted"
+  | "privacy.retention_purged";

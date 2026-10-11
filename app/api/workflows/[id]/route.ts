@@ -1,11 +1,13 @@
 import { getWorkflowRegistry, WorkflowRegistryError, type DraftPatch } from "@/lib/workflow/registry";
 import { jsonError, readJson } from "@/lib/server/http";
-import { resolveAdmin } from "@/lib/server/admin";
+import { authorizeConfig } from "@/lib/server/admin";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const wf = getWorkflowRegistry().get(id);
-  return wf ? Response.json(wf) : jsonError("Workflow not found", 404);
+  if (!wf) return jsonError("Workflow not found", 404);
+  const auth = await authorizeConfig("workflow.view", wf);
+  return auth.ok ? Response.json(wf) : auth.response;
 }
 
 function toPatch(raw: unknown): DraftPatch | string {
@@ -38,8 +40,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const wf = reg.get(id);
   if (!wf) return jsonError("Workflow not found", 404);
   const body = await readJson(request);
-  const actor = resolveAdmin(body?.actorId, wf);
-  if (!actor) return jsonError("Not permitted", 403);
+  const auth = await authorizeConfig("workflow.edit", wf);
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   const patch = toPatch(body?.patch);
   if (typeof patch === "string") return jsonError(patch);
   try {
@@ -50,13 +53,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const reg = getWorkflowRegistry();
   const wf = reg.get(id);
   if (!wf) return jsonError("Workflow not found", 404);
-  const actor = resolveAdmin(new URL(request.url).searchParams.get("actorId") ?? undefined, wf);
-  if (!actor) return jsonError("Not permitted", 403);
+  const auth = await authorizeConfig("workflow.edit", wf);
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   try {
     reg.discardDraft(id, actor);
     return new Response(null, { status: 204 });
