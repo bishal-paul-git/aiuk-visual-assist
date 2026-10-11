@@ -61,6 +61,7 @@ export interface SessionRecord {
   customerLabel: string;
   /** Mock-provider scenario used for simulated reasoning. Never set in production. */
   scenario?: string;
+  evidenceMode: "live_only" | "retained_evidence";
 }
 
 export interface StepRecord {

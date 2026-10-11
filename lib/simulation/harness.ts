@@ -12,6 +12,7 @@ import { simulateEvidence, simulateUtterance } from "@/lib/providers/mock/reason
 import { simulateTool } from "@/lib/providers/mock/tools";
 import { getScenario } from "@/lib/providers/mock/scenarios";
 import { expectedIntents } from "@/lib/workflow/engine";
+import { demoSceneFor, sceneToRef } from "./demo-scene";
 
 export const CUSTOMER: Actor = { type: "customer", id: "customer", name: "Customer" };
 export const AI: Actor = { type: "ai", id: "ai", name: "AI" };
@@ -48,6 +49,7 @@ export class SimulationHarness {
         channel: opts.channel ?? "secure_link",
         customerLabel: opts.customerLabel ?? "Customer",
         scenario: opts.scenario,
+        evidenceMode: "retained_evidence",
       },
       this.deps,
     );
@@ -108,15 +110,11 @@ export class SimulationHarness {
   /** Capture a frame for the active evidence request using a synthetic reference. */
   capture() {
     const req = this.state.evidenceRequest;
-    const lights = getScenario(this.state.session.scenario);
-    const after = this.state.workflow.history.some((h) => h.status === "completed" && h.stepKey.startsWith("guide_"));
-    const view = req?.view ?? "front";
-    const l = after ? lights.lightsAfter : lights.lightsBefore;
-    const ref = `synthetic:${view}:${l.power}-${l.internet}-${l.wifi}:${lights.broadbandCable}`;
+    const scene = demoSceneFor(this.state);
     this.send({
       type: "frame.captured",
       trigger: req?.trigger ?? "customer_capture",
-      frameReference: ref,
+      frameReference: scene ? sceneToRef(scene) : "synthetic:front:on-on-on:connected",
       width: 640,
       height: 480,
       bytes: 38_000 + Math.round(Math.random() * 12_000),

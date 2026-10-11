@@ -121,6 +121,8 @@ export interface CreateSessionInput {
   channel: SessionChannel;
   customerLabel: string;
   scenario?: string;
+  /** Tenant retention mode in force when the session was created (docs/06 §3). */
+  evidenceMode?: "live_only" | "retained_evidence";
 }
 
 export function createSession(input: CreateSessionInput, deps: OrchestratorDeps): SessionState {
@@ -147,6 +149,7 @@ export function createSession(input: CreateSessionInput, deps: OrchestratorDeps)
       costTotal: 0,
       customerLabel: input.customerLabel,
       scenario: input.scenario,
+      evidenceMode: input.evidenceMode ?? "live_only",
     },
     participants: [],
     transcript: [],
@@ -201,7 +204,7 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
         ctx.endSession("customer_abandoned", "Customer declined privacy notice");
         return;
       }
-      s.consent = { acceptedAt: ctx.now, noticeVersion: cmd.noticeVersion, evidenceMode: "selected_frames_only" };
+      s.consent = { acceptedAt: ctx.now, noticeVersion: cmd.noticeVersion, evidenceMode: s.session.evidenceMode };
       ctx.audit("session.consent_recorded", { accepted: true, noticeVersion: cmd.noticeVersion });
       s.session.status = "active";
       s.session.startedAt = ctx.now;
@@ -798,7 +801,6 @@ class Ctx {
         this.audit("workflow.completed", { outcome: step.completion!.outcome });
         s.customerState = "resolved";
         s.session.outcome = step.completion!.outcome;
-        s.instruction = { text: step.customerPrompt, from: "ai", at: this.now };
         return;
       }
     }
