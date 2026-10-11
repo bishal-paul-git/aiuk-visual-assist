@@ -1,7 +1,7 @@
 import { agents, getPolicy, getWorkflow, users } from "@/lib/config/catalog";
 import type { SessionChannel } from "@/lib/domain/types";
 import { SimulationHarness } from "@/lib/simulation/harness";
-import type { SessionRuntime } from "./runtime";
+import type { SessionRuntime } from "./session-runtime";
 
 /**
  * Seeds the POC runtime with history and a few in-flight sessions. Every

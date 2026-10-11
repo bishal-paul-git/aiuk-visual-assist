@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Lock, ShieldCheck } from "lucide-react";
 import { platformRuntime } from "@/lib/server/platform-data";
-import { agents, getTenant, integrations, policies, teams, users, workflows } from "@/lib/config/catalog";
+import { agents, getTenant, integrations, policies, teams, tenants, users, workflows } from "@/lib/config/catalog";
 import { computeMetrics, dailySeries } from "@/lib/analytics/metrics";
 import { ESCALATION_REASON_LABELS, humanize } from "@/lib/domain/labels";
 import { formatDateTime, formatDay, formatGBP, formatMinutes, pct } from "@/lib/format";
@@ -28,6 +28,10 @@ type Props = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
   return { title: getTenant(id)?.name ?? "Client" };
+}
+
+export async function generateStaticParams() {
+  return tenants.map((t) => ({ id: t.id }));
 }
 
 export default async function ClientDetailPage({ params }: Props) {

@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import type { AgentView } from "@/lib/session/projections";
 import type { SessionOutcome, WorkflowStep } from "@/lib/domain/types";
-import { useEventStream } from "@/lib/client/use-event-stream";
+import { useAgentStream } from "@/lib/client/use-transport";
 import { CUSTOMER_STATE_LABELS, ESCALATION_REASON_LABELS, humanize } from "@/lib/domain/labels";
 import { latestObservations, actionSummary } from "@/lib/session/handover";
 import { formatDuration, formatTime, formatTimeSec, formatGBP, secondsBetween } from "@/lib/format";
@@ -46,10 +46,11 @@ const CAPTURE_PRESETS = [
 type Tab = "transcript" | "handover" | "audit";
 
 export function ConsoleSession({ id, initial, serverNow }: { id: string; initial: AgentView; serverNow: number }) {
-  const { data: view, status } = useEventStream<AgentView>(`/api/sessions/${id}/events`, initial);
+  const { data: view, status, transport } = useAgentStream(id, initial);
+  const frameSrc = (f: { id: string; frameReference: string }) => transport?.frameUrl(id, f) ?? "";
   const s = view.state;
   const agentId = useAgentId();
-  const cmd = useAgentCommands(id);
+  const cmd = useAgentCommands(id, transport);
   const [tab, setTab] = useState<Tab>("transcript");
   const [selectedFrame, setSelectedFrame] = useState<string>();
   const now = useNow(serverNow);
@@ -155,7 +156,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
             }
           >
             <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-              <LiveVideo sessionId={id} active={previewActive} latestFrame={frames.at(-1)} cameraOn={s.media.camera} />
+              <LiveVideo sessionId={id} transport={transport} active={previewActive} latestFrame={frames.at(-1)} cameraOn={s.media.camera} frameSrc={frameSrc} />
               <div className="flex flex-col gap-2">
                 <div className="rounded-md border border-line bg-surface-2 p-2.5">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Customer sees</div>
@@ -176,11 +177,11 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
           </Panel>
 
           <Panel title="Selected evidence" description={`${frames.length} frame(s) — only frames requested by the workflow or an agent are captured`} bodyClassName="p-3">
-            <Filmstrip sessionId={id} frames={frames} selected={inspected?.id} onSelect={setSelectedFrame} />
+            <Filmstrip frames={frames} selected={inspected?.id} onSelect={setSelectedFrame} frameSrc={frameSrc} />
             {inspected && (
               <div className="mt-3 grid gap-3 border-t border-line pt-3 md:grid-cols-[200px_1fr]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/sessions/${id}/frames/${inspected.id}`} alt="Inspected frame" className="aspect-[4/3] w-full rounded-md bg-surface-2 object-cover" />
+                <img src={frameSrc(inspected)} alt="Inspected frame" className="aspect-[4/3] w-full rounded-md bg-surface-2 object-cover" />
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap gap-2 text-[11px] text-muted">
                     <Badge tone="neutral">{humanize(inspected.triggerType)}</Badge>

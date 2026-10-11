@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformRuntime, staticSafeSearchParams } from "@/lib/server/platform-data";
 import { tenants, tenantName } from "@/lib/config/catalog";
 import type { SessionState } from "@/lib/domain/session";
 import type { AuditEvent } from "@/lib/domain/types";
@@ -43,7 +43,7 @@ function flatten(states: SessionState[], configEvents: AuditEvent[]): Row[] {
 
 export default async function AuditLogsPage({ searchParams }: { searchParams: SearchParams }) {
   const rt = await platformRuntime();
-  const sp = await searchParams;
+  const sp = await staticSafeSearchParams(searchParams);
   const filters = {
     type: firstParam(sp.type),
     actor: firstParam(sp.actor),

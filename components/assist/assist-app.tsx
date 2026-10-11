@@ -21,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import type { CustomerView } from "@/lib/session/projections";
-import { postJson, useEventStream } from "@/lib/client/use-event-stream";
+import { useCustomerStream } from "@/lib/client/use-transport";
 import { captureFrame, isSourceReady, MotionMeter, type FrameSource } from "@/lib/client/frame-capture";
 import { useListener, useSpeaker } from "@/lib/client/speech";
 import { formatDuration } from "@/lib/format";
@@ -39,7 +39,7 @@ const SETTLE_MS = 1500;
 const MAX_WAIT_MS = 9000;
 
 export function AssistApp({ token, initial, serverNow }: { token: string; initial: CustomerView; serverNow: number }) {
-  const { data: view, status: streamStatus } = useEventStream<CustomerView>(`/api/assist/${token}/events`, initial);
+  const { data: view, status: streamStatus, transport } = useCustomerStream(token, initial);
   const [phase, setPhase] = useState<Phase>(initial.customerState === "consent" ? "consent" : "live");
   const cam = useCamera();
   const [busy, setBusy] = useState(false);
@@ -58,11 +58,12 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
   const ended = view.status === "completed" || view.status === "failed";
   const send = useCallback(
     async (command: Record<string, unknown>) => {
-      const r = await postJson(`/api/assist/${token}/commands`, { command });
+      if (!transport) return false;
+      const r = await transport.customerCommand(token, command);
       if (!r.ok && r.error) setNotice(r.error);
       return r.ok;
     },
-    [token],
+    [token, transport],
   );
 
   // --- Voice ----------------------------------------------------------------
@@ -112,14 +113,15 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
       setCapture({ state: "sending" });
       const trigger = manual ? "customer_capture" : req.requestedBy === "human" ? "human_request" : req.reason === "initial" ? "workflow_checkpoint" : "uncertainty_confirmation";
       const started = performance.now();
-      const r = await postJson(`/api/assist/${token}/frames`, { ...frame, trigger, evidenceRequestId: req.id });
+      if (!transport) return;
+      const r = await transport.uploadFrame(token, { ...frame, trigger, evidenceRequestId: req.id });
       setUploadRtt(performance.now() - started);
       if (!r.ok) {
         capturedFor.current = null;
         setCapture({ state: "error", message: "That didn't send — trying again" });
       } else setCapture({ state: "idle" });
     },
-    [req, token],
+    [req, token, transport],
   );
 
   useEffect(() => {
@@ -158,10 +160,10 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
       const src = sourceRef.current;
       if (!isSourceReady(src)) return;
       const f = captureFrame(src, 360, 0.5);
-      if (f) void postJson(`/api/assist/${token}/preview`, { dataUrl: f.dataUrl });
+      if (f) void transport?.uploadPreview(token, f.dataUrl);
     }, 1000);
     return () => clearInterval(timer);
-  }, [view.previewRequested, cam.mode, ended, phase, token]);
+  }, [view.previewRequested, cam.mode, ended, phase, token, transport]);
 
   // --- Connection quality ---------------------------------------------------
   const [offlineSince, setOfflineSince] = useState<number | null>(null);

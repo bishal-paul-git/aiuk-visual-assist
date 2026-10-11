@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Copy, ExternalLink, FlaskConical, Headset, Sparkles, Smartphone, X } from "lucide-react";
 import { SCENARIOS } from "@/lib/providers/mock/scenarios";
+import { BASE_PATH, getTransport } from "@/lib/client/transport";
 import { buttonClass, cx } from "@/components/ui/primitives";
 
 interface Created {
@@ -27,8 +28,8 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
 
   useEffect(() => {
     if (!open || live) return;
-    fetch("/api/capabilities")
-      .then((r) => r.json())
+    getTransport()
+      .then((t) => t.capabilities())
       .then(setLive)
       .catch(() => setLive({ liveReasoning: false, model: null }));
   }, [open, live]);
@@ -37,14 +38,10 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
     setBusy(true);
     setError(undefined);
     try {
-      const res = await fetch("/api/sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workflowKey: "router-troubleshooting", tenantId: "tnt_northline", scenario, channel }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Could not create session");
-      setCreated(body);
+      const t = await getTransport();
+      const r = await t.createSession({ workflowKey: "router-troubleshooting", tenantId: "tnt_northline", scenario, channel });
+      if (!r.ok) throw new Error(r.error);
+      setCreated(r);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -52,7 +49,7 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
     }
   }
 
-  const link = created ? `${typeof window !== "undefined" ? window.location.origin : ""}${created.customerPath}` : "";
+  const link = created ? `${typeof window !== "undefined" ? window.location.origin : ""}${BASE_PATH}${created.customerPath}` : "";
 
   return (
     <>
@@ -172,10 +169,10 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
                   </button>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
-                  <a href={created.customerPath} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
+                  <a href={`${BASE_PATH}${created.customerPath}`} target="_blank" rel="noreferrer" className={buttonClass("secondary")}>
                     <ExternalLink className="size-4" aria-hidden /> Open customer view
                   </a>
-                  <a href={created.consolePath} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
+                  <a href={`${BASE_PATH}${created.consolePath}`} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
                     <Headset className="size-4" aria-hidden /> Open in agent console
                   </a>
                 </div>

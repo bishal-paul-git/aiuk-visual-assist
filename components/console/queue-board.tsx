@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useNow } from "@/lib/client/use-now";
 import { Bot, Headset, Hourglass, Radio } from "lucide-react";
 import type { SessionSummaryView } from "@/lib/session/projections";
-import { useEventStream } from "@/lib/client/use-event-stream";
+import { useLiveSessions } from "@/lib/client/use-transport";
+import { consolePath } from "@/lib/client/transport";
 import { CUSTOMER_STATE_LABELS } from "@/lib/domain/labels";
 import { formatDuration, formatMinutes, formatRelative } from "@/lib/format";
 import { Badge, Dot, EmptyState, cx } from "@/components/ui/primitives";
@@ -13,10 +14,9 @@ import { EscalationReasonBadge, OutcomeBadge, SeverityBadge } from "@/components
 const SLA_SEC = 60;
 
 export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView[]; serverNow: number }) {
-  const { data, status } = useEventStream<{ sessions: SessionSummaryView[] }>("/api/sessions/events", { sessions: initial });
+  const { data: sessions, status } = useLiveSessions(initial);
   const now = useNow(serverNow);
 
-  const sessions = data.sessions;
   const waiting = sessions.filter((s) => s.status === "escalated").sort((a, b) => a.escalation!.requestedAt.localeCompare(b.escalation!.requestedAt));
   const human = sessions.filter((s) => s.status === "human_active");
   const ai = sessions.filter((s) => s.status === "active" || s.status === "awaiting_consent");
@@ -54,7 +54,7 @@ export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView
               return (
                 <li key={s.id}>
                   <Link
-                    href={`/console/sessions/${s.id}`}
+                    href={consolePath(s.id)}
                     className={cx("block rounded-lg border bg-surface p-3 hover:border-brand", breach ? "border-warn/60" : "border-line")}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -110,7 +110,7 @@ export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView
           {ended.length === 0 && <li className="px-3 py-3 text-xs text-muted">No sessions ended yet.</li>}
           {ended.map((s) => (
             <li key={s.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <Link href={`/console/sessions/${s.id}`} className="font-medium text-brand hover:underline">
+              <Link href={consolePath(s.id)} className="font-medium text-brand hover:underline">
                 {s.reference}
               </Link>
               <OutcomeBadge outcome={s.outcome} />
@@ -147,7 +147,7 @@ function SessionList({ title, sessions, now, render }: { title: string; sessions
         {sessions.length === 0 && <li className="px-3 py-3 text-xs text-muted">None right now.</li>}
         {sessions.map((s) => (
           <li key={s.id}>
-            <Link href={`/console/sessions/${s.id}`} className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-surface-2">
+            <Link href={consolePath(s.id)} className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-surface-2">
               <span className="min-w-0">
                 <span className="flex items-center gap-2">
                   <Radio className="size-3.5 text-ok" aria-hidden />

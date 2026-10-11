@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { postJson } from "@/lib/client/use-event-stream";
+import type { Transport } from "@/lib/client/transport";
 import { useAgentId } from "./agent-identity";
 
-export function useAgentCommands(sessionId: string) {
+export function useAgentCommands(sessionId: string, transport: Transport | null) {
   const agentId = useAgentId();
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string>();
@@ -13,12 +13,13 @@ export function useAgentCommands(sessionId: string) {
     async (command: Record<string, unknown>) => {
       setPending(String(command.type));
       setError(undefined);
-      const r = await postJson(`/api/sessions/${sessionId}/commands`, { agentId, command });
+      if (!transport) return false;
+      const r = await transport.agentCommand(sessionId, agentId, command);
       setPending(null);
       if (!r.ok) setError(r.error);
       return r.ok;
     },
-    [agentId, sessionId],
+    [agentId, sessionId, transport],
   );
 
   return { run, pending, error, clearError: () => setError(undefined), agentId };

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, FlaskConical, Headset, LayoutGrid, Smartphone } from "lucide-react";
+import { ArrowRight, FlaskConical, Headset, LayoutGrid, MonitorPlay, Smartphone } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { TestSessionLauncher } from "@/components/shared/test-session-launcher";
 
@@ -21,7 +21,7 @@ export default function Home() {
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
           <Logo />
           <span className="inline-flex items-center gap-1 rounded-md border border-dashed border-warn/40 bg-warn-soft px-2 py-0.5 text-[11px] font-medium text-warn">
-            <FlaskConical className="size-3" aria-hidden /> POC · simulated AI providers
+            <FlaskConical className="size-3" aria-hidden /> {process.env.NEXT_PUBLIC_STATIC_DEMO === "1" ? "Static demo · runs in your browser" : "POC · simulated AI providers"}
           </span>
         </div>
       </header>
@@ -31,6 +31,10 @@ export default function Home() {
           Absolute Intelligence Visual Assist combines a live camera session, voice, approved workflows and seamless human takeover. The first
           use case is <strong>Router Visual Support</strong>.
         </p>
+
+        <Link href="/demo" className="mt-6 inline-flex items-center gap-2 rounded-md bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy-2">
+          <MonitorPlay className="size-4" aria-hidden /> Open the demo stage — phone and agent console side by side
+        </Link>
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           <Entry

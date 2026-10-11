@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SessionRuntime } from "@/lib/server/runtime";
-import { seedSessions } from "@/lib/server/seed";
+import { seedSessions } from "@/lib/runtime/seed";
 import { MockReasoningProvider } from "@/lib/providers/mock/reasoning";
 import { MockToolExecutor } from "@/lib/providers/mock/tools";
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { consolePath, getTransport, STATIC_DEMO } from "@/lib/client/transport";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bot, CheckCircle2, Clock, Headset, Radio, ShieldAlert, WifiOff } from "lucide-react";
 import type { SessionSummaryView } from "@/lib/session/projections";
@@ -25,12 +26,15 @@ function secs(fromIso: string | undefined, now: number): number {
 function SessionLinks({ id }: { id: string }) {
   return (
     <div className="flex items-center justify-end gap-3 whitespace-nowrap text-xs font-medium">
-      <Link href={`/console/sessions/${id}`} className="text-brand hover:underline">
+      <Link href={consolePath(id)} className="text-brand hover:underline">
         Console
       </Link>
-      <Link href={`/platform/sessions/${id}`} className="text-brand hover:underline">
-        Detail
-      </Link>
+      {/* The static demo prerenders detail pages only for build-time sessions. */}
+      {!STATIC_DEMO && (
+        <Link href={`/platform/sessions/${id}`} className="text-brand hover:underline">
+          Detail
+        </Link>
+      )}
     </div>
   );
 }
@@ -38,7 +42,7 @@ function SessionLinks({ id }: { id: string }) {
 function SessionCell({ s, tenants }: { s: SessionSummaryView; tenants: Record<string, string> }) {
   return (
     <>
-      <Link href={`/platform/sessions/${s.id}`} className="font-medium text-brand hover:underline">
+      <Link href={STATIC_DEMO ? consolePath(s.id) : `/platform/sessions/${s.id}`} className="font-medium text-brand hover:underline">
         {s.reference}
       </Link>
       <div className="text-xs text-muted">
@@ -118,21 +122,23 @@ export function LiveSessionsBoard({
   const [updatedAt, setUpdatedAt] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const es = new EventSource("/api/sessions/events");
-    es.onopen = () => setConn("live");
-    es.onmessage = (e: MessageEvent<string>) => {
-      try {
-        const data = JSON.parse(e.data) as { sessions: SessionSummaryView[]; at: string };
-        setSessions(data.sessions);
-        setUpdatedAt(data.at);
-        setConn("live");
-      } catch {
-        /* ignore malformed frame */
-      }
+    let unsub = () => {};
+    let alive = true;
+    void getTransport().then((t) => {
+      if (!alive) return;
+      unsub = t.subscribeLive(
+        (next) => {
+          setSessions(next);
+          setUpdatedAt(new Date().toISOString());
+        },
+        // The server stream reconnects automatically; surface the state to the operator.
+        (st) => setConn(st === "open" ? "live" : st === "connecting" ? "connecting" : "reconnecting"),
+      );
+    });
+    return () => {
+      alive = false;
+      unsub();
     };
-    // EventSource reconnects automatically; surface the state to the operator.
-    es.onerror = () => setConn("reconnecting");
-    return () => es.close();
   }, []);
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { consolePath } from "@/lib/paths";
 import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot } from "lucide-react";
 import { platformRuntime } from "@/lib/server/platform-data";
 import { computeMetrics, dailySeries, escalationReasons } from "@/lib/analytics/metrics";
@@ -103,7 +104,7 @@ export default async function DashboardPage() {
                 {waiting.map((s) => (
                   <tr key={s.id} className="hover:bg-surface-2">
                     <Td>
-                      <Link href={`/console/sessions/${s.id}`} className="font-medium text-brand hover:underline">
+                      <Link href={consolePath(s.id)} className="font-medium text-brand hover:underline">
                         {s.reference}
                       </Link>
                       <div className="text-xs text-muted">{s.customerLabel}</div>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Video, VideoOff } from "lucide-react";
 import { useNow } from "@/lib/client/use-now";
 import type { VisualEvent } from "@/lib/domain/types";
+import type { Transport } from "@/lib/client/transport";
 import { formatTimeSec } from "@/lib/format";
 
 /**
@@ -13,12 +14,16 @@ import { formatTimeSec } from "@/lib/format";
  */
 export function LiveVideo({
   sessionId,
+  transport,
   active,
   latestFrame,
   cameraOn,
   overlay,
+  frameSrc,
 }: {
   sessionId: string;
+  transport: Transport | null;
+  frameSrc: (f: VisualEvent) => string;
   active: boolean;
   latestFrame?: VisualEvent;
   cameraOn: boolean;
@@ -29,20 +34,16 @@ export function LiveVideo({
   const urlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !transport) return;
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch(`/api/sessions/${sessionId}/preview`, { cache: "no-store" });
-        if (cancelled) return;
-        if (res.status === 200) {
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-          if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-          urlRef.current = url;
-          setSrc(url);
-          setLiveAt(Date.now());
-        }
+        const p = await transport.latestPreview(sessionId);
+        if (cancelled || !p) return;
+        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+        urlRef.current = p.revoke ? p.url : null;
+        setSrc(p.url);
+        setLiveAt(Date.now());
       } catch {
         /* transient */
       }
@@ -53,7 +54,7 @@ export function LiveVideo({
       cancelled = true;
       clearInterval(t);
     };
-  }, [active, sessionId]);
+  }, [active, sessionId, transport]);
 
   useEffect(() => () => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -69,7 +70,7 @@ export function LiveVideo({
         <img src={src!} alt="Live view of the customer's camera" className="h-full w-full object-cover" />
       ) : latestFrame ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/api/sessions/${sessionId}/frames/${latestFrame.id}`} alt="Latest selected evidence frame" className="h-full w-full object-cover opacity-90" />
+        <img src={frameSrc(latestFrame)} alt="Latest selected evidence frame" className="h-full w-full object-cover opacity-90" />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-2 text-white/60">
           <VideoOff className="size-8" aria-hidden />

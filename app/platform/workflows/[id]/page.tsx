@@ -13,6 +13,10 @@ import { ConfigStatusBadge, FieldLabel, Mono } from "@/components/platform/confi
 import { IssueLine, STEP_TYPE_META, StepTypeBadge, WorkflowNode } from "@/components/platform/config-workflow-node";
 import { WorkflowVersionActions } from "@/components/platform/workflow-version-actions";
 
+export async function generateStaticParams() {
+  return workflows.map((w) => ({ id: w.id }));
+}
+
 type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props) {

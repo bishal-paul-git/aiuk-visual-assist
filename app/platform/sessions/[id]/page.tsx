@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { consolePath } from "@/lib/paths";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, Headset, ImageOff, Info, User as UserIcon } from "lucide-react";
 import { platformRuntime } from "@/lib/server/platform-data";
+import { getRuntime } from "@/lib/server/runtime";
+import { frameSrc } from "@/lib/media/frame-src";
 import { getAgent, getPolicy, getTenant, tenantName, users } from "@/lib/config/catalog";
 import type { SessionState } from "@/lib/domain/session";
 import type { Speaker, ToolAction, WorkflowDefinition } from "@/lib/domain/types";
@@ -84,6 +87,11 @@ function stepDefinitionStatus(workflow: WorkflowDefinition, state: SessionState)
   });
 }
 
+/** Static demo: prerender every seeded session. */
+export async function generateStaticParams() {
+  return getRuntime().summaries().map((s) => ({ id: s.id }));
+}
+
 export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const rt = await platformRuntime();
   const { id } = await params;
@@ -132,7 +140,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         }
         actions={
           isLive ? (
-            <Link href={`/console/sessions/${s.id}`} className={buttonClass("primary", "sm")}>
+            <Link href={consolePath(s.id)} className={buttonClass("primary", "sm")}>
               Open in agent console
             </Link>
           ) : undefined
@@ -371,7 +379,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                   <figure>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={`/api/sessions/${s.id}/frames/${ve.id}`}
+                      src={frameSrc(s.id, ve)}
                       alt={`Evidence frame ${i + 1}${ve.checkpoint ? ` for checkpoint ${ve.checkpoint}` : ""}`}
                       width={ve.width}
                       height={ve.height}

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GitBranchPlus, PencilLine } from "lucide-react";
 import { buttonClass } from "@/components/ui/primitives";
+import { STATIC_DEMO } from "@/lib/client/transport";
 
 export function WorkflowVersionActions({
   id,
@@ -20,6 +21,10 @@ export function WorkflowVersionActions({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+
+  if (STATIC_DEMO) {
+    return <span className="text-[11px] text-muted">Versioning needs the server edition — read-only in this static demo</span>;
+  }
 
   if (status === "draft" || status === "in_review") {
     return (

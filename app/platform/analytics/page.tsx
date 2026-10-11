@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformRuntime, staticSafeSearchParams } from "@/lib/server/platform-data";
 import { getTenant, getWorkflow, tenants } from "@/lib/config/catalog";
 import { computeMetrics, dailySeries, escalationReasons, latencyStats, outcomeBreakdown, stepFunnel } from "@/lib/analytics/metrics";
 import { ESCALATION_REASON_LABELS, OUTCOME_LABELS, humanize } from "@/lib/domain/labels";
@@ -16,7 +16,7 @@ type Props = { searchParams: Promise<{ client?: string | string[] }> };
 
 export default async function AnalyticsPage({ searchParams }: Props) {
   const rt = await platformRuntime();
-  const sp = await searchParams;
+  const sp = await staticSafeSearchParams(searchParams);
   const requested = typeof sp.client === "string" ? sp.client : undefined;
   const tenant = requested ? getTenant(requested) : undefined;
   const tenantId = tenant?.id;

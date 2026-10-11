@@ -8,15 +8,15 @@ import { Badge, EmptyState, cx } from "@/components/ui/primitives";
 import { isUncertain } from "@/lib/session/handover";
 
 export function Filmstrip({
-  sessionId,
   frames,
   selected,
   onSelect,
+  frameSrc,
 }: {
-  sessionId: string;
   frames: VisualEvent[];
   selected?: string;
   onSelect: (id: string) => void;
+  frameSrc: (f: VisualEvent) => string;
 }) {
   if (frames.length === 0) return <p className="text-xs text-muted">No frames selected yet. Frames are captured only when the workflow or an agent asks for evidence.</p>;
   return (
@@ -30,7 +30,7 @@ export function Filmstrip({
             className={cx("block w-28 overflow-hidden rounded-md border-2 text-left", selected === f.id ? "border-brand" : "border-transparent hover:border-line-strong")}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/sessions/${sessionId}/frames/${f.id}`} alt={`Frame ${i + 1}: ${f.checkpoint ?? f.triggerType}`} className="aspect-[4/3] w-full bg-surface-2 object-cover" loading="lazy" />
+            <img src={frameSrc(f)} alt={`Frame ${i + 1}: ${f.checkpoint ?? f.triggerType}`} className="aspect-[4/3] w-full bg-surface-2 object-cover" loading="lazy" />
             <span className="block truncate bg-surface-2 px-1.5 py-1 text-[10px] text-ink-2">
               #{i + 1} · {(f.checkpoint ?? humanizeTrigger(f.triggerType)).replace(/_/g, " ")}
             </span>

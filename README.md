@@ -22,6 +22,15 @@ npm test         # domain, policy, workflow and end-to-end orchestrator tests
 npm run typecheck && npm run lint
 ```
 
+## Two editions
+
+| Edition | Build | Where | Notes |
+|---|---|---|---|
+| **Server** | `npm run build` | Any Node host | Full product: API routes, SSE, cross-device sessions (phone ↔ console), optional live AI with `ANTHROPIC_API_KEY`. |
+| **Static demo** | `npm run build:static` | **GitHub Pages** (`.github/workflows/deploy-pages.yml`) | The session runtime runs in the browser. Tabs on one device stay in sync; separate devices can't share a session. Platform reports are a build-time snapshot; workflow editing is read-only. Start at `/demo` for the phone + console side by side. |
+
+To publish the static demo: **Settings → Pages → Build and deployment → Source: GitHub Actions**, then merge to `main` (or run the "Deploy static demo to GitHub Pages" workflow). It is served at `https://<owner>.github.io/<repo>/`.
+
 This is a POC environment: reasoning and business actions use **simulated providers** (clearly labelled in the UI) behind production interfaces, and the session runtime is in-memory. See the implementation plan for what is real, what is simulated and what comes next.
 
 ## Code map

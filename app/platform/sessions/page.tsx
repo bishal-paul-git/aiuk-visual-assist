@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformRuntime, staticSafeSearchParams } from "@/lib/server/platform-data";
 import { tenants, tenantName } from "@/lib/config/catalog";
 import type { SessionOutcome, SessionStatus } from "@/lib/domain/types";
 import type { SessionSummaryView } from "@/lib/session/projections";
@@ -45,7 +45,7 @@ function durationSec(s: SessionSummaryView, now = Date.now()): number {
 
 export default async function SessionHistoryPage({ searchParams }: { searchParams: SearchParams }) {
   const rt = await platformRuntime();
-  const sp = await searchParams;
+  const sp = await staticSafeSearchParams(searchParams);
   const filters: Filters = {
     outcome: firstParam(sp.outcome),
     status: firstParam(sp.status),
