@@ -47,13 +47,21 @@ export const tenants: Tenant[] = [
   },
 ];
 
-export const policies: Policy[] = [
+/**
+ * Policy versions, process-wide like `workflows` so policy versioning
+ * (lib/policy/registry.ts) and every reader share one list.
+ */
+const gp = globalThis as unknown as { __aiukPolicies?: Policy[] };
+export const policies: Policy[] = (gp.__aiukPolicies ??= [
   {
     id: "pol_northline_standard",
     tenantId: "tnt_northline",
     name: "Northline Standard Support",
     version: 4,
     status: "active",
+    changeNote: "v4: account credits are regulated and human only; remote factory reset denied.",
+    publishedAt: "2026-09-02T09:05:00.000Z",
+    publishedBy: "Priya Shah",
     tools: [
       { tool: "line_test", risk: "low", mode: "allow", requiresIdempotencyKey: true },
       { tool: "update_case", risk: "low", mode: "allow", requiresIdempotencyKey: true },
@@ -122,7 +130,7 @@ export const policies: Policy[] = [
     maxAiDurationSec: 600,
     allowReturnToAi: true,
   },
-];
+]);
 
 /**
  * Process-wide so workflow versioning (lib/workflow/registry.ts) and every
@@ -269,8 +277,20 @@ export function getTenant(id: string): Tenant | undefined {
 export function getWorkflow(id: string): WorkflowDefinition | undefined {
   return workflows.find((w) => w.id === id);
 }
-export function getPolicy(id: string): Policy | undefined {
-  return policies.find((p) => p.id === id);
+/** Lineage key of a policy version (what workflows and agents reference). */
+export function policyKey(p: Policy): string {
+  return p.key ?? p.id;
+}
+
+/**
+ * Resolve a policy reference. A lineage key resolves to its active
+ * (published) version, falling back to the newest version while a policy has
+ * never been published; a version id resolves to exactly that version.
+ */
+export function getPolicy(idOrKey: string): Policy | undefined {
+  const lineage = policies.filter((p) => policyKey(p) === idOrKey);
+  if (lineage.length) return lineage.find((p) => p.status === "active") ?? [...lineage].sort((a, b) => b.version - a.version)[0];
+  return policies.find((p) => p.id === idOrKey);
 }
 export function getAgent(id: string): AgentConfig | undefined {
   return agents.find((a) => a.id === id);

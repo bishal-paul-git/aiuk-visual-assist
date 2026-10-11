@@ -7,11 +7,13 @@ import type {
   EscalationReasonCode,
   EscalationSeverity,
   FrameTrigger,
+  ModelUsage,
   Policy,
   SessionChannel,
   SessionOutcome,
   Speaker,
   ToolAction,
+  TranscriptEvent,
   VisualEvent,
   VisualObservation,
   WorkflowDefinition,
@@ -20,7 +22,8 @@ import type {
 import type { EvidenceRequest, MediaState, SessionState, StepRecord } from "@/lib/domain/session";
 import { assessEvidence, getStep, selectNext, type StepFacts } from "@/lib/workflow/engine";
 import { canReturnToAi, checkTool, detectHumanRequest, findDuplicate, isMandatoryHuman } from "@/lib/policy/engine";
-import { COST_RATES } from "@/lib/domain/pricing";
+import { COST_RATES, measuredModelCost } from "@/lib/domain/pricing";
+import { redactPii } from "@/lib/privacy/redact";
 
 /**
  * Session Orchestrator (docs/02 §3.5).
@@ -79,7 +82,7 @@ export type Command =
       bytes: number;
       evidenceRequestId?: string;
     }
-  | { type: "utterance.interpreted"; transcriptId: string; intent: string; reply?: string; customerIssue?: string }
+  | { type: "utterance.interpreted"; transcriptId: string; intent: string; reply?: string; customerIssue?: string; usage?: ModelUsage }
   | { type: "utterance.failed"; transcriptId: string; error: string }
   | {
       type: "evidence.interpreted";
@@ -88,6 +91,7 @@ export type Command =
       modelVersion: string;
       latencyMs: number;
       reply?: string;
+      usage?: ModelUsage;
     }
   | { type: "evidence.failed"; visualEventId: string; error: string }
   | { type: "tool.completed"; toolActionId: string; result: Record<string, unknown> }
@@ -258,7 +262,7 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
       const t = s.transcript.find((x) => x.id === cmd.transcriptId);
       if (!t) return "Unknown transcript event";
       t.intent = cmd.intent;
-      ctx.cost("llm_turn", ctx.deps.agent.model.provider, 1, "turn");
+      ctx.cost("llm_turn", ctx.deps.agent.model.provider, 1, "turn", cmd.usage);
       ctx.audit("ai.turn_completed", { transcriptId: t.id, intent: cmd.intent });
       if (cmd.customerIssue && !s.workflow.customerIssue) s.workflow.customerIssue = cmd.customerIssue;
       if (cmd.intent === "human_request") {
@@ -327,7 +331,7 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
       const ve = s.visualEvents.find((v) => v.id === cmd.visualEventId);
       if (!ve) return "Unknown visual event";
       ve.processingStatus = "analysed";
-      ctx.cost("vision_inference", ctx.deps.agent.model.provider, 1, "frame");
+      ctx.cost("vision_inference", ctx.deps.agent.model.provider, 1, "frame", cmd.usage);
       const created: VisualObservation[] = cmd.observations.map((o) => ({
         id: ctx.deps.id("obs"),
         visualEventId: ve.id,
@@ -534,8 +538,8 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
 
     case "human.message": {
       if (!cmd.text.trim()) return "Empty message";
-      ctx.addTranscript("human_agent", ctx.actor.name, cmd.text.trim(), 1);
-      s.instruction = { text: cmd.text.trim(), from: "human", at: ctx.now };
+      const t = ctx.addTranscript("human_agent", ctx.actor.name, cmd.text.trim(), 1);
+      s.instruction = { text: t.text, from: "human", at: ctx.now };
       return;
     }
 
@@ -553,8 +557,9 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
         requestedBy: "human",
         requestedAt: ctx.now,
       };
-      ctx.addTranscript("human_agent", ctx.actor.name, cmd.prompt, 1);
-      s.instruction = { text: cmd.prompt, from: "human", at: ctx.now };
+      const t = ctx.addTranscript("human_agent", ctx.actor.name, cmd.prompt, 1);
+      s.evidenceRequest.prompt = t.text;
+      s.instruction = { text: t.text, from: "human", at: ctx.now };
       s.customerState = "show_object";
       return;
     }
@@ -700,18 +705,24 @@ class Ctx {
     this.s.audit.push(e);
   }
 
-  cost(category: CostEvent["category"], provider: string, quantity: number, unit: CostEvent["unit"]) {
-    const rate = COST_RATES[category];
+  /**
+   * Record a cost. When the provider reported token usage for a priced model
+   * the cost is "measured"; otherwise it is an "estimated" unit-rate cost.
+   */
+  cost(category: CostEvent["category"], provider: string, quantity: number, unit: CostEvent["unit"], usage?: ModelUsage) {
+    const measured = usage ? measuredModelCost(usage) : undefined;
     this.s.costs.push({
       id: this.deps.id("cst"),
       sessionId: this.s.session.id,
-      provider,
+      provider: usage && measured ? `${provider}:${usage.model}` : provider,
       category,
       quantity,
       unit,
-      estimatedCost: round4(rate * quantity),
+      estimatedCost: measured ? round6(measured.gbp) : round4(COST_RATES[category] * quantity),
       currency: "GBP",
       timestamp: this.now,
+      basis: measured ? "measured" : "estimated",
+      ...(usage ? { usage } : {}),
     });
   }
 
@@ -727,8 +738,22 @@ class Ctx {
   }
 
   addTranscript(speaker: Speaker, name: string, text: string, confidence: number) {
-    const t = { id: this.deps.id("utt"), sessionId: this.s.session.id, speaker, speakerName: name, timestamp: this.now, text, confidence };
+    const t: TranscriptEvent = { id: this.deps.id("utt"), sessionId: this.s.session.id, speaker, speakerName: name, timestamp: this.now, text, confidence };
+    // Customer and agent text is free-form: remove personal data before it is stored (docs/06 §3).
+    if (speaker === "customer" || speaker === "human_agent") {
+      const r = redactPii(text);
+      if (r.total > 0) {
+        t.text = r.text;
+        t.redactions = r.redactions;
+      }
+    }
     this.s.transcript.push(t);
+    if (t.redactions) this.audit("privacy.redacted", {
+        transcriptId: t.id,
+        speaker,
+        types: t.redactions.map((x) => x.type).join(", "),
+        count: t.redactions.reduce((n, x) => n + x.count, 0),
+      });
     return t;
   }
 
@@ -968,4 +993,8 @@ function stableParams(params: Record<string, unknown>): string {
 
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
+}
+
+function round6(n: number): number {
+  return Math.round(n * 1_000_000) / 1_000_000;
 }

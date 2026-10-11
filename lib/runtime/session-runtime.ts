@@ -1,6 +1,6 @@
 import type { SessionState } from "@/lib/domain/session";
-import type { SessionChannel, WorkflowDefinition } from "@/lib/domain/types";
-import { agents, getPolicy, getTenant, getWorkflow } from "@/lib/config/catalog";
+import type { AuditEvent, DomainEventType, SessionChannel, WorkflowDefinition } from "@/lib/domain/types";
+import { agents, getPolicy, getTenant, getWorkflow, tenants } from "@/lib/config/catalog";
 import {
   createSession,
   handleCommand,
@@ -14,6 +14,7 @@ import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { expectedIntents } from "@/lib/workflow/engine";
 import { RoutingReasoningProvider } from "@/lib/providers/routing";
 import type { ReasoningProvider, ToolExecutor } from "@/lib/providers/types";
+import { applyRetention, type RetentionRun } from "@/lib/privacy/retention";
 import { toAgentView, toCustomerView, toSummary, type AgentView, type CustomerView, type SessionSummaryView } from "@/lib/session/projections";
 
 /** Web Crypto is available in modern browsers and Node 20+, so the engine runs in both. */
@@ -53,7 +54,7 @@ interface Entry {
   listeners: Set<() => void>;
 }
 
-interface StoredFrame {
+export interface StoredFrame {
   sessionId: string;
   mime: string;
   data: Uint8Array;
@@ -61,6 +62,14 @@ interface StoredFrame {
 }
 
 export const MAX_FRAME_BYTES = 750_000;
+
+/** Outcome of the retention job, for the Settings › Retention panel. */
+export interface RetentionStatus {
+  lastRunAt: string;
+  lastPurgeAt?: string;
+  /** Cumulative counts per tenant since the runtime started. */
+  byTenant: Record<string, { sessions: number; frames: number; transcriptEvents: number; lastPurgeAt?: string }>;
+}
 
 export class SessionRuntime {
   private sessions = new Map<string, Entry>();
@@ -269,14 +278,17 @@ export class SessionRuntime {
 
   storeFrame(sessionId: string, mime: string, data: Uint8Array): string {
     const frameId = `mem_${uuid().slice(0, 12)}`;
-    this.frames.set(frameId, { sessionId, mime, data, createdAt: Date.now() });
+    const frame = { sessionId, mime, data, createdAt: Date.now() };
+    this.frames.set(frameId, frame);
+    this.onFrameStored?.(frameId, frame);
     return frameId;
   }
 
   /** Resolve a frame reference ("mem:<id>") to stored bytes, scoped to its session. */
   getFrame(sessionId: string, frameReference: string): StoredFrame | undefined {
     if (!frameReference.startsWith("mem:")) return undefined;
-    const f = this.frames.get(frameReference.slice(4));
+    const frameId = frameReference.slice(4);
+    const f = this.frames.get(frameId) ?? this.frameLoader?.(sessionId, frameId);
     return f && f.sessionId === sessionId ? f : undefined;
   }
 
@@ -346,6 +358,46 @@ export class SessionRuntime {
   }
 
   // -------------------------------------------------------------------------
+  // Retention (docs/06 §3). Policy logic lives in lib/privacy/retention.ts;
+  // this only applies its result to the hosted sessions and the frame store.
+  // -------------------------------------------------------------------------
+
+  retentionStatus?: RetentionStatus;
+
+  runRetention(now = Date.now()): RetentionRun {
+    const entries = [...this.sessions.values()];
+    const policies = Object.fromEntries(tenants.map((t) => [t.id, t.retention]));
+    const run = applyRetention(
+      entries.map((e) => e.state),
+      policies,
+      now,
+    );
+    run.states.forEach((state, i) => {
+      const entry = entries[i];
+      if (state === entry.state) return;
+      entry.state = state;
+      this.notify(entry);
+      this.onCommit?.(state.session.id);
+    });
+    for (const { sessionId, frameReference } of run.purgedFrames) {
+      if (!frameReference.startsWith("mem:")) continue;
+      const frameId = frameReference.slice(4);
+      this.frames.delete(frameId);
+      this.onFrameDeleted?.(sessionId, frameId);
+    }
+    const byTenant = { ...this.retentionStatus?.byTenant };
+    for (const p of run.purges) {
+      const t = (byTenant[p.tenantId] = { ...(byTenant[p.tenantId] ?? { sessions: 0, frames: 0, transcriptEvents: 0 }) });
+      t.sessions += 1;
+      t.frames += p.framesPurged;
+      t.transcriptEvents += p.transcriptEventsPurged;
+      t.lastPurgeAt = run.ranAt;
+    }
+    this.retentionStatus = { lastRunAt: run.ranAt, lastPurgeAt: run.purges.length ? run.ranAt : this.retentionStatus?.lastPurgeAt, byTenant };
+    return run;
+  }
+
+  // -------------------------------------------------------------------------
   // Subscriptions
   // -------------------------------------------------------------------------
 
@@ -368,6 +420,56 @@ export class SessionRuntime {
 
   private notifyGlobal() {
     for (const fn of this.globalListeners) fn();
+  }
+
+  // -------------------------------------------------------------------------
+  // Persistence & integration hooks (server edition; see lib/server/store)
+  // -------------------------------------------------------------------------
+
+  /** Called after a selected-evidence frame is stored (used to persist it). */
+  onFrameStored?: (frameId: string, frame: StoredFrame) => void;
+  /** Called when retention deletes a frame, so durable copies are deleted too. */
+  onFrameDeleted?: (sessionId: string, frameId: string) => void;
+  /** Fallback for frames not held in memory (e.g. read lazily from a durable store). */
+  frameLoader?: (sessionId: string, frameId: string) => StoredFrame | undefined;
+
+  /** Put a previously persisted frame back into memory. */
+  restoreFrame(frameId: string, frame: StoredFrame) {
+    this.frames.set(frameId, frame);
+  }
+
+  allSessionIds(): string[] {
+    return [...this.sessions.keys()];
+  }
+
+  /**
+   * Append an audit event raised outside the orchestrator (e.g. link delivery
+   * by an integration). The state is replaced, not mutated, and the sequence
+   * number advances so snapshots and subscribers see the change.
+   */
+  recordAudit(sessionId: string, eventType: DomainEventType, payload: Record<string, unknown>, actor: Actor): boolean {
+    const entry = this.sessions.get(sessionId);
+    if (!entry) return false;
+    const event: AuditEvent = {
+      id: `aud_${uuid().slice(0, 12)}`,
+      tenantId: entry.state.session.tenantId,
+      sessionId,
+      actorType: actor.type,
+      actorId: actor.id,
+      eventType,
+      payload,
+      timestamp: new Date().toISOString(),
+      context: {
+        workflowVersion: entry.workflow.version,
+        policyVersion: entry.deps.policy.version,
+        modelVersion: entry.state.session.modelVersion,
+        promptVersion: entry.deps.agent.promptVersion,
+      },
+    };
+    entry.state = { ...entry.state, audit: [...entry.state.audit, event], seq: entry.state.seq + 1 };
+    this.notify(entry);
+    this.onCommit?.(sessionId);
+    return true;
   }
 }
 

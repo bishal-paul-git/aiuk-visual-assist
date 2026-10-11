@@ -42,11 +42,13 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Provider abstraction (reasoning, tools) | ✅ | `lib/providers/types.ts`; simulated implementations in `lib/providers/mock/` |
 | Real multimodal reasoning | ✅ (needs key) | `lib/providers/claude/reasoning.ts` — Claude (`claude-opus-5-5`, low effort, server-side refusal fallback) with JSON-schema output, validated against each workflow's `observationVocabulary`; enabled when `ANTHROPIC_API_KEY` is set. Scenario sessions keep using the simulator (`lib/providers/routing.ts`) |
 | Sensitive visual data policy (docs/06 §4) | ✅ | Vision layer flags people, cards, ID, screens, plates; tenant policy decides escalate / ask to re-frame / allow |
-| Workflow versioning (draft → review → publish, retire, pinning) | ✅ | `lib/workflow/registry.ts`, `/platform/workflows/[id]/edit`; config changes audited; structural (step/rule) editing still to come |
-| Provider abstraction (video transport, speech, identity, storage, notifications) | 🟡 | Voice is browser-native behind hooks (`lib/client/speech.ts`); media transport is an interim preview relay; storage is in-memory |
-| Multi-tenancy | 🟡 | All entities tenant-scoped; config per tenant (workflow, policy, agent, retention, branding, flags). No auth-enforced isolation yet |
-| Durable data platform | ⬜ | In-memory runtime (`lib/server/runtime.ts`) — Phase 3 |
-| Observability (logs/metrics/traces) | 🟡 | Audit + cost + latency captured per session; OpenTelemetry export not yet |
+| Workflow versioning (draft → review → publish, retire, pinning) | ✅ | `lib/workflow/registry.ts`, `/platform/workflows/[id]/edit`; four-eyes approval (submitter cannot publish; approver recorded); every change audited (`config.workflow_*`) |
+| Structural workflow builder | ✅ | `lib/workflow/structure.ts` + `POST /api/workflows/[id]/structure`: add/remove (reference-safe)/reorder steps, edit rules (intent, observation from the workflow vocabulary, tool result, always) and type-specific settings; publish checks re-run on every change |
+| Policy versioning | ✅ | `lib/policy/registry.ts`, `/api/policies/**`, `/platform/policies/[id]/edit`: draft → review → publish with four-eyes; previous version retired; workflows reference the lineage key, so new sessions get the active version while running sessions keep theirs; regulated tools can never be `allow` (`validatePolicy`) |
+| Provider abstraction (video transport, speech, identity, storage, notifications) | 🟡 | Identity: `IdentityProvider` interface (`lib/auth/identity.ts`) with a demo provider; Entra ID / Okta / Auth0 (OIDC) plug in behind it. Storage: `SessionStore` (memory / file) in `lib/server/store/`. Notifications: `NotificationProvider` (Twilio SMS, Resend-style email, console outbox) in `lib/server/notifications/`. Voice is browser-native behind hooks; media transport is an interim preview relay |
+| Multi-tenancy | 🟡 | All entities tenant-scoped; config per tenant (workflow, policy, agent, retention, branding, flags). Isolation enforced on every session/workflow API route and the console (`lib/auth/rbac.ts`). The cross-client management platform is limited to platform roles until each module is tenant-scoped |
+| Durable data platform | 🟡 | File store under `DATA_DIR` (atomic JSON snapshots + frame files, debounced write-through, restore on boot). Postgres adapter shape documented in `lib/server/store/types.ts` — Phase 3. See `PRODUCTION-READINESS.md` |
+| Observability (logs/metrics/traces) | 🟡 | `/api/health` (liveness/readiness), `/api/metrics` (Prometheus), structured JSON logs with request/session ids (`lib/server/log.ts`). OpenTelemetry traces not yet |
 
 ### 2.2 Customer Visual Assistance (docs/03 §2)
 
@@ -62,7 +64,7 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Captions / transcript | ✅ | Live caption of current instruction + full transcript sheet |
 | Connection quality visible | ✅ | SSE status + upload latency → good/fair/weak/reconnecting, reported to the orchestrator |
 | Transparency when a human can see the camera | ✅ | "Your camera is visible to …" indicator |
-| QR / SMS / website / authenticated entry | 🟡 | Channel recorded on session; SMS/QR delivery integrations not built |
+| QR / SMS / website / authenticated entry | 🟡 | SMS and email link delivery built (`deliverTo` on session create, audited, masked); QR and authenticated entry not built |
 
 ### 2.3 Human Agent Console (docs/03 §3)
 
@@ -75,7 +77,8 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Business actions (policy-checked, idempotent), notes | ✅ |
 | Join, take over, return to AI (policy-gated), request a view, message customer, confirm/reject observations, end with outcome | ✅ |
 | Structured handover payload (docs/05 §6) | ✅ |
-| Real agent authentication / presence / routing by skill | ⬜ (agent picker stands in for SSO) |
+| Agent authentication | 🟡 Signed-in user is the actor (demo sign-in at `/sign-in`, signed HttpOnly cookie); body-supplied agent ids are ignored. SSO pending |
+| Agent presence / routing by skill | ⬜ |
 
 ### 2.4 AIUK Management Platform (docs/01 §9, docs/03 §4)
 
@@ -85,7 +88,8 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Live Sessions, Session History, Session Detail (audit reconstruction) | ✅ |
 | Clients, AI Agents, Visual Workflows (builder view + publish checks + funnel), Policies, Human Teams, Integrations | ✅ read-only views over tenant configuration |
 | QA, Analytics, Costs, Audit Logs, System Health, Settings | ✅ computed from session records; unmeasurable metrics labelled as such |
-| Editing/publishing workflows | 🟡 Wording, thresholds, attempts and durations editable with versioned publish; step/rule structure editing and policy editing still to come |
+| Editing/publishing workflows | ✅ Wording, thresholds, step structure and branching rules editable on a draft with live publish checks; four-eyes publish |
+| Editing/publishing policies | ✅ Tool mode/risk/idempotency, limits and return-to-AI on a versioned draft; four-eyes publish; read-only in the static demo |
 
 ### 2.5 Security, privacy, NFRs (docs/06, 07)
 
@@ -94,9 +98,14 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Selected evidence only; no video retention; preview relay keeps only the latest frame for ≤10 s | ✅ |
 | Customer projection excludes internal data (audit, confidence, notes, costs) | ✅ (tested) |
 | Command allow-lists per role; input validation; frame size limits | ✅ |
-| SSO, MFA, RBAC, encryption at rest, key rotation, retention/deletion jobs, redaction | ⬜ 🔮 Phases 4–6 |
+| RBAC + tenant isolation | ✅ 5 roles × 16 permissions (`lib/auth/rbac.ts`), enforced on API routes (401/403 JSON) and console/platform pages; static demo enforces the same rules in the browser runtime. Matrix shown in Settings |
+| Sign-in / SSO | 🟡 Demo identity provider + HMAC-signed session cookie (`AUTH_SECRET`); OIDC provider still to build. Customers stay token-based |
+| Security audit | ✅ `security.signed_in/signed_out/sign_in_failed/permission_denied` in Audit Logs |
+| Transcript PII redaction | ✅ `lib/privacy/redact.ts` — cards (Luhn), emails, phones, UK postcodes, account numbers/sort codes removed from customer and agent text before storage; `privacy.redacted` audit. Image blur ⬜ |
+| Retention job | ✅ `lib/privacy/retention.ts` — per-tenant evidence/transcript expiry from session end, run from the server runtime every 10 min; `privacy.retention_purged` audit; status in Settings › Retention. Audit-log expiry needs the durable store |
+| MFA, encryption at rest, key rotation, subject-request deletion | ⬜ 🔮 Phases 4–6 |
 | DPIA, data-residency records | ⬜ (residency fields exist per tenant) |
-| Horizontal scale, durable store, DR | ⬜ 🔮 |
+| Horizontal scale, durable store, DR | 🟡 Durable on one instance (`DATA_DIR`); multi-instance and DR need Postgres + shared event bus 🔮 |
 
 ### 2.6 QA (docs/08)
 
@@ -105,7 +114,8 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Unit tests: workflow logic, policy checks, frame-selection rules, validation, state transitions | ✅ `tests/` (Vitest) |
 | End-to-end workflow tests through the orchestrator for every scenario (clear, glare, never-clear, wrong object, loose cable, model outage, customer asks for human, return to AI, max duration) | ✅ |
 | Browser E2E (Playwright) | ✅ `e2e/` — the demo walkthrough drives the real customer page and agent console for an AI-resolved and a human-resolved session; runs in CI |
-| Network simulation, security tests | ⬜ |
+| Security tests | ✅ RBAC matrix, tenant isolation, cookie signing/tampering, redaction (incl. false-positive guards), retention (`tests/`); role check in `e2e/access.spec.ts` |
+| Network simulation | ⬜ |
 | AI evaluation sets with real images | ⬜ — needs real model |
 
 ---
@@ -123,7 +133,7 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 - 50+ unit/E2E tests.
 
 ### Phase 2 — Technical POC: real router interaction (in progress)
-1. ✅ **Real multimodal reasoning provider** behind `ReasoningProvider` — structured JSON output (docs/05 §2) validated against the workflow vocabulary; refusals/invalid output escalate. Remaining: per-token cost capture from `usage`, prompt-version registry, evaluation set with real images.
+1. ✅ **Real multimodal reasoning provider** behind `ReasoningProvider` — structured JSON output (docs/05 §2) validated against the workflow vocabulary; refusals/invalid output escalate. ✅ Per-token cost capture from `usage` (measured vs estimated, fallback-aware). Remaining: prompt-version registry, evaluation set with real images.
 2. **Real voice layer** — streaming ASR/TTS with barge-in/turn-taking, behind the existing hooks.
 3. **WebRTC media layer** — SFU rooms with customer, AI and human participants; replaces the preview relay; human join uses the same room.
 4. **Media gateway service** — server-side frame selection on the video track (scene change, scheduled low-rate sample), alongside the client stability gate.
@@ -131,15 +141,15 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 
 ### Phase 3 — Internal alpha
 - Durable event store + session store (Postgres), orchestrator as a service, outbox for effects.
-- ✅ Workflow versioning (draft → review → publish, pinning, audit). Remaining: durable storage, four-eyes approval, structural builder, policy versioning.
-- OpenTelemetry traces with session correlation IDs; alerting.
+- ✅ Workflow versioning (draft → review → publish, pinning, audit), structural builder, four-eyes approval and policy versioning. Remaining: durable storage of configuration versions; approver identity from SSO/RBAC instead of the POC "Acting as" picker.
+- ✅ Health/metrics endpoints and JSON logs with correlation ids. Remaining: OpenTelemetry traces, alerting.
 - QA tooling: human review queue, evaluation sets with labelled images, calibration reports.
 
 ### Phase 4 — Client pilot (Northline)
-- SSO for agents/admins, tenant-enforced RBAC, real CRM/line-test/engineer-booking integrations, SMS link delivery, privacy controls and DPIA.
+- SSO for agents/admins (OIDC behind `IdentityProvider`), ✅ tenant-enforced RBAC, real CRM/line-test/engineer-booking integrations, privacy controls and DPIA. (✅ SMS/email link delivery adapters — needs pilot credentials.)
 
 ### Phase 5 — Production pilot
-- Retention/deletion jobs, redaction, incident process, resilience (provider failover, retries), cost attribution per tenant, production monitoring.
+- ✅ Retention job and transcript redaction (in-memory); durable deletion, image redaction, incident process, resilience (provider failover, retries), cost attribution per tenant, production monitoring.
 
 ### Phase 6–7 — Enterprise and scale
 - Regional deployment, enterprise audit export, self-service client admin, workflow templates per sector (boiler, insurance evidence), AI copilot after takeover, partner integrations.
@@ -157,16 +167,18 @@ npm run typecheck
 npm run lint
 ```
 
+Server edition sign-in: open `/sign-in` and pick a demo user (agents/supervisors land on the console, platform roles on the platform). Set `AUTH_SECRET` (32+ characters) in any deployed environment; without it a random per-process secret is used and sessions end on restart. The static demo needs no sign-in: switch demo identity from the header.
+
 Optional: set `ANTHROPIC_API_KEY` (and optionally `VISUAL_ASSIST_MODEL`, default `claude-opus-5-5`) to enable **Live AI** sessions. Without it, every session uses the simulated provider.
 
 - `/demo` — demo stage. **Play walkthrough** scripts the customer and the agent through a whole session with captions (`lib/demo/walkthrough.ts`); **Start session** lets you drive both sides yourself.
 - `/` — entry point; **Start test session** creates a live router session and gives you the customer link.
 - `/assist/<token>` — customer experience (use a phone on the same network over HTTPS for the real camera, or the demo camera).
-- `/console` — Human Agent Console (pick an agent identity top right).
+- `/console` — Human Agent Console (acts as the signed-in user; the static demo has an identity switcher top right).
 - `/platform` — AIUK Management Platform.
 - Seeded in-flight sessions: `/assist/demo-escalated`, `/assist/demo-glare`, `/assist/demo-power-cycle`, `/assist/demo-human`.
 
-The runtime is in-process and in-memory: restarting the server resets live sessions and regenerates seed history.
+By default the runtime is in-memory: restarting resets live sessions and regenerates seed history. For durable runs use `npm run build && DATA_DIR=./data npm start` — see `PRODUCTION-READINESS.md` for all environment variables, `/api/health` and `/api/metrics`.
 
 ---
 
@@ -193,6 +205,10 @@ lib/analytics/metrics.ts  Metrics derived from session records
 1. **Return to AI after a customer asks for a person** — treated as mandatory-human (customer must not be bounced back to AI). Configurable per policy via `mandatoryHumanReasons`.
 2. **"Join" vs "Take over"** — join adds the agent to the interaction (observe/assist) without changing ownership; take over transfers ownership and stops AI workflow progression. AI continues to analyse requested frames as a copilot after takeover (docs/01 §8.6 "optional AI copilot"), but cannot advance the workflow.
 3. **Agent preview before WebRTC** — a 1 fps JPEG relay, active only while a human is present or the session is escalated, never analysed or retained. The customer is told when their camera is visible to a person.
-4. **Costs** use placeholder unit rates in `lib/domain/pricing.ts` until provider contracts exist.
+4. **Costs** use placeholder unit rates in `lib/domain/pricing.ts` until provider contracts exist, except live model calls, which are priced from provider-reported tokens at list price (labelled *measured*).
 5. **Repeat-contact rate, field-visit avoidance and CSAT** need CRM integration and are shown as not yet measurable rather than estimated.
-6. **Customer-facing brand** (e.g. "Northline") is per-tenant configuration; the reference image's third-party router branding is not used.
+6. **Policy status naming** — the published state of a policy is stored as `active` (as for agents) rather than `published`; the lifecycle is otherwise identical to workflows. A session restored from another tab in the static demo re-resolves the active policy version.
+7. **Customer-facing brand** (e.g. "Northline") is per-tenant configuration; the reference image's third-party router branding is not used.
+8. **Platform admins do not operate sessions** (least privilege): they view sessions and configure every tenant; joining/taking over is for agents and supervisors. Client admins configure their own tenant and view its live queue, but cannot use the cross-client management platform until its modules are tenant-scoped.
+9. **Redaction happens before storage and before the model sees the text.** The AI therefore never receives a customer's postcode or account number; workflows that need such values must collect them through a dedicated, policy-controlled capture step. Agent notes are not redacted (agents may need to record references).
+10. **Retention clock starts at session end**; live sessions are never purged. Removed frames/transcripts leave structured metadata and an audit event.

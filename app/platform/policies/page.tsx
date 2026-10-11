@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { Info } from "lucide-react";
 import { platformRuntime } from "@/lib/server/platform-data";
-import { policies, tenantName, workflows } from "@/lib/config/catalog";
+import { policyKey, tenantName, workflows } from "@/lib/config/catalog";
+import { getPolicyRegistry } from "@/lib/policy/registry";
 import type { SensitiveCategory } from "@/lib/domain/types";
 import { humanize } from "@/lib/domain/labels";
-import { confidencePct, formatMinutes } from "@/lib/format";
+import { confidencePct, formatDateTime, formatMinutes } from "@/lib/format";
 import { Badge, KeyValue, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
 import { EscalationReasonBadge, WorkflowStatusBadge } from "@/components/domain/badges";
 import { withinDays } from "@/components/platform/config-data";
 import { ConfigStatusBadge, FieldLabel, Mono, Note, RiskBadge, SensitiveHandlingBadge, ToolModeBadge, YesNo } from "@/components/platform/config-ui";
+import { PolicyVersionActions } from "@/components/platform/policy-version-actions";
 
 export const metadata = { title: "Policies" };
 
@@ -30,17 +32,24 @@ export default async function PoliciesPage() {
   const rt = await platformRuntime();
   const states = withinDays(rt.states(), 14);
   const denied = states.flatMap((s) => s.toolActions.filter((a) => a.status === "denied"));
+  // One panel per policy lineage, showing its active version (or newest, if never published).
+  const reg = getPolicyRegistry();
+  const policies = reg.current();
 
   return (
     <>
       <PageHeader
         title="Policies"
-        description="Deterministic rules the AI cannot override: which business tools it may run, which escalations hand control permanently to a human, how sensitive visual data is handled, and the confidence and duration limits for each client."
+        description="Deterministic rules the AI cannot override: which business tools it may run, which escalations hand control permanently to a human, how sensitive visual data is handled, and the confidence and duration limits for each client. Policies are versioned: changes go through draft, review by a second administrator, and publish."
         meta={<Badge tone="neutral">{policies.length} policies</Badge>}
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Active policies" value={policies.filter((p) => p.status === "active").length} hint={`${policies.filter((p) => p.status === "draft").length} draft`} />
+        <Stat
+          label="Active policies"
+          value={policies.filter((p) => p.status === "active").length}
+          hint={`${reg.list().filter((p) => p.status === "draft" || p.status === "in_review").length} draft or in review`}
+        />
         <Stat label="Tools governed" value={policies.reduce((n, p) => n + p.tools.length, 0)} hint="Across all policies" />
         <Stat
           label="Human-only or denied tools"
@@ -51,25 +60,35 @@ export default async function PoliciesPage() {
       </div>
 
       <Note className="mt-4" icon={<Info className="size-3.5" />}>
-        Tool permission is decided by the policy engine, never by the model (docs/02 §4 rule 6). Regulated tools always require a human even when listed as allowed.
+        Tool permission is decided by the policy engine, never by the model (docs/02 §4 rule 6). Regulated tools always require a human and can never be set to allowed.
+        New sessions use the active version of a policy; running sessions keep the version they started with.
         Sensitive-data handling is configured here; automatic blurring and capture-avoidance enforcement in the media gateway is not yet implemented in the POC.
       </Note>
 
       <div className="mt-4 space-y-4">
         {policies.map((p) => {
-          const wfs = workflows.filter((w) => w.policyId === p.id);
+          const key = policyKey(p);
+          const wfs = workflows.filter((w) => w.policyId === key);
+          const versions = reg.versions(key);
+          const draft = reg.openDraft(key);
           const handling = new Map(p.sensitiveData.map((s) => [s.category, s.handling]));
           const unspecified = SENSITIVE_CATEGORIES.filter((c) => !handling.has(c)).length;
           return (
             <Panel
               key={p.id}
+              id={key}
               title={`${p.name} v${p.version}`}
               description={
                 <>
                   {tenantName(p.tenantId)} · <span className="font-mono">{p.id}</span>
                 </>
               }
-              actions={<ConfigStatusBadge status={p.status} />}
+              actions={
+                <>
+                  <ConfigStatusBadge status={p.status} />
+                  <PolicyVersionActions id={p.id} version={p.version} openDraft={draft ? { id: draft.id, version: draft.version, status: draft.status } : undefined} />
+                </>
+              }
               bodyClassName="p-0"
             >
               <div className="grid gap-0 xl:grid-cols-3">
@@ -162,6 +181,49 @@ export default async function PoliciesPage() {
                       </li>
                     ))}
                   </ul>
+                </div>
+
+                <div className="border-t border-line xl:col-span-3">
+                  <div className="px-4 pb-1 pt-3">
+                    <FieldLabel>Version history</FieldLabel>
+                  </div>
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Version</Th>
+                        <Th>Status</Th>
+                        <Th>Change note</Th>
+                        <Th>Submitted by</Th>
+                        <Th>Approved by</Th>
+                        <Th>Published</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {versions.map((v) => (
+                        <tr key={v.id}>
+                          <Td className="whitespace-nowrap">
+                            {v.status === "draft" || v.status === "in_review" ? (
+                              <Link href={`/platform/policies/${v.id}/edit`} className="font-medium text-brand hover:underline">
+                                v{v.version}
+                              </Link>
+                            ) : (
+                              <span className="font-medium text-ink">v{v.version}</span>
+                            )}
+                            {v.basedOnVersion && <div className="text-xs text-muted">from v{v.basedOnVersion}</div>}
+                          </Td>
+                          <Td>
+                            <ConfigStatusBadge status={v.status} />
+                          </Td>
+                          <Td className="min-w-[220px] text-xs">{v.changeNote || <span className="text-muted">—</span>}</Td>
+                          <Td className="whitespace-nowrap text-xs">{v.submittedBy ?? <span className="text-muted">—</span>}</Td>
+                          <Td className="whitespace-nowrap text-xs">{v.approvedBy ?? <span className="text-muted">{v.publishedBy ? "Not recorded" : "—"}</span>}</Td>
+                          <Td className="whitespace-nowrap text-xs">
+                            {v.publishedAt ? `${formatDateTime(v.publishedAt)} by ${v.publishedBy ?? "—"}` : <span className="text-muted">—</span>}
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
                 </div>
               </div>
             </Panel>

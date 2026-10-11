@@ -1,6 +1,6 @@
 import { getWorkflowRegistry, WorkflowRegistryError } from "@/lib/workflow/registry";
 import { jsonError, readJson } from "@/lib/server/http";
-import { resolveAdmin } from "@/lib/server/admin";
+import { authorizeConfig } from "@/lib/server/admin";
 
 /** Lifecycle transitions: submit (draft → in review), reopen (review → draft), publish (review → published). */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -9,8 +9,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const wf = reg.get(id);
   if (!wf) return jsonError("Workflow not found", 404);
   const body = await readJson(request);
-  const actor = resolveAdmin(body?.actorId, wf);
-  if (!actor) return jsonError("Not permitted", 403);
+  const auth = await authorizeConfig(body?.action === "publish" ? "workflow.publish" : "workflow.edit", wf);
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   try {
     switch (body?.action) {
       case "submit":

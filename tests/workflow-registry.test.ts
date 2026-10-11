@@ -4,6 +4,7 @@ import { routerTroubleshootingV3 } from "@/lib/config/workflows/router-troublesh
 import { routerTroubleshootingV2 } from "@/lib/config/workflows/other-workflows";
 
 const admin = { id: "usr_priya", name: "Priya Shah" };
+const approver = { id: "usr_james", name: "James Carter" };
 
 function registry() {
   return new WorkflowRegistry([structuredClone(routerTroubleshootingV3), structuredClone(routerTroubleshootingV2)], () => "2026-10-11T12:00:00.000Z");
@@ -16,7 +17,7 @@ describe("workflow versioning", () => {
     expect(draft).toMatchObject({ id: "wf_router_v4", version: 4, status: "draft", basedOnVersion: 3 });
     r.updateDraft(draft.id, { changeNote: "Shorter lights prompt", steps: [{ key: "inspect_lights", customerPrompt: "Closer to the lights, please", confidenceThreshold: 0.8 }] }, admin);
     r.submitForReview(draft.id, admin);
-    r.publish(draft.id, admin);
+    r.publish(draft.id, approver);
     expect(r.latestPublished("tnt_northline", "router-troubleshooting")?.version).toBe(4);
     expect(r.get("wf_router_v3")?.status).toBe("retired");
     expect(r.get("wf_router_v4")?.steps.find((s) => s.key === "inspect_lights")?.confidenceThreshold).toBe(0.8);
@@ -40,7 +41,7 @@ describe("workflow versioning", () => {
     const r = registry();
     const d = r.createDraft("wf_router_v3", admin);
     expect(() => r.createDraft("wf_router_v3", admin)).toThrow(/already exists/);
-    expect(() => r.publish(d.id, admin)).toThrow(/Submit the draft/);
+    expect(() => r.publish(d.id, approver)).toThrow(/Submit the draft/);
     expect(() => r.submitForReview(d.id, admin)).toThrow(/change note/);
     r.updateDraft(d.id, { changeNote: "x" }, admin);
     r.submitForReview(d.id, admin);
@@ -64,5 +65,31 @@ describe("workflow versioning", () => {
     r.discardDraft(d.id, admin);
     expect(r.get(d.id)).toBeUndefined();
     expect(() => r.discardDraft("wf_router_v3", admin)).toThrow(/unpublished/);
+  });
+
+  it("requires a second administrator to publish (four-eyes) and records the approver", () => {
+    const r = registry();
+    const d = r.createDraft("wf_router_v3", admin);
+    r.updateDraft(d.id, { changeNote: "Tighter thresholds" }, admin);
+    r.submitForReview(d.id, admin);
+    expect(r.get(d.id)).toMatchObject({ submittedBy: "Priya Shah", submittedById: "usr_priya" });
+    expect(() => r.publish(d.id, admin)).toThrow(/Four-eyes rule: Priya Shah submitted this version/);
+    expect(r.get(d.id)?.status).toBe("in_review");
+    expect(r.get("wf_router_v3")?.status).toBe("published");
+
+    r.publish(d.id, approver);
+    expect(r.get(d.id)).toMatchObject({ status: "published", approvedBy: "James Carter", approvedById: "usr_james", publishedBy: "James Carter" });
+    expect(r.audit.at(-1)?.payload).toMatchObject({ submittedBy: "Priya Shah", approvedBy: "James Carter" });
+  });
+
+  it("falls back to the submitter's name for versions without a submitter id", () => {
+    const r = registry();
+    const d = r.createDraft("wf_router_v3", admin);
+    r.updateDraft(d.id, { changeNote: "x" }, admin);
+    r.submitForReview(d.id, approver);
+    const v = r.get(d.id)!;
+    v.submittedById = undefined;
+    expect(() => r.publish(d.id, approver)).toThrow(/Four-eyes/);
+    expect(r.publish(d.id, admin).status).toBe("published");
   });
 });

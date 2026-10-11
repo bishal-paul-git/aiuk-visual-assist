@@ -3,11 +3,14 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Info, Lock, RotateCcw, Save, Send, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Lock, RotateCcw, Save, Send, ShieldCheck, Trash2, Upload, UsersRound } from "lucide-react";
 import type { WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
 import { validateWorkflow } from "@/lib/workflow/engine";
+import type { StructuralOp } from "@/lib/workflow/structure";
 import { Badge, buttonClass, cx, Panel } from "@/components/ui/primitives";
 import { WorkflowStatusBadge } from "@/components/domain/badges";
+import { ActingAdminSelect, defaultAdmin, type AdminOption } from "./acting-admin";
+import { Field, inputClass, STEP_TYPE_LABEL, WorkflowStructureEditor } from "./workflow-structure-editor";
 
 type StepEdit = Pick<WorkflowStep, "instruction" | "customerPrompt" | "confidenceThreshold" | "maxAttempts">;
 
@@ -42,23 +45,34 @@ function apply(wf: WorkflowDefinition, f: Form): WorkflowDefinition {
   };
 }
 
-const TYPE_LABEL: Record<WorkflowStep["type"], string> = {
-  start: "Start",
-  question: "Question",
-  visual_request: "Visual request",
-  guidance: "Guidance",
-  business_action: "Business action",
-  human_escalation: "Human escalation",
-  completion: "Completion",
-};
+/** Wording for a step; steps added since the editor loaded fall back to the server copy. */
+function editOf(f: Form, s: WorkflowStep): StepEdit {
+  return f.steps[s.key] ?? { instruction: s.instruction, customerPrompt: s.customerPrompt, confidenceThreshold: s.confidenceThreshold, maxAttempts: s.maxAttempts };
+}
 
-export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinition; base?: WorkflowDefinition }) {
+export function WorkflowEditor({
+  workflow,
+  base,
+  admins,
+  tools,
+}: {
+  workflow: WorkflowDefinition;
+  base?: WorkflowDefinition;
+  /** Administrators allowed to act on this tenant's configuration. */
+  admins: AdminOption[];
+  /** Tool names in the linked policy. */
+  tools: string[];
+}) {
   const router = useRouter();
   const [saved, setSaved] = useState(() => toForm(workflow));
   const [form, setForm] = useState(saved);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string }>();
+  const [actorId, setActorId] = useState(() => defaultAdmin(admins, workflow.submittedById));
   const readOnly = workflow.status !== "draft";
+  const actor = admins.find((a) => a.id === actorId);
+  // Four-eyes: the submitter cannot approve their own version (enforced on the server too).
+  const isSubmitter = workflow.status === "in_review" && (workflow.submittedById ? workflow.submittedById === actorId : workflow.submittedBy === actor?.name);
 
   const preview = useMemo(() => apply(workflow, form), [workflow, form]);
   const issues = useMemo(() => validateWorkflow(preview), [preview]);
@@ -66,26 +80,43 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
   const changes = useMemo(() => diff(base, preview), [base, preview]);
 
-  const setStep = (key: string, patch: Partial<StepEdit>) => setForm((f) => ({ ...f, steps: { ...f.steps, [key]: { ...f.steps[key], ...patch } } }));
+  const setStep = (s: WorkflowStep, patch: Partial<StepEdit>) => setForm((f) => ({ ...f, steps: { ...f.steps, [s.key]: { ...editOf(f, s), ...patch } } }));
 
-  async function request(label: string, url: string, init: RequestInit, onOk?: () => void) {
+  /** Calls the API as the selected administrator. Resolves to an error message, or undefined on success. */
+  async function call(label: string, url: string, method: string, body?: Record<string, unknown>): Promise<string | undefined> {
     setBusy(label);
-    setMessage(undefined);
     try {
-      const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json" } });
+      const res = await fetch(method === "DELETE" ? `${url}?actorId=${encodeURIComponent(actorId)}` : url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify({ ...body, actorId }) : undefined,
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `Request failed (${res.status})`);
+        const b = await res.json().catch(() => ({}));
+        return b.error ?? `Request failed (${res.status})`;
       }
-      onOk?.();
       router.refresh();
-      return true;
+      return undefined;
     } catch (e) {
-      setMessage({ tone: "error", text: (e as Error).message });
-      return false;
+      return (e as Error).message;
     } finally {
       setBusy(null);
     }
+  }
+
+  async function request(label: string, url: string, method: string, body?: Record<string, unknown>, onOk?: () => void) {
+    setMessage(undefined);
+    const err = await call(label, url, method, body);
+    if (err) setMessage({ tone: "error", text: err });
+    else onOk?.();
+    return !err;
+  }
+
+  /** Structural change: unsaved wording is saved first so nothing is lost when the page refreshes. */
+  async function structure(op: StructuralOp): Promise<string | undefined> {
+    if (dirty && !(await save())) return "Save your wording changes first";
+    setMessage(undefined);
+    return call("structure", `/api/workflows/${workflow.id}/structure`, "POST", { op });
   }
 
   async function save(): Promise<boolean> {
@@ -95,10 +126,13 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
       defaultConfidenceThreshold: form.defaultConfidenceThreshold,
       maxAiDurationSec: form.maxAiDurationSec,
       steps: workflow.steps
-        .filter((s) => JSON.stringify(form.steps[s.key]) !== JSON.stringify(saved.steps[s.key]))
-        .map((s) => ({ key: s.key, ...form.steps[s.key], confidenceThreshold: form.steps[s.key].confidenceThreshold ?? null, maxAttempts: form.steps[s.key].maxAttempts ?? null })),
+        .filter((s) => JSON.stringify(editOf(form, s)) !== JSON.stringify(editOf(saved, s)))
+        .map((s) => {
+          const e = editOf(form, s);
+          return { key: s.key, ...e, confidenceThreshold: e.confidenceThreshold ?? null, maxAttempts: e.maxAttempts ?? null };
+        }),
     };
-    return request("save", `/api/workflows/${workflow.id}`, { method: "PATCH", body: JSON.stringify({ patch }) }, () => {
+    return request("save", `/api/workflows/${workflow.id}`, "PATCH", { patch }, () => {
       setSaved(form);
       setMessage({ tone: "ok", text: "Draft saved" });
     });
@@ -106,7 +140,7 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
 
   async function transition(action: "submit" | "reopen" | "publish") {
     if (action === "submit" && dirty && !(await save())) return;
-    const ok = await request(action, `/api/workflows/${workflow.id}/transition`, { method: "POST", body: JSON.stringify({ action }) });
+    const ok = await request(action, `/api/workflows/${workflow.id}/transition`, "POST", { action });
     if (ok) {
       setMessage({ tone: "ok", text: action === "publish" ? `Published v${workflow.version}. New sessions now use this version.` : action === "submit" ? "Submitted for review" : "Returned to draft" });
       if (action === "publish") router.push(`/platform/workflows/${workflow.id}`);
@@ -158,26 +192,37 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
           </div>
         </Panel>
 
-        <Panel title="Steps" description="Wording and evidence thresholds. Step structure and branching rules are locked in this editor.">
+        <Panel
+          title="Structure"
+          description={
+            readOnly
+              ? "In review — reopen to change steps or rules"
+              : "Add, remove and reorder steps, and edit each step's branching rules and settings. Each change is saved to the draft and audited."
+          }
+        >
+          <WorkflowStructureEditor workflow={preview} issues={issues} readOnly={readOnly || !!busy} tools={tools} onOp={structure} />
+        </Panel>
+
+        <Panel title="Wording" description="What the AI says and the customer sees at each step, plus evidence thresholds.">
           <ol className="space-y-3">
             {workflow.steps.map((s, i) => {
-              const e = form.steps[s.key];
+              const e = editOf(form, s);
               const changed = base && JSON.stringify(stepFields(base.steps.find((b) => b.key === s.key))) !== JSON.stringify(stepFields({ ...s, ...e }));
               return (
                 <li key={s.key} className={cx("rounded-md border p-3", changed ? "border-brand/40 bg-brand-soft/40" : "border-line")}>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <span className="tabular text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
-                    <Badge tone="navy">{TYPE_LABEL[s.type]}</Badge>
+                    <Badge tone="navy">{STEP_TYPE_LABEL[s.type]}</Badge>
                     <span className="text-[13px] font-semibold text-ink">{s.title}</span>
                     <code className="text-[11px] text-muted">{s.key}</code>
                     {changed && <Badge tone="brand">Changed</Badge>}
                   </div>
                   <div className="grid gap-3">
                     <Field label="AI says">
-                      <textarea value={e.instruction} disabled={readOnly} rows={2} onChange={(ev) => setStep(s.key, { instruction: ev.target.value })} className={inputClass} />
+                      <textarea value={e.instruction} disabled={readOnly} rows={2} onChange={(ev) => setStep(s, { instruction: ev.target.value })} className={inputClass} />
                     </Field>
                     <Field label={`Customer screen prompt (${e.customerPrompt.length}/120)`}>
-                      <input value={e.customerPrompt} maxLength={120} disabled={readOnly} onChange={(ev) => setStep(s.key, { customerPrompt: ev.target.value })} className={inputClass} />
+                      <input value={e.customerPrompt} maxLength={120} disabled={readOnly} onChange={(ev) => setStep(s, { customerPrompt: ev.target.value })} className={inputClass} />
                     </Field>
                     {s.type === "visual_request" && (
                       <div className="grid gap-3 sm:grid-cols-2">
@@ -189,7 +234,7 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
                             step={0.01}
                             value={e.confidenceThreshold ?? ""}
                             disabled={readOnly}
-                            onChange={(ev) => setStep(s.key, { confidenceThreshold: ev.target.value === "" ? undefined : Number(ev.target.value) })}
+                            onChange={(ev) => setStep(s, { confidenceThreshold: ev.target.value === "" ? undefined : Number(ev.target.value) })}
                             className={inputClass}
                           />
                         </Field>
@@ -200,7 +245,7 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
                             max={5}
                             value={e.maxAttempts ?? ""}
                             disabled={readOnly}
-                            onChange={(ev) => setStep(s.key, { maxAttempts: ev.target.value === "" ? undefined : Number(ev.target.value) })}
+                            onChange={(ev) => setStep(s, { maxAttempts: ev.target.value === "" ? undefined : Number(ev.target.value) })}
                             className={inputClass}
                           />
                         </Field>
@@ -222,6 +267,7 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
             {workflow.basedOnVersion && <span className="text-muted">based on v{workflow.basedOnVersion}</span>}
           </div>
           {workflow.status === "in_review" && workflow.submittedBy && <p className="text-xs text-muted">Submitted by {workflow.submittedBy}</p>}
+          <ActingAdminSelect admins={admins} value={actorId} onChange={setActorId} disabled={!!busy} />
           {message && (
             <p role="status" className={cx("rounded-md px-2.5 py-2 text-xs", message.tone === "ok" ? "bg-ok-soft text-ok" : "bg-danger-soft text-danger")}>
               {message.text}
@@ -246,8 +292,14 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
             )}
             {workflow.status === "in_review" && (
               <>
-                <button type="button" className={buttonClass("primary", "sm")} disabled={errors.length > 0 || !!busy} onClick={() => void transition("publish")}>
-                  <Upload className="size-3.5" aria-hidden /> Publish v{workflow.version}
+                <button
+                  type="button"
+                  className={buttonClass("primary", "sm")}
+                  disabled={errors.length > 0 || isSubmitter || !!busy}
+                  title={isSubmitter ? "A different administrator must approve" : undefined}
+                  onClick={() => void transition("publish")}
+                >
+                  <Upload className="size-3.5" aria-hidden /> Approve and publish v{workflow.version}
                 </button>
                 <button type="button" className={buttonClass("secondary", "sm")} disabled={!!busy} onClick={() => void transition("reopen")}>
                   <RotateCcw className="size-3.5" aria-hidden /> Back to draft
@@ -260,7 +312,7 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
               disabled={!!busy}
               onClick={() =>
                 window.confirm(`Discard v${workflow.version}? This can't be undone.`) &&
-                void request("discard", `/api/workflows/${workflow.id}`, { method: "DELETE" }, () => router.push("/platform/workflows"))
+                void request("discard", `/api/workflows/${workflow.id}`, "DELETE", undefined, () => router.push("/platform/workflows"))
               }
             >
               <Trash2 className="size-3.5" aria-hidden /> Discard
@@ -271,8 +323,13 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
               <Lock className="mt-0.5 size-3 shrink-0" aria-hidden /> Publishing retires the current published version. Sessions already running stay on their version.
             </p>
           )}
+          {isSubmitter && (
+            <p className="flex gap-1.5 rounded-md bg-warn-soft px-2.5 py-2 text-[11px] text-warn">
+              <UsersRound className="mt-0.5 size-3 shrink-0" aria-hidden /> You submitted this version. Four-eyes approval needs a different administrator to sign in, approve and publish it.
+            </p>
+          )}
           <p className="text-[11px] text-muted">
-            Four-eyes approval and role-based publish rights arrive with SSO/RBAC. Every change is recorded in the{" "}
+            Publishing needs a second administrator: whoever submits a version cannot approve it. Every change is recorded in the{" "}
             <Link href="/platform/audit?type=config" className="text-brand hover:underline">
               audit log
             </Link>
@@ -320,18 +377,6 @@ export function WorkflowEditor({ workflow, base }: { workflow: WorkflowDefinitio
   );
 }
 
-const inputClass = "w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-[13px] text-ink disabled:bg-surface-2 disabled:text-ink-2";
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</span>
-      {children}
-      {hint && <span className="mt-1 block text-[11px] text-muted">{hint}</span>}
-    </label>
-  );
-}
-
 function stepFields(s?: WorkflowStep) {
   return s ? { instruction: s.instruction, customerPrompt: s.customerPrompt, confidenceThreshold: s.confidenceThreshold, maxAttempts: s.maxAttempts } : null;
 }
@@ -345,9 +390,22 @@ function diff(base: WorkflowDefinition | undefined, next: WorkflowDefinition): {
   cmp("Objective", base.objective, next.objective);
   cmp("Default confidence threshold", base.defaultConfidenceThreshold, next.defaultConfidenceThreshold);
   cmp("Max AI duration (s)", base.maxAiDurationSec, next.maxAiDurationSec);
+  const baseKeys = base.steps.map((s) => s.key);
+  const nextKeys = next.steps.map((s) => s.key);
+  for (const s of next.steps) if (!baseKeys.includes(s.key)) out.push({ field: `Step added: ${s.title}`, from: "—", to: `${STEP_TYPE_LABEL[s.type]} · ${s.key}` });
+  for (const s of base.steps) if (!nextKeys.includes(s.key)) out.push({ field: `Step removed: ${s.title}`, from: s.key, to: "—" });
+  const shared = (keys: string[], other: string[]) => keys.filter((k) => other.includes(k)).join(",");
+  if (shared(baseKeys, nextKeys) !== shared(nextKeys, baseKeys)) out.push({ field: "Step order", from: "Previous order", to: "Reordered" });
   for (const s of next.steps) {
     const b = base.steps.find((x) => x.key === s.key);
     if (!b) continue;
+    cmp(`${s.title} · title`, b.title, s.title);
+    cmp(`${s.title} · type`, STEP_TYPE_LABEL[b.type], STEP_TYPE_LABEL[s.type]);
+    if (JSON.stringify(b.next) !== JSON.stringify(s.next)) {
+      out.push({ field: `${s.title} · rules`, from: b.next.map((r) => r.label).join("; ") || "No rules", to: s.next.map((r) => r.label).join("; ") || "No rules" });
+    }
+    const settings = (x: WorkflowStep) => JSON.stringify([x.evidence, x.onFailure, x.escalation, x.completion, x.action, x.allowedGuidance]);
+    if (settings(b) !== settings(s)) out.push({ field: `${s.title} · settings`, from: "Previous settings", to: "Changed" });
     cmp(`${s.title} · AI says`, b.instruction, s.instruction);
     cmp(`${s.title} · customer prompt`, b.customerPrompt, s.customerPrompt);
     cmp(`${s.title} · threshold`, b.confidenceThreshold, s.confidenceThreshold);

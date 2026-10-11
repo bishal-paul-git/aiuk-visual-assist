@@ -5,23 +5,67 @@ import { RoutingReasoningProvider } from "@/lib/providers/routing";
 import { ClaudeReasoningProvider } from "@/lib/providers/claude/reasoning";
 import { SessionRuntime } from "@/lib/runtime/session-runtime";
 import { seedSessions } from "@/lib/runtime/seed";
+import { attachStore, createStoreFromEnv, MemorySessionStore, type Persistence } from "@/lib/server/store";
+import { attachConfigStore } from "@/lib/server/store/config";
+import { getProviderStats } from "@/lib/server/telemetry";
+import { log } from "@/lib/server/log";
 
 export { SessionRuntime, MAX_FRAME_BYTES } from "@/lib/runtime/session-runtime";
 
 const GLOBAL_KEY = "__aiukVisualAssistRuntime";
+const PERSIST_KEY = "__aiukVisualAssistPersistence";
+const BOOT_KEY = "__aiukVisualAssistBootedAt";
+
+type Globals = Record<string, unknown>;
+export const RETENTION_INTERVAL_MS = 10 * 60_000;
 
 /** Process-wide singleton (survives dev hot reloads). */
 export function getRuntime(): SessionRuntime {
-  const g = globalThis as unknown as Record<string, SessionRuntime | undefined>;
-  let rt = g[GLOBAL_KEY];
+  const g = globalThis as unknown as Globals;
+  let rt = g[GLOBAL_KEY] as SessionRuntime | undefined;
   if (!rt) {
     rt = new SessionRuntime(new RoutingReasoningProvider(new MockReasoningProvider(), liveProvider()), new MockToolExecutor());
-    seedSessions(rt);
-    const timer = setInterval(() => rt!.tick(), 10_000);
+    g[BOOT_KEY] = Date.now();
+    // The static demo build prerenders from a fresh seeded runtime; it never touches DATA_DIR.
+    const store = process.env.STATIC_EXPORT === "1" ? new MemorySessionStore() : createStoreFromEnv();
+    // Workflow and policy versions first, so sessions pinned to them restore.
+    if (store.durable && process.env.DATA_DIR) attachConfigStore(process.env.DATA_DIR);
+    const persistence = attachStore(rt, store, { seed: seedSessions, debounceMs: Number(process.env.PERSIST_DEBOUNCE_MS) || 250 });
+    g[PERSIST_KEY] = persistence;
+    if (store.durable && typeof process.on === "function") {
+      // Writes are debounced; flush anything pending synchronously on the way out.
+      process.once("exit", () => persistence.flushSync());
+    }
+    const r = rt;
+    // Retention job (docs/06 §3): delete expired evidence and transcripts, once
+    // persisted sessions are loaded, then every RETENTION_INTERVAL_MS.
+    void persistence.ready.then(() => r.runRetention());
+    const timer = setInterval(() => {
+      r.tick();
+      const last = r.retentionStatus ? Date.parse(r.retentionStatus.lastRunAt) : 0;
+      if (Date.now() - last >= RETENTION_INTERVAL_MS) r.runRetention();
+    }, 10_000);
     if (typeof timer === "object" && "unref" in timer) timer.unref();
     g[GLOBAL_KEY] = rt;
   }
   return rt;
+}
+
+/** Persistence attached to the runtime (store kind, readiness, flush). */
+export function getPersistence(): Persistence {
+  getRuntime();
+  return (globalThis as unknown as Globals)[PERSIST_KEY] as Persistence;
+}
+
+/** Resolves once persisted sessions are loaded (immediate for memory and file stores). */
+export function runtimeReady(): Promise<SessionRuntime> {
+  const rt = getRuntime();
+  return getPersistence().ready.then(() => rt);
+}
+
+export function bootedAt(): number {
+  getRuntime();
+  return (globalThis as unknown as Globals)[BOOT_KEY] as number;
 }
 
 /**
@@ -30,5 +74,12 @@ export function getRuntime(): SessionRuntime {
  */
 function liveProvider(): ClaudeReasoningProvider | undefined {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return undefined;
-  return new ClaudeReasoningProvider(new Anthropic(), { model: process.env.VISUAL_ASSIST_MODEL || undefined });
+  const stats = getProviderStats();
+  return new ClaudeReasoningProvider(new Anthropic(), {
+    model: process.env.VISUAL_ASSIST_MODEL || undefined,
+    observe: (r) => {
+      stats.record(r);
+      if (!r.ok) log.warn("provider.call_failed", { provider: r.provider, model: r.model, operation: r.operation, latencyMs: r.latencyMs });
+    },
+  });
 }

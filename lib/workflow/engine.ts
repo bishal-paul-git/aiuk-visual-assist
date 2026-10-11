@@ -116,6 +116,8 @@ export function validateWorkflow(def: WorkflowDefinition): ValidationIssue[] {
   if (!keys.has(def.startStep)) issues.push({ severity: "error", message: `Start step "${def.startStep}" does not exist` });
 
   for (const step of def.steps) {
+    if (!step.instruction.trim()) issues.push({ stepKey: step.key, severity: "error", message: "AI instruction is empty" });
+    if (!step.customerPrompt.trim()) issues.push({ stepKey: step.key, severity: "warning", message: "Customer screen prompt is empty" });
     for (const rule of step.next) {
       if (!keys.has(rule.to)) {
         issues.push({ stepKey: step.key, severity: "error", message: `Rule "${rule.label}" targets unknown step "${rule.to}"` });

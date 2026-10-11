@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { platformRuntime, STATIC_EXPORT } from "@/lib/server/platform-data";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
-import { tenantName, workflows } from "@/lib/config/catalog";
+import { getPolicy, tenantName, workflows } from "@/lib/config/catalog";
+import { editorIdentity } from "@/lib/server/config-admin";
 import { PageHeader } from "@/components/ui/primitives";
 import { WorkflowEditor } from "@/components/platform/workflow-editor";
 
@@ -42,7 +43,12 @@ export default async function EditWorkflowPage({ params }: { params: Promise<{ i
         title={`${wf.name} v${wf.version}`}
         description={`${tenantName(wf.tenantId)} · ${wf.status === "draft" ? "Editing draft" : "In review"}`}
       />
-      <WorkflowEditor workflow={structuredClone(wf)} base={base ? structuredClone(base) : undefined} />
+      <WorkflowEditor
+        workflow={structuredClone(wf)}
+        base={base ? structuredClone(base) : undefined}
+        admins={await editorIdentity(wf.tenantId, "workflow.edit")}
+        tools={getPolicy(wf.policyId)?.tools.map((t) => t.tool) ?? []}
+      />
     </>
   );
 }

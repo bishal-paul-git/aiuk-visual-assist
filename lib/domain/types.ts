@@ -161,6 +161,8 @@ export interface WorkflowDefinition {
   basedOnVersion?: number;
   submittedAt?: ISODateString;
   submittedBy?: string;
+  /** User id of the submitter; the four-eyes rule stops them approving their own change. */
+  submittedById?: string;
   retiredAt?: ISODateString;
   sector: Sector;
   objective: string;
@@ -179,6 +181,9 @@ export interface WorkflowDefinition {
   changeNote: string;
   publishedAt?: ISODateString;
   publishedBy?: string;
+  /** Second administrator who approved the version (four-eyes); also the publisher. */
+  approvedBy?: string;
+  approvedById?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,12 +212,32 @@ export type SensitiveCategory =
   | "vehicle_plates"
   | "special_category";
 
+/** "active" is the published version of a policy lineage; at most one per key. */
+export type PolicyStatus = "draft" | "in_review" | "active" | "retired";
+
 export interface Policy {
+  /** Unique per version. The first version of a lineage uses the key as its id. */
   id: string;
+  /**
+   * Lineage key that workflows and agents reference (defaults to `id`).
+   * Resolving a key returns the active version, so new sessions pick up a
+   * publish while running sessions keep the policy object they started with.
+   */
+  key?: string;
   tenantId: string;
   name: string;
   version: number;
-  status: "draft" | "active" | "retired";
+  status: PolicyStatus;
+  basedOnVersion?: number;
+  changeNote?: string;
+  submittedAt?: ISODateString;
+  submittedBy?: string;
+  submittedById?: string;
+  publishedAt?: ISODateString;
+  publishedBy?: string;
+  approvedBy?: string;
+  approvedById?: string;
+  retiredAt?: ISODateString;
   tools: ToolPermission[];
   /** Escalation reasons that hand control to a human and forbid return to AI. */
   mandatoryHumanReasons: EscalationReasonCode[];
@@ -268,6 +293,16 @@ export interface TranscriptEvent {
   confidence: number;
   /** Interpreted intent, set once the reasoning layer has processed the turn. */
   intent?: string;
+  /** Personal data removed from `text` before it was stored (docs/06 §3). */
+  redactions?: RedactionCount[];
+}
+
+/** Kinds of personal data removed from transcript text before storage. */
+export type RedactionType = "card_number" | "email" | "phone" | "postcode" | "account_number";
+
+export interface RedactionCount {
+  type: RedactionType;
+  count: number;
 }
 
 export type FrameTrigger =
@@ -291,6 +326,8 @@ export interface VisualEvent {
   height: number;
   bytes: number;
   processingStatus: "pending" | "analysing" | "analysed" | "failed";
+  /** Set when the frame was deleted under the tenant's retention policy; `frameReference` is then "purged". */
+  purgedAt?: ISODateString;
 }
 
 export const OBSERVATION_STATUSES = [
@@ -389,9 +426,32 @@ export interface CostEvent {
   category: "media" | "speech_to_text" | "text_to_speech" | "vision_inference" | "llm_turn" | "workflow_action";
   quantity: number;
   unit: "minute" | "frame" | "turn" | "character" | "call";
+  /** Cost in GBP. Measured when `basis` is "measured", otherwise a unit-rate estimate. */
   estimatedCost: number;
   currency: "GBP";
   timestamp: ISODateString;
+  /**
+   * "measured": priced from token usage reported by the model provider.
+   * "estimated" (or absent, for older records): flat unit rate from COST_RATES.
+   */
+  basis?: "estimated" | "measured";
+  /** Provider-reported token usage behind a measured cost. */
+  usage?: ModelUsage;
+}
+
+/** Token usage for one model call, as reported by the provider (e.g. Anthropic `usage`). */
+export interface ModelUsageParts {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
+}
+
+export interface ModelUsage extends ModelUsageParts {
+  /** Per-model breakdown when more than one model ran (e.g. a server-side fallback). */
+  parts?: ModelUsageParts[];
+  latencyMs?: number;
 }
 
 export interface AgentNote {
@@ -468,4 +528,23 @@ export type DomainEventType =
   | "config.workflow_submitted"
   | "config.workflow_published"
   | "config.workflow_retired"
-  | "config.workflow_discarded";
+  | "config.workflow_discarded"
+  | "config.workflow_step_added"
+  | "config.workflow_step_removed"
+  | "config.workflow_step_moved"
+  | "config.workflow_step_updated"
+  | "config.workflow_rules_updated"
+  | "config.policy_draft_created"
+  | "config.policy_updated"
+  | "config.policy_submitted"
+  | "config.policy_published"
+  | "config.policy_retired"
+  | "config.policy_discarded"
+  | "notification.sent"
+  | "notification.failed"
+  | "security.signed_in"
+  | "security.signed_out"
+  | "security.sign_in_failed"
+  | "security.permission_denied"
+  | "privacy.redacted"
+  | "privacy.retention_purged";

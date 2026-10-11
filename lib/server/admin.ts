@@ -1,14 +1,24 @@
-import { users } from "@/lib/config/catalog";
 import type { WorkflowDefinition } from "@/lib/domain/types";
+import type { Permission } from "@/lib/auth/rbac";
+import { authorize } from "./auth";
+import { getRuntime } from "./runtime";
+
+export type ConfigAuth = { ok: true; actor: { id: string; name: string } } | { ok: false; response: Response };
 
 /**
- * POC admin identity. Production resolves this from SSO with RBAC
- * (docs/06 §2); the tenant check below is the rule that must survive.
+ * Configuration changes are made by the signed-in user (docs/06 §2), never by
+ * an identity named in the request body. Client admins are confined to their
+ * own tenant's configuration; platform admins can act on every tenant.
  */
-export function resolveAdmin(value: unknown, wf?: WorkflowDefinition): { id: string; name: string } | null {
-  const id = typeof value === "string" ? value : "usr_james";
-  const u = users.find((x) => x.id === id && (x.role === "aiuk_admin" || x.role === "client_admin") && x.status === "active");
-  if (!u) return null;
-  if (wf && u.role === "client_admin" && u.tenantId !== wf.tenantId) return null;
-  return { id: u.id, name: u.name };
+export async function authorizeConfig(
+  permission: Permission,
+  target?: Pick<WorkflowDefinition, "id" | "tenantId">,
+  kind: "workflow" | "policy" = "workflow",
+): Promise<ConfigAuth> {
+  // Boot the runtime first: it restores persisted configuration and attaches
+  // the store that saves every configuration change (lib/server/store/config.ts).
+  getRuntime();
+  const auth = await authorize(permission, target ? { tenantId: target.tenantId } : undefined, target ? { [`${kind}Id`]: target.id } : {});
+  if (!auth.ok) return auth;
+  return { ok: true, actor: { id: auth.user.id, name: auth.user.name } };
 }

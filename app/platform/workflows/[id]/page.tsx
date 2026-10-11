@@ -129,7 +129,7 @@ export default async function WorkflowDetailPage({ params }: Props) {
                   "Linked policy",
                   policy ? (
                     <span className="inline-flex flex-wrap items-center gap-2">
-                      <Link href="/platform/policies" className="text-brand hover:underline">
+                      <Link href={`/platform/policies#${def.policyId}`} className="text-brand hover:underline">
                         {policy.name} v{policy.version}
                       </Link>
                       <ConfigStatusBadge status={policy.status} />
@@ -143,6 +143,7 @@ export default async function WorkflowDetailPage({ params }: Props) {
                 ["Start step", <Mono key="s">{def.startStep}</Mono>],
                 ["Change note", def.changeNote],
                 ["Published", def.publishedAt ? `${formatDateTime(def.publishedAt)} by ${def.publishedBy ?? "—"}` : "Not published"],
+                ["Approval", def.approvedBy ? `Submitted by ${def.submittedBy ?? "—"} · approved by ${def.approvedBy}` : def.status === "in_review" && def.submittedBy ? `Submitted by ${def.submittedBy} · awaiting approval` : "—"],
               ]}
             />
           </div>
@@ -187,7 +188,7 @@ export default async function WorkflowDetailPage({ params }: Props) {
           )}
           <p className="mt-3 border-t border-line pt-2.5 text-xs text-muted">
             Checks: step keys unique, start step exists, every rule and failure path targets a real step, visual requests define evidence and a failure path,
-            business actions define an action, terminal steps define an outcome or reason, every step reachable, and a human escalation step exists.
+            business actions define an action, terminal steps define an outcome or reason, every step has AI wording, every step reachable, and a human escalation step exists.
           </p>
         </Panel>
       </div>
@@ -276,6 +277,45 @@ export default async function WorkflowDetailPage({ params }: Props) {
           </Panel>
         </div>
       </div>
+
+      <Panel
+        title="Version history"
+        description="Each version is submitted by one administrator and approved by a different one before it is published (four-eyes)."
+        className="mt-4"
+        bodyClassName="p-0"
+      >
+        <Table>
+          <thead>
+            <tr>
+              <Th>Version</Th>
+              <Th>Status</Th>
+              <Th>Change note</Th>
+              <Th>Submitted by</Th>
+              <Th>Approved by</Th>
+              <Th>Published</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {versions.map((v) => (
+              <tr key={v.id}>
+                <Td className="whitespace-nowrap">
+                  <Link href={`/platform/workflows/${v.id}`} className="font-medium text-brand hover:underline" aria-current={v.id === def.id ? "page" : undefined}>
+                    v{v.version}
+                  </Link>
+                  {v.basedOnVersion && <div className="text-xs text-muted">from v{v.basedOnVersion}</div>}
+                </Td>
+                <Td>
+                  <WorkflowStatusBadge status={v.status} />
+                </Td>
+                <Td className="min-w-[220px] text-xs">{v.changeNote || <span className="text-muted">—</span>}</Td>
+                <Td className="whitespace-nowrap text-xs">{v.submittedBy ?? <span className="text-muted">—</span>}</Td>
+                <Td className="whitespace-nowrap text-xs">{v.approvedBy ?? <span className="text-muted">{v.publishedBy ? "Not recorded" : "—"}</span>}</Td>
+                <Td className="whitespace-nowrap text-xs">{v.publishedAt ? `${formatDateTime(v.publishedAt)} by ${v.publishedBy ?? "—"}` : <span className="text-muted">—</span>}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </Panel>
     </>
   );
 }

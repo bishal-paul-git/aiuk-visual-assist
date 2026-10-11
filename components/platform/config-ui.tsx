@@ -44,9 +44,10 @@ export function TenantStatusBadge({ status }: { status: TenantStatus }) {
   );
 }
 
-export function ConfigStatusBadge({ status }: { status: "draft" | "active" | "retired" }) {
+export function ConfigStatusBadge({ status }: { status: "draft" | "in_review" | "active" | "retired" }) {
   const map = {
     draft: ["neutral", <CircleDashed key="i" className={I} aria-hidden />, "Draft"],
+    in_review: ["warn", <Clock3 key="i" className={I} aria-hidden />, "In review"],
     active: ["ok", <CheckCircle2 key="i" className={I} aria-hidden />, "Active"],
     retired: ["neutral", <CircleOff key="i" className={I} aria-hidden />, "Retired"],
   } as const;
