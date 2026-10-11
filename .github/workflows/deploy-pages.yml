@@ -34,6 +34,7 @@ jobs:
         run: npm run build:static
         env:
           NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          NEXT_PUBLIC_SITE_URL: ${{ steps.pages.outputs.base_url }}/
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

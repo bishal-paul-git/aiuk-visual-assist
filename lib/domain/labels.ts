@@ -66,3 +66,8 @@ export function humanize(key: string): string {
   const s = key.replace(/[_.]/g, " ");
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/** Fictional, masked account label for demo and test sessions (matches seeded data). */
+export function demoCustomerLabel(): string {
+  return `Account ••${String(1000 + Math.floor(Math.random() * 9000))}`;
+}

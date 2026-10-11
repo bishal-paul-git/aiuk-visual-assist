@@ -14,9 +14,11 @@ export default function PlatformLayout({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 backdrop-blur sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span className="text-[13px] font-semibold text-ink">AIUK Management Platform</span>
-            <span className="hidden items-center gap-1 rounded-md border border-dashed border-warn/40 bg-warn-soft px-2 py-0.5 text-[11px] font-medium text-warn sm:inline-flex">
-              <FlaskConical className="size-3" aria-hidden />{" "}
-              {process.env.NEXT_PUBLIC_STATIC_DEMO === "1" ? "Static demo · reports are a build snapshot · sessions run in your browser" : "POC environment · simulated AI providers"}
+            <span
+              className="hidden items-center gap-1 rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink-2 sm:inline-flex"
+              title={process.env.NEXT_PUBLIC_STATIC_DEMO === "1" ? "Reports show sample data. New demo sessions run in your browser and appear in the console." : "AI responses are simulated unless Live AI is enabled."}
+            >
+              <FlaskConical className="size-3" aria-hidden /> Demo environment · sample data
             </span>
           </div>
           <div className="flex items-center gap-3">

@@ -127,6 +127,10 @@ export function CameraStage({
   return null;
 }
 
+/** Portrait, like a phone held upright. */
+const FEED_W = 450;
+const FEED_H = 900;
+
 /** Synthetic camera for test sessions on devices without a camera. */
 function DemoFeed({ scene, onSource }: { scene?: RouterScene; onSource: (el: FrameSource | null) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -135,7 +139,7 @@ function DemoFeed({ scene, onSource }: { scene?: RouterScene; onSource: (el: Fra
 
   useEffect(() => {
     const parsed = JSON.parse(key) as RouterScene | null;
-    const svg = renderRouterSvg(parsed ?? { view: "front", power: "on", internet: "on", wifi: "on", cable: "connected" });
+    const svg = renderRouterSvg(parsed ?? { view: "front", power: "on", internet: "on", wifi: "on", cable: "connected" }, FEED_W, FEED_H);
     const img = new Image();
     img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     img.onload = () => (imgRef.current = img);
@@ -167,5 +171,5 @@ function DemoFeed({ scene, onSource }: { scene?: RouterScene; onSource: (el: Fra
     };
   }, [onSource]);
 
-  return <canvas ref={canvasRef} width={640} height={480} aria-label="Demo camera feed" className="absolute inset-0 h-full w-full object-cover" />;
+  return <canvas ref={canvasRef} width={FEED_W} height={FEED_H} aria-label="Demo camera feed" className="absolute inset-0 h-full w-full object-cover" />;
 }

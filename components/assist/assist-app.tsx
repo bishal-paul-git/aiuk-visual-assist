@@ -271,8 +271,8 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
         </div>
         <div className="flex items-center gap-1.5">
           {view.scenario && (
-            <span className="flex items-center gap-1 rounded-full border border-dashed border-white/30 px-2 py-0.5 text-[10px] text-white/70" title="Test session — AI responses are simulated">
-              <FlaskConical className="size-3" aria-hidden /> Test
+            <span className="flex items-center gap-1 rounded-full border border-dashed border-white/30 px-2 py-0.5 text-[10px] text-white/70" title="Demo session: AI responses are simulated">
+              <FlaskConical className="size-3" aria-hidden /> Demo
             </span>
           )}
           <QualityIndicator quality={quality} />

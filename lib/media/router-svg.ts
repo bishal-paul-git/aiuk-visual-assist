@@ -34,7 +34,17 @@ export function parseSyntheticRef(ref: string): RouterScene | null {
   };
 }
 
-export function renderRouterSvg(scene: RouterScene, width = 640, height = 480): string {
+/**
+ * The scene is composed on a 640×480 stage, centred on x = 320. A portrait
+ * output (a phone held upright) frames the central 460px of the stage, the
+ * way a phone camera would, and extends the wall and desk around it.
+ */
+export function renderRouterSvg(scene: RouterScene, outWidth = 640, outHeight = 480): string {
+  const width = 640;
+  const height = 480;
+  const fit = outHeight > outWidth ? outWidth / 460 : outWidth / width;
+  const left = (outWidth - width * fit) / 2;
+  const top = (outHeight - height * fit) / 2;
   const w = scene.wobble ?? 0;
   const dx = Math.sin(w * 6.28) * 6;
   const dy = Math.cos(w * 6.28) * 4;
@@ -53,8 +63,8 @@ export function renderRouterSvg(scene: RouterScene, width = 640, height = 480): 
         <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/><stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0.55"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
       </radialGradient>
     </defs>
-    <rect width="${width}" height="${height}" fill="url(#wall)"/>
-    <rect y="${height * 0.72}" width="${width}" height="${height * 0.28}" fill="url(#desk)"/>`;
+    <rect width="${outWidth}" height="${outHeight}" fill="url(#wall)"/>
+    <rect y="${top + height * 0.72 * fit}" width="${outWidth}" height="${outHeight}" fill="url(#desk)"/>`;
 
   let content = "";
   if (scene.otherDevice) {
@@ -85,8 +95,9 @@ export function renderRouterSvg(scene: RouterScene, width = 640, height = 480): 
   } else {
     const close = scene.view === "close_up" || scene.view === "detail";
     const scale = close ? 1.9 : 1;
-    const ox = close ? -140 : 0;
-    const oy = close ? -260 : 0;
+    // Close-up: centre the light cluster (group x≈190, y≈213) on the stage.
+    const ox = close ? -117 : 0;
+    const oy = close ? -279 : 0;
     const lights = [
       ["Power", scene.power],
       ["Internet", scene.internet],
@@ -102,8 +113,8 @@ export function renderRouterSvg(scene: RouterScene, width = 640, height = 480): 
       })
       .join("");
     content = `<g transform="translate(${ox + dx} ${oy + dy}) scale(${scale})">
-      <g transform="translate(${close ? 40 : 160} ${close ? 60 : 40})">
-        <rect x="0" y="30" width="200" height="330" rx="26" fill="url(#body)"/>
+      <g transform="translate(${close ? 40 : 195} ${close ? 60 : 40})">
+        <rect x="0" y="30" width="250" height="330" rx="26" fill="url(#body)"/>
         <rect x="10" y="40" width="40" height="310" rx="18" fill="#FFFFFF" opacity="0.04"/>
         <text x="40" y="150" font-family="Helvetica, Arial" font-size="40" font-weight="700" fill="#2E343D" transform="rotate(-8 40 150)">north</text>
         ${lights}
@@ -112,5 +123,5 @@ export function renderRouterSvg(scene: RouterScene, width = 640, height = 480): 
   }
 
   const glare = scene.glare ? `<ellipse cx="${width * 0.55}" cy="${height * 0.58}" rx="${width * 0.32}" ry="${height * 0.24}" fill="url(#glare)"/>` : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${bg}${content}${glare}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${outWidth}" height="${outHeight}" viewBox="0 0 ${outWidth} ${outHeight}">${bg}<g transform="translate(${left} ${top}) scale(${fit})">${content}${glare}</g></svg>`;
 }
