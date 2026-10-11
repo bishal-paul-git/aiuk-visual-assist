@@ -1,10 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ObservationStatus, WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
+import type { ModelUsage, ModelUsageParts, ObservationStatus, WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
 import { OBSERVATION_STATUSES } from "@/lib/domain/types";
 import type { ObservationInput } from "@/lib/session/orchestrator";
 import type {
   EvidenceInput,
   EvidenceInterpretation,
+  ProviderCallRecord,
   ReasoningProvider,
   UtteranceInput,
   UtteranceInterpretation,
@@ -33,6 +34,8 @@ export interface ClaudeProviderOptions {
   model?: string;
   /** Live sessions are latency-sensitive; lower effort keeps turns conversational. */
   effort?: "low" | "medium" | "high";
+  /** Called after every model call (success or failure) — feeds latency and usage metrics. */
+  observe?: (record: ProviderCallRecord) => void;
 }
 
 export class ClaudeReasoningProvider implements ReasoningProvider {
@@ -40,6 +43,7 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
   readonly simulated = false;
   readonly model: string;
   private readonly effort: "low" | "medium" | "high";
+  private readonly observe?: (record: ProviderCallRecord) => void;
 
   constructor(
     private readonly client: MessagesClient,
@@ -47,6 +51,7 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
   ) {
     this.model = opts.model ?? DEFAULT_MODEL;
     this.effort = opts.effort ?? "low";
+    this.observe = opts.observe;
   }
 
   get modelVersion(): string {
@@ -83,12 +88,13 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
         reply: { type: ["string", "null"] },
       },
     };
-    const raw = await this.call(systemPrompt(input.workflow), [{ type: "text", text }], schema, 1024);
+    const { parsed: raw, usage } = await this.call("utterance", systemPrompt(input.workflow), [{ type: "text", text }], schema, 1024);
     const intent = typeof raw.intent === "string" && intents.includes(raw.intent) ? raw.intent : "unknown";
     return {
       intent,
       customerIssue: typeof raw.customer_issue === "string" && raw.customer_issue.trim() ? raw.customer_issue.trim().slice(0, 200) : undefined,
       reply: typeof raw.reply === "string" && raw.reply.trim() ? raw.reply.trim().slice(0, 400) : undefined,
+      usage,
     };
   }
 
@@ -146,7 +152,8 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
       },
     };
 
-    const raw = await this.call(
+    const { parsed: raw, usage } = await this.call(
+      "evidence",
       systemPrompt(input.workflow),
       [
         { type: "image", source: { type: "base64", media_type: frame.mime as "image/jpeg", data: Buffer.from(frame.data).toString("base64") } },
@@ -172,19 +179,38 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
       modelVersion: this.model,
       latencyMs: Date.now() - started,
       reply: typeof raw.reply === "string" && raw.reply.trim() ? raw.reply.trim().slice(0, 300) : undefined,
+      usage,
     };
   }
 
-  private async call(system: string, content: Anthropic.Beta.BetaContentBlockParam[], schema: Record<string, unknown>, maxTokens: number) {
-    const response = await this.client.beta.messages.create({
-      model: this.model,
-      max_tokens: maxTokens,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system,
-      messages: [{ role: "user", content }],
-      output_config: { effort: this.effort, format: { type: "json_schema", schema } },
-    });
+  private async call(
+    operation: ProviderCallRecord["operation"],
+    system: string,
+    content: Anthropic.Beta.BetaContentBlockParam[],
+    schema: Record<string, unknown>,
+    maxTokens: number,
+  ): Promise<{ parsed: Record<string, unknown>; usage?: ModelUsage }> {
+    const started = Date.now();
+    let response: Anthropic.Beta.BetaMessage;
+    try {
+      response = await this.client.beta.messages.create({
+        model: this.model,
+        max_tokens: maxTokens,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        system,
+        messages: [{ role: "user", content }],
+        output_config: { effort: this.effort, format: { type: "json_schema", schema } },
+      });
+    } catch (e) {
+      this.observe?.({ provider: this.id, model: this.model, operation, latencyMs: Date.now() - started, ok: false });
+      throw e;
+    }
+    const latencyMs = Date.now() - started;
+    // Tokens are billed whether or not the output is usable, so usage is captured first.
+    const usage = extractUsage(response, this.model, latencyMs);
+    const ok = response.stop_reason !== "refusal" && response.stop_reason !== "max_tokens";
+    this.observe?.({ provider: this.id, model: usage?.model ?? this.model, operation, latencyMs, ok, usage });
     if (response.stop_reason === "refusal") throw new Error("Model declined the request (refusal)");
     if (response.stop_reason === "max_tokens") throw new Error("Model output truncated");
     const text = response.content.find((b) => b.type === "text");
@@ -192,7 +218,7 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
     try {
       const parsed = JSON.parse(text.text) as Record<string, unknown>;
       if (!parsed || typeof parsed !== "object") throw new Error("not an object");
-      return parsed;
+      return { parsed, usage };
     } catch {
       throw new Error("Model returned invalid JSON");
     }
@@ -269,4 +295,40 @@ export function validateObservations(raw: unknown, vocab: Record<string, { value
     });
   }
   return out;
+}
+
+/**
+ * Read provider-reported token usage from a Messages API response. When a
+ * server-side fallback ran, `usage.iterations` carries one entry per model
+ * attempt (each billed at its own model's price), so the breakdown is kept.
+ */
+export function extractUsage(response: { model?: string | null; usage?: unknown }, requestedModel: string, latencyMs?: number): ModelUsage | undefined {
+  const u = response.usage as Record<string, unknown> | undefined | null;
+  if (!u || typeof u !== "object") return undefined;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  const served = typeof response.model === "string" && response.model ? response.model : requestedModel;
+  const parts: ModelUsageParts[] = [];
+  if (Array.isArray(u.iterations)) {
+    for (const it of u.iterations as Record<string, unknown>[]) {
+      if (!it || typeof it !== "object" || (it.type !== "message" && it.type !== "fallback_message")) continue;
+      parts.push({
+        model: typeof it.model === "string" && it.model ? it.model : served,
+        inputTokens: n(it.input_tokens),
+        outputTokens: n(it.output_tokens),
+        cacheCreationInputTokens: n(it.cache_creation_input_tokens),
+        cacheReadInputTokens: n(it.cache_read_input_tokens),
+      });
+    }
+  }
+  const total: ModelUsage = {
+    model: served,
+    inputTokens: n(u.input_tokens),
+    outputTokens: n(u.output_tokens),
+    cacheCreationInputTokens: n(u.cache_creation_input_tokens),
+    cacheReadInputTokens: n(u.cache_read_input_tokens),
+    ...(latencyMs !== undefined ? { latencyMs } : {}),
+  };
+  // A breakdown is only needed when more than one model ran.
+  if (parts.length > 0 && new Set(parts.map((p) => p.model)).size > 1) total.parts = parts;
+  return total;
 }

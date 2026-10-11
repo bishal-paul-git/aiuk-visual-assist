@@ -40,6 +40,9 @@ export default async function CostsPage() {
   const categories = costByCategory(states);
   const series = dailySeries(states, 14);
   const vision = categories.find((c) => c.category === "vision_inference")?.cost ?? 0;
+  const measuredEvents = states.flatMap((s) => s.costs.filter((c) => c.basis === "measured"));
+  const measured = measuredEvents.reduce((n, c) => n + c.estimatedCost, 0);
+  const measuredTokens = measuredEvents.reduce((n, c) => n + (c.usage ? c.usage.inputTokens + c.usage.outputTokens + c.usage.cacheCreationInputTokens + c.usage.cacheReadInputTokens : 0), 0);
   const perClient = tenants.map((t) => {
     const tm = computeMetrics(states.filter((s) => s.session.tenantId === t.id));
     return { tenant: t, m: tm };
@@ -53,22 +56,29 @@ export default async function CostsPage() {
         meta={
           <>
             <Badge tone="neutral">Last 14 days · GBP</Badge>
-            <Badge tone="warn">Estimated</Badge>
+            {measured > 0 ? <Badge tone="brand">Partly measured</Badge> : <Badge tone="warn">Estimated</Badge>}
           </>
         }
       />
 
       <Note className="mb-4" icon={<Info className="size-3.5" />}>
-        All costs are <span className="font-medium text-ink">estimates</span>: metered quantities are real session events, multiplied by placeholder unit rates from{" "}
-        <Mono>lib/domain/pricing.ts</Mono> until provider contracts are agreed. Simulated providers incur no actual spend.
+        Model costs on <span className="font-medium text-ink">live AI</span> sessions are <span className="font-medium text-ink">measured</span>: priced from the
+        token usage the model provider reports on each call, at the list prices in <Mono>lib/domain/pricing.ts</Mono>. Everything else is an{" "}
+        <span className="font-medium text-ink">estimate</span>: metered quantities are real session events, multiplied by placeholder unit rates until provider
+        contracts are agreed. Simulated providers incur no actual spend.
       </Note>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat label="Total cost" value={formatGBP(m.costTotal)} hint={`${m.sessions} sessions`} />
         <Stat label="Cost per session" value={m.sessions ? formatGBP(m.costPerSession, 3) : "—"} />
         <Stat label="Cost per resolution" value={m.aiResolved + m.humanResolved ? formatGBP(m.costPerResolution, 3) : "—"} hint={`${m.aiResolved + m.humanResolved} resolved`} />
         <Stat label="Cost per AI resolution" value={m.aiResolved ? formatGBP(m.costTotal / m.aiResolved, 3) : "—"} hint="All cost ÷ AI-resolved sessions" />
         <Stat label="Vision share" value={m.costTotal ? pct(vision / m.costTotal) : "—"} hint={`${m.avgFramesPerSession.toFixed(1)} frames / session`} />
+        <Stat
+          label="Measured model cost"
+          value={measured > 0 ? formatGBP(measured, 4) : "—"}
+          hint={measured > 0 ? `${measuredEvents.length} live calls · ${measuredTokens.toLocaleString("en-GB")} tokens` : "No live AI calls in this period"}
+        />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-3">

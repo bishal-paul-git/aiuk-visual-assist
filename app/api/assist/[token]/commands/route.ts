@@ -1,6 +1,7 @@
 import { resolveCustomer } from "@/lib/server/customer";
 import { jsonError, readJson, str } from "@/lib/server/http";
 import type { Command } from "@/lib/session/orchestrator";
+import { requestLogger } from "@/lib/server/log";
 
 const QUALITIES = ["good", "fair", "poor", "lost"] as const;
 
@@ -41,6 +42,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   const command = parse(body.command as Record<string, unknown>);
   if (typeof command === "string") return jsonError(command);
   const { error } = c.rt.dispatch(c.id, command, c.actor);
-  if (error) return jsonError(error, 409);
+  if (error) {
+    requestLogger(request, { sessionId: c.id }).warn("command.rejected", { command: command.type, actor: "customer", error });
+    return jsonError(error, 409);
+  }
   return Response.json({ ok: true });
 }

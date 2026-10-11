@@ -1,6 +1,7 @@
 import { AlertTriangle, BookOpen, CheckCircle2 } from "lucide-react";
 import { platformRuntime } from "@/lib/server/platform-data";
-import { INCIDENTS, RUNBOOKS, SERVICES, type ServiceStatus } from "@/lib/config/operations";
+import { INCIDENTS, RUNBOOKS, type ServiceStatus } from "@/lib/config/operations";
+import { effectiveServices } from "@/lib/server/ops-status";
 import { latencyStats } from "@/lib/analytics/metrics";
 import { formatDateTime, formatMinutes, secondsBetween } from "@/lib/format";
 import { Badge, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
@@ -25,6 +26,7 @@ const SEVERITY_TONE = { P0: "danger", P1: "danger", P2: "warn", P3: "neutral" } 
 
 export default async function HealthPage() {
   const rt = await platformRuntime();
+  const SERVICES = effectiveServices();
   const recent = withinDays(rt.states(), 1);
   const latency = latencyStats(recent);
   const latency14 = latencyStats(withinDays(rt.states(), 14));

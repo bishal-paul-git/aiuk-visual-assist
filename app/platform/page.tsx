@@ -4,7 +4,8 @@ import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot } from "lucide-react
 import { platformRuntime } from "@/lib/server/platform-data";
 import { computeMetrics, dailySeries, escalationReasons } from "@/lib/analytics/metrics";
 import { ESCALATION_REASON_LABELS } from "@/lib/domain/labels";
-import { INCIDENTS, SERVICES } from "@/lib/config/operations";
+import { INCIDENTS } from "@/lib/config/operations";
+import { effectiveServices } from "@/lib/server/ops-status";
 import { formatDay, formatGBP, formatMinutes, pct, secondsBetween } from "@/lib/format";
 import { Badge, Dot, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
 import { EscalationReasonBadge, SeverityBadge } from "@/components/domain/badges";
@@ -16,6 +17,7 @@ export const metadata = { title: "Dashboard" };
 export default async function DashboardPage() {
   const rt = await platformRuntime();
   const states = rt.states();
+  const SERVICES = effectiveServices();
   const summaries = rt.summaries();
   const live = summaries.filter((s) => s.live && s.status !== "completed" && s.status !== "failed");
   const waiting = live.filter((s) => s.status === "escalated").sort((a, b) => a.escalation!.requestedAt.localeCompare(b.escalation!.requestedAt));

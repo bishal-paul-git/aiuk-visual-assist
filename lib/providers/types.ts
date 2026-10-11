@@ -1,4 +1,4 @@
-import type { ToolAction, TranscriptEvent, VisualEvent, WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
+import type { ModelUsage, ToolAction, TranscriptEvent, VisualEvent, WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
 import type { SessionState } from "@/lib/domain/session";
 import type { ObservationInput } from "@/lib/session/orchestrator";
 
@@ -11,6 +11,8 @@ export interface UtteranceInterpretation {
   intent: string;
   reply?: string;
   customerIssue?: string;
+  /** Provider-reported token usage; absent for simulated providers (costs stay estimated). */
+  usage?: ModelUsage;
 }
 
 export interface UtteranceInput {
@@ -27,6 +29,18 @@ export interface EvidenceInterpretation {
   modelVersion: string;
   latencyMs: number;
   reply?: string;
+  /** Provider-reported token usage; absent for simulated providers (costs stay estimated). */
+  usage?: ModelUsage;
+}
+
+/** One completed (or failed) call to a model provider, for latency/usage telemetry. */
+export interface ProviderCallRecord {
+  provider: string;
+  model: string;
+  operation: "utterance" | "evidence";
+  latencyMs: number;
+  ok: boolean;
+  usage?: ModelUsage;
 }
 
 export interface EvidenceInput {
