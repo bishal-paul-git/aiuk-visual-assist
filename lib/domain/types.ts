@@ -161,6 +161,8 @@ export interface WorkflowDefinition {
   basedOnVersion?: number;
   submittedAt?: ISODateString;
   submittedBy?: string;
+  /** User id of the submitter; the four-eyes rule stops them approving their own change. */
+  submittedById?: string;
   retiredAt?: ISODateString;
   sector: Sector;
   objective: string;
@@ -179,6 +181,9 @@ export interface WorkflowDefinition {
   changeNote: string;
   publishedAt?: ISODateString;
   publishedBy?: string;
+  /** Second administrator who approved the version (four-eyes); also the publisher. */
+  approvedBy?: string;
+  approvedById?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,12 +212,32 @@ export type SensitiveCategory =
   | "vehicle_plates"
   | "special_category";
 
+/** "active" is the published version of a policy lineage; at most one per key. */
+export type PolicyStatus = "draft" | "in_review" | "active" | "retired";
+
 export interface Policy {
+  /** Unique per version. The first version of a lineage uses the key as its id. */
   id: string;
+  /**
+   * Lineage key that workflows and agents reference (defaults to `id`).
+   * Resolving a key returns the active version, so new sessions pick up a
+   * publish while running sessions keep the policy object they started with.
+   */
+  key?: string;
   tenantId: string;
   name: string;
   version: number;
-  status: "draft" | "active" | "retired";
+  status: PolicyStatus;
+  basedOnVersion?: number;
+  changeNote?: string;
+  submittedAt?: ISODateString;
+  submittedBy?: string;
+  submittedById?: string;
+  publishedAt?: ISODateString;
+  publishedBy?: string;
+  approvedBy?: string;
+  approvedById?: string;
+  retiredAt?: ISODateString;
   tools: ToolPermission[];
   /** Escalation reasons that hand control to a human and forbid return to AI. */
   mandatoryHumanReasons: EscalationReasonCode[];
@@ -468,4 +493,15 @@ export type DomainEventType =
   | "config.workflow_submitted"
   | "config.workflow_published"
   | "config.workflow_retired"
-  | "config.workflow_discarded";
+  | "config.workflow_discarded"
+  | "config.workflow_step_added"
+  | "config.workflow_step_removed"
+  | "config.workflow_step_moved"
+  | "config.workflow_step_updated"
+  | "config.workflow_rules_updated"
+  | "config.policy_draft_created"
+  | "config.policy_updated"
+  | "config.policy_submitted"
+  | "config.policy_published"
+  | "config.policy_retired"
+  | "config.policy_discarded";

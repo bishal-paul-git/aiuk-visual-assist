@@ -1,23 +1,26 @@
 import type { AuditEvent, DomainEventType, WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
 import { workflows as catalog } from "@/lib/config/catalog";
-import { validateWorkflow } from "./engine";
+import { fourEyesViolation, type Actor } from "@/lib/config/four-eyes";
+import { validateWorkflow, type ValidationIssue } from "./engine";
+import { WorkflowRegistryError } from "./errors";
+import { applyOp, text, type StructuralOp } from "./structure";
+
+export { WorkflowRegistryError } from "./errors";
+export type { Actor } from "@/lib/config/four-eyes";
+export type { StructuralOp } from "./structure";
 
 /**
  * Workflow versioning (docs/09 Phase 3/6, docs/10 §5). Versions are immutable
  * once published; changes go through draft -> in_review -> published, and
  * publishing retires the previous version. Sessions pin the version they
- * started on, so a publish never changes a running interaction.
+ * started on, so a publish never changes a running interaction. Publishing
+ * needs a second administrator (four-eyes): the submitter cannot approve.
  *
  * POC: operates on the in-process catalog. The same operations map onto a
  * versioned table in the data platform.
  */
 
-export interface Actor {
-  id: string;
-  name: string;
-}
-
-/** Editable fields on a draft. Structure (steps, rules) is changed via new templates for now. */
+/** Wording and threshold fields on a draft. Structure (steps, rules) changes go through `applyStructure`. */
 export interface DraftPatch {
   objective?: string;
   changeNote?: string;
@@ -25,8 +28,6 @@ export interface DraftPatch {
   maxAiDurationSec?: number;
   steps?: { key: string; instruction?: string; customerPrompt?: string; confidenceThreshold?: number | null; maxAttempts?: number | null }[];
 }
-
-export class WorkflowRegistryError extends Error {}
 
 export class WorkflowRegistry {
   readonly audit: AuditEvent[] = [];
@@ -73,6 +74,9 @@ export class WorkflowRegistry {
       publishedBy: undefined,
       submittedAt: undefined,
       submittedBy: undefined,
+      submittedById: undefined,
+      approvedBy: undefined,
+      approvedById: undefined,
       retiredAt: undefined,
     };
     this.store.push(draft);
@@ -112,6 +116,22 @@ export class WorkflowRegistry {
     return wf;
   }
 
+  /**
+   * Structural edit on a draft (add/remove/move a step, edit rules or step
+   * settings). Applied to a copy so a rejected change leaves the draft intact;
+   * publish checks are re-run and returned, and their error count is audited.
+   */
+  applyStructure(id: string, op: StructuralOp, actor: Actor): { workflow: WorkflowDefinition; issues: ValidationIssue[] } {
+    const wf = this.mustGet(id);
+    if (wf.status !== "draft") throw new WorkflowRegistryError("Only drafts can be edited");
+    const next = structuredClone(wf);
+    const payload = applyOp(next, op);
+    wf.steps = next.steps;
+    const issues = validateWorkflow(wf);
+    this.record(STRUCTURE_EVENTS[op.kind], wf, actor, { ...payload, publishErrors: issues.filter((i) => i.severity === "error").length });
+    return { workflow: wf, issues };
+  }
+
   submitForReview(id: string, actor: Actor): WorkflowDefinition {
     const wf = this.mustGet(id);
     if (wf.status !== "draft") throw new WorkflowRegistryError("Only drafts can be submitted");
@@ -119,6 +139,7 @@ export class WorkflowRegistry {
     wf.status = "in_review";
     wf.submittedAt = this.now();
     wf.submittedBy = actor.name;
+    wf.submittedById = actor.id;
     this.record("config.workflow_submitted", wf, actor, {});
     return wf;
   }
@@ -135,6 +156,8 @@ export class WorkflowRegistry {
   publish(id: string, actor: Actor): WorkflowDefinition {
     const wf = this.mustGet(id);
     if (wf.status !== "in_review") throw new WorkflowRegistryError("Submit the draft for review before publishing");
+    const violation = fourEyesViolation(wf, actor);
+    if (violation) throw new WorkflowRegistryError(violation);
     this.assertPublishable(wf);
     const previous = this.latestPublished(wf.tenantId, wf.key);
     if (previous) {
@@ -145,7 +168,9 @@ export class WorkflowRegistry {
     wf.status = "published";
     wf.publishedAt = this.now();
     wf.publishedBy = actor.name;
-    this.record("config.workflow_published", wf, actor, { supersedes: previous ? `v${previous.version}` : null });
+    wf.approvedBy = actor.name;
+    wf.approvedById = actor.id;
+    this.record("config.workflow_published", wf, actor, { supersedes: previous ? `v${previous.version}` : null, submittedBy: wf.submittedBy ?? null, approvedBy: actor.name });
     return wf;
   }
 
@@ -208,17 +233,18 @@ function applyStepPatch(step: WorkflowStep, p: NonNullable<DraftPatch["steps"]>[
   return changed;
 }
 
-function text(v: string, max: number, label: string, allowEmpty = false): string {
-  const t = String(v).trim();
-  if (!allowEmpty && !t) throw new WorkflowRegistryError(`${label} cannot be empty`);
-  if (t.length > max) throw new WorkflowRegistryError(`${label} is longer than ${max} characters`);
-  return t;
-}
-
 function threshold(n: number): number {
   if (typeof n !== "number" || !Number.isFinite(n) || n < 0.5 || n > 0.99) throw new WorkflowRegistryError("Confidence threshold must be between 0.50 and 0.99");
   return Math.round(n * 100) / 100;
 }
+
+const STRUCTURE_EVENTS: Record<StructuralOp["kind"], DomainEventType> = {
+  add_step: "config.workflow_step_added",
+  remove_step: "config.workflow_step_removed",
+  move_step: "config.workflow_step_moved",
+  set_rules: "config.workflow_rules_updated",
+  update_step: "config.workflow_step_updated",
+};
 
 const KEY = "__aiukWorkflowRegistry";
 

@@ -22,6 +22,43 @@ export function checkTool(policy: Policy, tool: string, actor: "ai" | "human"): 
   return { decision: "allow", reason: `Permitted for ${actor} by policy`, requiresIdempotencyKey: permission.requiresIdempotencyKey };
 }
 
+export interface PolicyIssue {
+  tool?: string;
+  severity: "error" | "warning" | "info";
+  message: string;
+}
+
+/**
+ * Static checks run on every policy edit and before publishing. Regulated
+ * tools can never be allowed for the AI, whatever else a version changes.
+ */
+export function validatePolicy(policy: Policy): PolicyIssue[] {
+  const issues: PolicyIssue[] = [];
+  const seen = new Set<string>();
+  for (const t of policy.tools) {
+    if (seen.has(t.tool)) issues.push({ tool: t.tool, severity: "error", message: "Tool is listed more than once" });
+    seen.add(t.tool);
+    if (t.risk === "regulated" && t.mode === "allow") {
+      issues.push({ tool: t.tool, severity: "error", message: "Regulated tools can never be allowed for the AI; use human only or deny" });
+    }
+    if (t.risk === "high" && t.mode === "allow") issues.push({ tool: t.tool, severity: "warning", message: "High-risk tool can run without a person" });
+    if (t.mode !== "deny" && !t.requiresIdempotencyKey) issues.push({ tool: t.tool, severity: "warning", message: "Runs without an idempotency key; retries may repeat the action" });
+  }
+  if (policy.minObservationConfidence < 0.5 || policy.minObservationConfidence > 0.99) {
+    issues.push({ severity: "error", message: "Minimum observation confidence must be between 0.50 and 0.99" });
+  }
+  if (!Number.isInteger(policy.maxCaptureAttempts) || policy.maxCaptureAttempts < 1 || policy.maxCaptureAttempts > 5) {
+    issues.push({ severity: "error", message: "Maximum capture attempts must be 1–5" });
+  }
+  if (!Number.isInteger(policy.maxAiDurationSec) || policy.maxAiDurationSec < 60 || policy.maxAiDurationSec > 3600) {
+    issues.push({ severity: "error", message: "Maximum AI duration must be between 1 and 60 minutes" });
+  }
+  if (!policy.mandatoryHumanReasons.includes("customer_requested")) {
+    issues.push({ severity: "warning", message: "A customer asking for a person does not force a human to finish the session" });
+  }
+  return issues;
+}
+
 export function isMandatoryHuman(policy: Policy, reason: EscalationReasonCode): boolean {
   return policy.mandatoryHumanReasons.includes(reason);
 }

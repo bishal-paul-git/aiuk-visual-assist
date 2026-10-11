@@ -42,7 +42,9 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Provider abstraction (reasoning, tools) | ✅ | `lib/providers/types.ts`; simulated implementations in `lib/providers/mock/` |
 | Real multimodal reasoning | ✅ (needs key) | `lib/providers/claude/reasoning.ts` — Claude (`claude-opus-5-5`, low effort, server-side refusal fallback) with JSON-schema output, validated against each workflow's `observationVocabulary`; enabled when `ANTHROPIC_API_KEY` is set. Scenario sessions keep using the simulator (`lib/providers/routing.ts`) |
 | Sensitive visual data policy (docs/06 §4) | ✅ | Vision layer flags people, cards, ID, screens, plates; tenant policy decides escalate / ask to re-frame / allow |
-| Workflow versioning (draft → review → publish, retire, pinning) | ✅ | `lib/workflow/registry.ts`, `/platform/workflows/[id]/edit`; config changes audited; structural (step/rule) editing still to come |
+| Workflow versioning (draft → review → publish, retire, pinning) | ✅ | `lib/workflow/registry.ts`, `/platform/workflows/[id]/edit`; four-eyes approval (submitter cannot publish; approver recorded); every change audited (`config.workflow_*`) |
+| Structural workflow builder | ✅ | `lib/workflow/structure.ts` + `POST /api/workflows/[id]/structure`: add/remove (reference-safe)/reorder steps, edit rules (intent, observation from the workflow vocabulary, tool result, always) and type-specific settings; publish checks re-run on every change |
+| Policy versioning | ✅ | `lib/policy/registry.ts`, `/api/policies/**`, `/platform/policies/[id]/edit`: draft → review → publish with four-eyes; previous version retired; workflows reference the lineage key, so new sessions get the active version while running sessions keep theirs; regulated tools can never be `allow` (`validatePolicy`) |
 | Provider abstraction (video transport, speech, identity, storage, notifications) | 🟡 | Voice is browser-native behind hooks (`lib/client/speech.ts`); media transport is an interim preview relay; storage is in-memory |
 | Multi-tenancy | 🟡 | All entities tenant-scoped; config per tenant (workflow, policy, agent, retention, branding, flags). No auth-enforced isolation yet |
 | Durable data platform | ⬜ | In-memory runtime (`lib/server/runtime.ts`) — Phase 3 |
@@ -85,7 +87,8 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Live Sessions, Session History, Session Detail (audit reconstruction) | ✅ |
 | Clients, AI Agents, Visual Workflows (builder view + publish checks + funnel), Policies, Human Teams, Integrations | ✅ read-only views over tenant configuration |
 | QA, Analytics, Costs, Audit Logs, System Health, Settings | ✅ computed from session records; unmeasurable metrics labelled as such |
-| Editing/publishing workflows | 🟡 Wording, thresholds, attempts and durations editable with versioned publish; step/rule structure editing and policy editing still to come |
+| Editing/publishing workflows | ✅ Wording, thresholds, step structure and branching rules editable on a draft with live publish checks; four-eyes publish |
+| Editing/publishing policies | ✅ Tool mode/risk/idempotency, limits and return-to-AI on a versioned draft; four-eyes publish; read-only in the static demo |
 
 ### 2.5 Security, privacy, NFRs (docs/06, 07)
 
@@ -131,7 +134,7 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 
 ### Phase 3 — Internal alpha
 - Durable event store + session store (Postgres), orchestrator as a service, outbox for effects.
-- ✅ Workflow versioning (draft → review → publish, pinning, audit). Remaining: durable storage, four-eyes approval, structural builder, policy versioning.
+- ✅ Workflow versioning (draft → review → publish, pinning, audit), structural builder, four-eyes approval and policy versioning. Remaining: durable storage of configuration versions; approver identity from SSO/RBAC instead of the POC "Acting as" picker.
 - OpenTelemetry traces with session correlation IDs; alerting.
 - QA tooling: human review queue, evaluation sets with labelled images, calibration reports.
 
@@ -195,4 +198,5 @@ lib/analytics/metrics.ts  Metrics derived from session records
 3. **Agent preview before WebRTC** — a 1 fps JPEG relay, active only while a human is present or the session is escalated, never analysed or retained. The customer is told when their camera is visible to a person.
 4. **Costs** use placeholder unit rates in `lib/domain/pricing.ts` until provider contracts exist.
 5. **Repeat-contact rate, field-visit avoidance and CSAT** need CRM integration and are shown as not yet measurable rather than estimated.
-6. **Customer-facing brand** (e.g. "Northline") is per-tenant configuration; the reference image's third-party router branding is not used.
+6. **Policy status naming** — the published state of a policy is stored as `active` (as for agents) rather than `published`; the lifecycle is otherwise identical to workflows. A session restored from another tab in the static demo re-resolves the active policy version.
+7. **Customer-facing brand** (e.g. "Northline") is per-tenant configuration; the reference image's third-party router branding is not used.

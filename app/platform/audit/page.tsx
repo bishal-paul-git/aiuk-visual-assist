@@ -6,6 +6,7 @@ import type { SessionState } from "@/lib/domain/session";
 import type { AuditEvent } from "@/lib/domain/types";
 import { formatDateTime, formatTimeSec } from "@/lib/format";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
+import { getPolicyRegistry } from "@/lib/policy/registry";
 import { Badge, EmptyState, PageHeader, Panel, Table, Td, Th, buttonClass, cx } from "@/components/ui/primitives";
 import {
   ACTOR_LABELS,
@@ -33,7 +34,7 @@ interface Row {
 }
 
 function flatten(states: SessionState[], configEvents: AuditEvent[]): Row[] {
-  // Configuration changes (workflow versions) have no session; they link to the configuration item.
+  // Configuration changes (workflow and policy versions) have no session; they link to the configuration item.
   const rows: Row[] = configEvents.map((event) => ({ event, sessionId: "", reference: `${String(event.payload.key)} v${String(event.payload.version)}`, tenantId: event.tenantId }));
   for (const st of states)
     for (const event of st.audit)
@@ -50,7 +51,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Se
     client: firstParam(sp.client),
     ref: firstParam(sp.ref),
   };
-  const all = flatten(rt.states(), getWorkflowRegistry().audit);
+  const all = flatten(rt.states(), [...getWorkflowRegistry().audit, ...getPolicyRegistry().audit]);
   const ref = filters.ref?.toLowerCase();
   // Category counts reflect every filter except the event type, so the chips show where events sit.
   const beforeType = all.filter(
@@ -192,12 +193,18 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Se
                     </Td>
                     <Td className="whitespace-nowrap">
                       <Link
-                        href={r.sessionId ? `/platform/sessions/${r.sessionId}` : `/platform/workflows/${String(r.event.payload.workflowId)}`}
+                        href={
+                          r.sessionId
+                            ? `/platform/sessions/${r.sessionId}`
+                            : r.event.payload.policyId
+                              ? `/platform/policies#${String(r.event.payload.key)}`
+                              : `/platform/workflows/${String(r.event.payload.workflowId)}`
+                        }
                         className="font-medium text-brand hover:underline"
                       >
                         {r.reference}
                       </Link>
-                      {!r.sessionId && <div className="text-xs text-muted">Workflow config</div>}
+                      {!r.sessionId && <div className="text-xs text-muted">{r.event.payload.policyId ? "Policy config" : "Workflow config"}</div>}
                     </Td>
                     <Td className="whitespace-nowrap">{tenantName(r.tenantId)}</Td>
                     <Td className="min-w-[260px] text-xs">{summarizePayload(r.event.payload)}</Td>
