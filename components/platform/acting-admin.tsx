@@ -15,9 +15,9 @@ export function defaultAdmin(admins: AdminOption[], submittedById?: string): str
 }
 
 /**
- * POC identity picker for configuration changes. Production takes the
- * administrator from SSO (docs/06 §2); the server still enforces tenant scope
- * and the four-eyes rule whatever is chosen here.
+ * Who a configuration change is made as. With sign-in this is always the
+ * signed-in administrator (the server ignores any identity in the request);
+ * the list only has more than one entry in tests and previews.
  */
 export function ActingAdminSelect({
   admins,
@@ -30,6 +30,21 @@ export function ActingAdminSelect({
   onChange: (id: string) => void;
   disabled?: boolean;
 }) {
+  if (admins.length <= 1) {
+    const a = admins[0];
+    return (
+      <p className="flex items-center gap-2 text-xs text-muted">
+        <UserRound className="size-3.5 shrink-0" aria-hidden />
+        {a ? (
+          <span>
+            Signed in as <span className="font-medium text-ink">{a.name}</span> · {ROLE_LABELS[a.role] ?? a.role}
+          </span>
+        ) : (
+          <span>You don&apos;t have permission to change this configuration.</span>
+        )}
+      </p>
+    );
+  }
   return (
     <label className="flex items-center gap-2 text-xs text-muted">
       <UserRound className="size-3.5 shrink-0" aria-hidden />

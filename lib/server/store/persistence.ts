@@ -96,6 +96,15 @@ export function attachStore(rt: SessionRuntime, store: SessionStore, opts: Attac
         prevCommit?.(id);
         schedule(id);
       };
+      const prevDeleted = rt.onFrameDeleted;
+      rt.onFrameDeleted = (sessionId, frameId) => {
+        prevDeleted?.(sessionId, frameId);
+        const op = store
+          .deleteFrame(sessionId, frameId)
+          .catch((err) => log.error("store.frame_delete_failed", { sessionId, frameId, err }))
+          .finally(() => inflight.delete(op));
+        inflight.add(op);
+      };
       const prevFrame = rt.onFrameStored;
       rt.onFrameStored = (id, frame) => {
         prevFrame?.(id, frame);

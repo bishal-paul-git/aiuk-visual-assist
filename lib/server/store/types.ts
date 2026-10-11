@@ -68,6 +68,8 @@ export interface SessionStore {
   saveSession(snapshot: SessionSnapshot): Promise<void>;
   saveFrame(frame: PersistedFrame): Promise<void>;
   deleteSession(sessionId: string): Promise<void>;
+  /** Delete one frame's bytes and metadata (retention). */
+  deleteFrame(sessionId: string, frameId: string): Promise<void>;
   /** Optional lazy frame read (keeps frame bytes out of memory until requested). */
   readFrameSync?(sessionId: string, frameId: string): StoredFrame | undefined;
   /** Optional synchronous write used for a best-effort flush at process exit. */

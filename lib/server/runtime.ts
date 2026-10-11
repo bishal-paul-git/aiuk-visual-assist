@@ -17,6 +17,7 @@ const PERSIST_KEY = "__aiukVisualAssistPersistence";
 const BOOT_KEY = "__aiukVisualAssistBootedAt";
 
 type Globals = Record<string, unknown>;
+export const RETENTION_INTERVAL_MS = 10 * 60_000;
 
 /** Process-wide singleton (survives dev hot reloads). */
 export function getRuntime(): SessionRuntime {
@@ -36,7 +37,14 @@ export function getRuntime(): SessionRuntime {
       process.once("exit", () => persistence.flushSync());
     }
     const r = rt;
-    const timer = setInterval(() => r.tick(), 10_000);
+    // Retention job (docs/06 §3): delete expired evidence and transcripts, once
+    // persisted sessions are loaded, then every RETENTION_INTERVAL_MS.
+    void persistence.ready.then(() => r.runRetention());
+    const timer = setInterval(() => {
+      r.tick();
+      const last = r.retentionStatus ? Date.parse(r.retentionStatus.lastRunAt) : 0;
+      if (Date.now() - last >= RETENTION_INTERVAL_MS) r.runRetention();
+    }, 10_000);
     if (typeof timer === "object" && "unref" in timer) timer.unref();
     g[GLOBAL_KEY] = rt;
   }

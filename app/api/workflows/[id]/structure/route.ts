@@ -1,7 +1,7 @@
 import { getWorkflowRegistry, WorkflowRegistryError } from "@/lib/workflow/registry";
 import { parseStructuralOp } from "@/lib/workflow/structure";
 import { jsonError, readJson } from "@/lib/server/http";
-import { resolveAdmin } from "@/lib/server/admin";
+import { authorizeConfig } from "@/lib/server/admin";
 
 /**
  * Structural edit on a draft: add_step, remove_step, move_step, set_rules,
@@ -13,9 +13,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const reg = getWorkflowRegistry();
   const wf = reg.get(id);
   if (!wf) return jsonError("Workflow not found", 404);
+  const auth = await authorizeConfig("workflow.edit", wf);
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   const body = await readJson(request);
-  const actor = resolveAdmin(body?.actorId, wf);
-  if (!actor) return jsonError("Not permitted", 403);
   const op = parseStructuralOp(body?.op);
   if (typeof op === "string") return jsonError(op);
   try {

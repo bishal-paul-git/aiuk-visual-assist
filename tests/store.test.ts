@@ -79,6 +79,18 @@ describe("file session store", () => {
     expect(store.readFrameSync("ses_1", "mem_abc")).toBeUndefined();
   });
 
+  it("deletes a single frame from disk when retention purges it", async () => {
+    const store = new FileSessionStore(dir);
+    const rt = new SessionRuntime(new MockReasoningProvider({ utteranceMs: 0, visionMs: 0 }), new MockToolExecutor({ default: 0 }));
+    attachStore(rt, store, { seed: () => {}, debounceMs: 0 });
+    await store.saveFrame({ id: "mem_old", sessionId: "ses_1", mime: "image/jpeg", data: new Uint8Array([9]), createdAt: 1 });
+    rt.onFrameDeleted?.("ses_1", "mem_old");
+    await flush();
+    await store.idle();
+    expect(store.readFrameSync("ses_1", "mem_old")).toBeUndefined();
+    expect(store.status().frames).toBe(0);
+  });
+
   it("rejects ids that could escape the data directory", async () => {
     const store = new FileSessionStore(dir);
     await expect(store.saveFrame({ id: "../x", sessionId: "ses_1", mime: "image/jpeg", data: new Uint8Array([1]), createdAt: 1 })).rejects.toThrow(/Unsafe id/);

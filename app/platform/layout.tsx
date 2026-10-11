@@ -3,6 +3,7 @@ import { FlaskConical } from "lucide-react";
 import { Sidebar } from "@/components/platform/sidebar";
 import { MobileNav } from "@/components/platform/mobile-nav";
 import { TestSessionLauncher } from "@/components/shared/test-session-launcher";
+import { IdentityMenu } from "@/components/auth/identity-menu";
 
 export default function PlatformLayout({ children }: { children: ReactNode }) {
   return (
@@ -23,13 +24,7 @@ export default function PlatformLayout({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-3">
             <TestSessionLauncher />
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="flex size-7 items-center justify-center rounded-full bg-navy text-[11px] font-semibold text-white">JC</span>
-              <span className="text-xs leading-tight">
-                <span className="block font-medium text-ink">James Carter</span>
-                <span className="block text-muted">AIUK Administrator</span>
-              </span>
-            </div>
+            <IdentityMenu />
           </div>
         </header>
         <MobileNav />

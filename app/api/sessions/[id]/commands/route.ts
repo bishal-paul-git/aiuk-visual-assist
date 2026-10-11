@@ -1,5 +1,8 @@
 import { getRuntime } from "@/lib/server/runtime";
-import { jsonError, readJson, resolveAgent, str } from "@/lib/server/http";
+import { jsonError, readJson, str } from "@/lib/server/http";
+import { commandPermission } from "@/lib/auth/rbac";
+import { actorFor } from "@/lib/server/auth";
+import { authorizeSession } from "@/lib/server/session-access";
 import type { Command } from "@/lib/session/orchestrator";
 import type { SessionOutcome } from "@/lib/domain/types";
 import { requestLogger } from "@/lib/server/log";
@@ -61,12 +64,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = await readJson(request);
   if (!body) return jsonError("Invalid JSON body");
-  const actor = resolveAgent(body.agentId);
-  if (!actor) return jsonError("Unknown agent", 403);
   const command = parse(body);
   if (typeof command === "string") return jsonError(command);
   const rt = getRuntime();
   if (!rt.get(id)) return jsonError("Session not found", 404);
+  // The actor is always the signed-in user; any agentId in the body is ignored.
+  const access = await authorizeSession(id, commandPermission(command.type)!, { command: command.type });
+  if (!access.ok) return access.response;
+  const actor = actorFor(access.user);
   const { error } = rt.dispatch(id, command, actor);
   if (error) {
     requestLogger(request, { sessionId: id }).warn("command.rejected", { command: command.type, actorId: actor.id, error });

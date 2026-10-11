@@ -328,7 +328,7 @@ export function PolicyEditor({ policy, base, admins }: { policy: Policy; base?: 
           </div>
           {isSubmitter && (
             <p className="flex gap-1.5 rounded-md bg-warn-soft px-2.5 py-2 text-[11px] text-warn">
-              <UsersRound className="mt-0.5 size-3 shrink-0" aria-hidden /> You submitted this version. Four-eyes approval needs a different administrator to approve and publish it.
+              <UsersRound className="mt-0.5 size-3 shrink-0" aria-hidden /> You submitted this version. Four-eyes approval needs a different administrator to sign in, approve and publish it.
             </p>
           )}
           {policy.status === "in_review" && (

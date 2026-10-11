@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { platformRuntime, STATIC_EXPORT } from "@/lib/server/platform-data";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { getPolicy, tenantName, workflows } from "@/lib/config/catalog";
-import { eligibleAdmins } from "@/lib/server/config-admin";
+import { editorIdentity } from "@/lib/server/config-admin";
 import { PageHeader } from "@/components/ui/primitives";
 import { WorkflowEditor } from "@/components/platform/workflow-editor";
 
@@ -46,7 +46,7 @@ export default async function EditWorkflowPage({ params }: { params: Promise<{ i
       <WorkflowEditor
         workflow={structuredClone(wf)}
         base={base ? structuredClone(base) : undefined}
-        admins={eligibleAdmins(wf.tenantId)}
+        admins={await editorIdentity(wf.tenantId, "workflow.edit")}
         tools={getPolicy(wf.policyId)?.tools.map((t) => t.tool) ?? []}
       />
     </>

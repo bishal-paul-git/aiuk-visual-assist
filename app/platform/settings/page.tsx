@@ -1,5 +1,10 @@
-import { Info } from "lucide-react";
+import { Check, Info, Minus } from "lucide-react";
 import { platformRuntime } from "@/lib/server/platform-data";
+import { RETENTION_INTERVAL_MS } from "@/lib/server/runtime";
+import type { RetentionStatus } from "@/lib/runtime/session-runtime";
+import { formatDateTime } from "@/lib/format";
+import { PERMISSIONS, PERMISSION_LABELS, ROLES, ROLE_NAMES, ROLE_PERMISSIONS, isPlatformRole } from "@/lib/auth/rbac";
+import { evidenceRetentionDays } from "@/lib/privacy/retention";
 import { tenants, users } from "@/lib/config/catalog";
 import { Badge, KeyValue, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
 import { ROLE_LABELS } from "@/components/platform/config-data";
@@ -18,20 +23,20 @@ const ENVIRONMENTS: { name: string; state: ImplState; label: string; detail: str
 
 /** docs/06 §2 — stated honestly against what the POC actually does. */
 const CONTROLS: { control: string; state: ImplState; label?: string; detail: string }[] = [
-  { control: "Tenant isolation", state: "implemented", detail: "Tenant-scoped data model; every session, workflow, policy and query carries tenantId. Hardened tenancy in Phase 5." },
+  { control: "Tenant isolation", state: "implemented", detail: "Tenant-scoped data model; agents, supervisors and client admins can only read or act on their own organisation's sessions and configuration (enforced on every API route). Hardened tenancy in Phase 5." },
   { control: "Audit logs", state: "implemented", detail: "Every material state transition is an audit event with workflow, policy, model and prompt versions. In-memory; durable store planned." },
   { control: "TLS in transit", state: "partial", label: "Deployment-dependent", detail: "Provided by the hosting edge; not enforced by the application." },
   { control: "Encryption at rest", state: "planned", label: "Planned (Phase 4–6)", detail: "POC data is held in memory only." },
-  { control: "SSO", state: "planned", label: "Planned (Phase 4–6)", detail: "OIDC / SAML workforce SSO (enterprise add-on)." },
-  { control: "MFA", state: "planned", label: "Planned (Phase 4–6)", detail: "With production-like authentication for the client pilot." },
-  { control: "RBAC", state: "planned", label: "Planned (Phase 4–6)", detail: "Roles are modelled on users but not enforced; the POC has no sign-in." },
-  { control: "Least privilege", state: "planned", label: "Planned (Phase 5)", detail: "Depends on RBAC and per-tenant service credentials." },
+  { control: "SSO", state: "partial", label: "Provider interface ready", detail: "Sign-in goes through an identity provider interface; the POC uses a demo provider (no passwords) with a signed, HttpOnly session cookie. Entra ID / Okta / Auth0 (OIDC) plug in behind the same interface." },
+  { control: "MFA", state: "planned", label: "Planned (Phase 4)", detail: "Delegated to the client's SSO provider once OIDC is connected." },
+  { control: "RBAC", state: "implemented", detail: "Five roles with a permission matrix (below). Enforced on API routes and console/platform pages; denials return 401/403 and are audited." },
+  { control: "Least privilege", state: "partial", detail: "Platform admins configure but do not operate sessions; QA reviewers are read-only. Per-tenant service credentials planned (Phase 5)." },
   { control: "Secrets management", state: "planned", label: "Planned (Phase 4)", detail: "No client credentials are stored in the POC." },
   { control: "Key rotation", state: "planned", label: "Planned (Phase 5)", detail: "With managed keys and secrets store." },
-  { control: "Security logging", state: "planned", label: "Planned (Phase 5)", detail: "OpenTelemetry export not deployed." },
-  { control: "Retention controls", state: "partial", detail: "Per-tenant retention periods configured; automated expiry not yet enforced." },
+  { control: "Security logging", state: "partial", detail: "Sign-in, sign-out and permission denials are audit events (Audit Logs › Security). SIEM / OpenTelemetry export not deployed." },
+  { control: "Retention controls", state: "implemented", detail: "Retention job deletes expired evidence frames and transcripts per tenant policy and audits each purge (see Retention below)." },
   { control: "Deletion workflows", state: "planned", label: "Planned (Phase 5)", detail: "Subject-request and tenant offboarding deletion." },
-  { control: "Redaction", state: "planned", label: "Planned (Phase 4)", detail: "Sensitive-data handling is configured in policies; automatic blur is not implemented." },
+  { control: "Redaction", state: "partial", label: "Transcripts only", detail: "Card numbers (Luhn-checked), emails, phone numbers, UK postcodes and account numbers are removed from customer and agent transcript text before storage, and audited. Automatic image blur is not implemented." },
   { control: "Incident response", state: "partial", detail: "Severity scale, incident register and runbook owners defined; paging not connected." },
   { control: "Vulnerability management", state: "planned", label: "Planned (Phase 5)", detail: "Scanning and patch SLAs." },
   { control: "Dependency management", state: "partial", detail: "Lockfile-pinned dependencies; automated update and audit tooling not configured." },
@@ -47,7 +52,7 @@ const NOTIFICATIONS: { name: string; state: ImplState; label: string; detail: st
 
 export default async function SettingsPage() {
   // Settings are static configuration, but the page renders per request like the rest of the platform.
-  await platformRuntime();
+  const rt = await platformRuntime();
   const transcriptDays = tenants.map((t) => t.retention.transcriptRetentionDays);
   const auditDays = tenants.map((t) => t.retention.auditRetentionDays);
   const evidenceDays = tenants.filter((t) => t.retention.evidenceMode === "retained_evidence").map((t) => t.retention.evidenceRetentionDays);
@@ -122,11 +127,14 @@ export default async function SettingsPage() {
               ]}
             />
             <Note className="mt-3" icon={<Info className="size-3.5" />}>
-              Periods are set per tenant on the client page. Automated expiry and deletion are planned (Phase 5); the POC store is cleared on restart.
+              Periods are set per tenant on the client page and enforced by the retention job below. The POC store is also cleared on restart.
             </Note>
           </Panel>
         </div>
       </div>
+
+      <RetentionPanel status={rt.retentionStatus} />
+      <AccessPanel />
 
       <Panel title="Notifications" className="mt-4" bodyClassName="p-0">
         <Table>
@@ -151,5 +159,99 @@ export default async function SettingsPage() {
         </Table>
       </Panel>
     </>
+  );
+}
+
+function RetentionPanel({ status: st }: { status: RetentionStatus | undefined }) {
+  return (
+    <Panel
+      title="Retention"
+      description={`docs/06 §3 · runs every ${Math.round(RETENTION_INTERVAL_MS / 60_000)} minutes · ${st ? `last run ${formatDateTime(st.lastRunAt)}` : "not run yet"}`}
+      className="mt-4"
+      bodyClassName="p-0"
+    >
+      <Table>
+        <thead>
+          <tr>
+            <Th>Client</Th>
+            <Th>Evidence mode</Th>
+            <Th align="right">Evidence kept</Th>
+            <Th align="right">Transcripts kept</Th>
+            <Th align="right">Audit kept</Th>
+            <Th align="right">Sessions purged</Th>
+            <Th align="right">Frames deleted</Th>
+            <Th align="right">Transcript lines deleted</Th>
+            <Th>Last purge</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {tenants.map((t) => {
+            const done = st?.byTenant[t.id];
+            const evidence = evidenceRetentionDays(t.retention);
+            return (
+              <tr key={t.id}>
+                <Td className="whitespace-nowrap font-medium text-ink">{t.name}</Td>
+                <Td>
+                  <Badge tone={t.retention.evidenceMode === "live_only" ? "ok" : "neutral"}>
+                    {t.retention.evidenceMode === "live_only" ? "Live only" : "Retained evidence"}
+                  </Badge>
+                </Td>
+                <Td align="right" className="whitespace-nowrap">{evidence === 0 ? "Until session ends" : `${evidence} days`}</Td>
+                <Td align="right" className="whitespace-nowrap">{t.retention.transcriptRetentionDays} days</Td>
+                <Td align="right" className="whitespace-nowrap">{t.retention.auditRetentionDays} days</Td>
+                <Td align="right">{done?.sessions ?? 0}</Td>
+                <Td align="right">{done?.frames ?? 0}</Td>
+                <Td align="right">{done?.transcriptEvents ?? 0}</Td>
+                <Td className="whitespace-nowrap text-xs">{done?.lastPurgeAt ? formatDateTime(done.lastPurgeAt) : "Nothing past retention yet"}</Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+      <p className="border-t border-line px-4 py-2.5 text-xs text-muted">
+        Periods count from when a session ends; live sessions are never purged. Deleted frames and transcripts leave structured metadata (observations,
+        workflow steps, actions) and a <span className="font-mono">privacy.retention_purged</span> audit event. Audit records follow the audit period in the
+        durable store (planned). Counts are since the runtime last started.
+      </p>
+    </Panel>
+  );
+}
+
+function AccessPanel() {
+  return (
+    <Panel title="Roles and permissions" description="docs/06 §2 · enforced on every API route and page in the server edition" className="mt-4" bodyClassName="p-0">
+      <Table>
+        <thead>
+          <tr>
+            <Th>Permission</Th>
+            {ROLES.map((r) => (
+              <Th key={r} className="whitespace-nowrap">
+                {ROLE_NAMES[r]}
+                <div className="text-[11px] font-normal text-muted">{isPlatformRole(r) ? "All clients" : "Own client"}</div>
+              </Th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {PERMISSIONS.map((p) => (
+            <tr key={p}>
+              <Td className="whitespace-nowrap">
+                <span className="text-ink">{PERMISSION_LABELS[p]}</span>
+                <div className="font-mono text-[11px] text-muted">{p}</div>
+              </Td>
+              {ROLES.map((r) => (
+                <Td key={r}>
+                  {ROLE_PERMISSIONS[r].includes(p) ? (
+                    <Check className="size-4 text-ok" aria-label="Allowed" />
+                  ) : (
+                    <Minus className="size-4 text-line-strong" aria-label="Not allowed" />
+                  )}
+                </Td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </Panel>
   );
 }

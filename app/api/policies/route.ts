@@ -1,6 +1,6 @@
 import { getPolicyRegistry, PolicyRegistryError } from "@/lib/policy/registry";
 import { jsonError, readJson, str } from "@/lib/server/http";
-import { resolvePolicyAdmin } from "@/lib/server/config-admin";
+import { authorizeConfig } from "@/lib/server/admin";
 
 /** Create a new draft policy version from an existing version. */
 export async function POST(request: Request) {
@@ -10,8 +10,9 @@ export async function POST(request: Request) {
   const reg = getPolicyRegistry();
   const base = reg.get(fromId);
   if (!base) return jsonError("Policy not found", 404);
-  const actor = resolvePolicyAdmin(body?.actorId, base);
-  if (!actor) return jsonError("Not permitted", 403);
+  const auth = await authorizeConfig("policy.edit", base, "policy");
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   try {
     const draft = reg.createDraft(fromId, actor);
     return Response.json({ id: draft.id, version: draft.version }, { status: 201 });

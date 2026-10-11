@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { platformRuntime, STATIC_EXPORT } from "@/lib/server/platform-data";
 import { getPolicyRegistry } from "@/lib/policy/registry";
 import { policies, policyKey, tenantName } from "@/lib/config/catalog";
-import { eligibleAdmins } from "@/lib/server/config-admin";
+import { editorIdentity } from "@/lib/server/config-admin";
 import { PageHeader } from "@/components/ui/primitives";
 import { PolicyEditor } from "@/components/platform/policy-editor";
 
@@ -43,7 +43,7 @@ export default async function EditPolicyPage({ params }: { params: Promise<{ id:
         title={`${policy.name} v${policy.version}`}
         description={`${tenantName(policy.tenantId)} · ${policy.status === "draft" ? "Editing draft" : "In review"}`}
       />
-      <PolicyEditor policy={structuredClone(policy)} base={base ? structuredClone(base) : undefined} admins={eligibleAdmins(policy.tenantId)} />
+      <PolicyEditor policy={structuredClone(policy)} base={base ? structuredClone(base) : undefined} admins={await editorIdentity(policy.tenantId, "policy.edit")} />
     </>
   );
 }

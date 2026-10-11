@@ -23,6 +23,10 @@ export class MemorySessionStore implements SessionStore {
     this.lastWriteAt = new Date().toISOString();
   }
 
+  async deleteFrame(sessionId: string, frameId: string): Promise<void> {
+    if (this.frames.get(frameId)?.sessionId === sessionId) this.frames.delete(frameId);
+  }
+
   async deleteSession(sessionId: string): Promise<void> {
     this.sessions.delete(sessionId);
     for (const [id, f] of this.frames) if (f.sessionId === sessionId) this.frames.delete(id);

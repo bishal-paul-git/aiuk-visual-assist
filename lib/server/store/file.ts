@@ -152,6 +152,19 @@ export class FileSessionStore implements SessionStore {
     });
   }
 
+  async deleteFrame(sessionId: string, frameId: string): Promise<void> {
+    const base = this.frameBase(sessionId, frameId);
+    await this.enqueue(`${base}.bin`, async () => {
+      const existed = await fsp
+        .stat(`${base}.bin`)
+        .then(() => true)
+        .catch(() => false);
+      await fsp.rm(`${base}.bin`, { force: true });
+      await fsp.rm(`${base}.json`, { force: true });
+      if (existed) this.frameCount = Math.max(0, this.frameCount - 1);
+    });
+  }
+
   async deleteSession(sessionId: string): Promise<void> {
     const target = this.sessionPath(sessionId);
     await this.enqueue(target, async () => {

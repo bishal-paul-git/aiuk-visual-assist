@@ -2,12 +2,15 @@ import { getPolicyRegistry, PolicyRegistryError, type PolicyDraftPatch } from "@
 import { validatePolicy } from "@/lib/policy/engine";
 import type { ToolPermission, ToolRisk } from "@/lib/domain/types";
 import { jsonError, readJson } from "@/lib/server/http";
-import { resolvePolicyAdmin } from "@/lib/server/config-admin";
+import { authorizeConfig } from "@/lib/server/admin";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const p = getPolicyRegistry().get(id);
-  return p ? Response.json({ ...p, issues: validatePolicy(p) }) : jsonError("Policy not found", 404);
+  if (!p) return jsonError("Policy not found", 404);
+  const auth = await authorizeConfig("policy.view", p, "policy");
+  if (!auth.ok) return auth.response;
+  return Response.json({ ...p, issues: validatePolicy(p) });
 }
 
 function toPatch(raw: unknown): PolicyDraftPatch | string {
@@ -40,8 +43,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const policy = reg.get(id);
   if (!policy) return jsonError("Policy not found", 404);
   const body = await readJson(request);
-  const actor = resolvePolicyAdmin(body?.actorId, policy);
-  if (!actor) return jsonError("Not permitted", 403);
+  const auth = await authorizeConfig("policy.edit", policy, "policy");
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   const patch = toPatch(body?.patch);
   if (typeof patch === "string") return jsonError(patch);
   try {
@@ -58,8 +62,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const reg = getPolicyRegistry();
   const policy = reg.get(id);
   if (!policy) return jsonError("Policy not found", 404);
-  const actor = resolvePolicyAdmin(new URL(request.url).searchParams.get("actorId") ?? undefined, policy);
-  if (!actor) return jsonError("Not permitted", 403);
+  const auth = await authorizeConfig("policy.edit", policy, "policy");
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   try {
     reg.discardDraft(id, actor);
     return new Response(null, { status: 204 });

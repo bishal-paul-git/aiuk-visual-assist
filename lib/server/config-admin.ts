@@ -1,23 +1,13 @@
-import { users } from "@/lib/config/catalog";
-import type { Policy } from "@/lib/domain/types";
-import { resolveAdmin } from "./admin";
+import { currentUser } from "./auth";
+import { can } from "@/lib/auth/rbac";
 
 /**
- * Admin identity for policy changes: the same POC identity as workflows
- * (resolveAdmin), with the same tenant rule — a client administrator may only
- * change their own tenant's policies.
+ * The administrator a configuration editor acts as: always the signed-in user
+ * (docs/06 §2). Four-eyes approval therefore needs a second administrator to
+ * sign in and publish. Empty when the user cannot edit this tenant's config.
  */
-export function resolvePolicyAdmin(value: unknown, policy: Policy): { id: string; name: string } | null {
-  const admin = resolveAdmin(value);
-  if (!admin) return null;
-  const user = users.find((u) => u.id === admin.id);
-  if (user?.role === "client_admin" && user.tenantId !== policy.tenantId) return null;
-  return admin;
-}
-
-/** Administrators who may act on a tenant's configuration (for the "Acting as" picker). */
-export function eligibleAdmins(tenantId: string): { id: string; name: string; role: string }[] {
-  return users
-    .filter((u) => u.status === "active" && (u.role === "aiuk_admin" || (u.role === "client_admin" && u.tenantId === tenantId)))
-    .map((u) => ({ id: u.id, name: u.name, role: u.role }));
+export async function editorIdentity(tenantId: string, permission: "workflow.edit" | "policy.edit"): Promise<{ id: string; name: string; role: string }[]> {
+  const user = await currentUser();
+  if (!user) return [];
+  return can(user, permission, { tenantId }) ? [{ id: user.id, name: user.name, role: user.role }] : [];
 }

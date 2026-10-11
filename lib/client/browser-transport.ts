@@ -11,6 +11,8 @@ import type { Actor, Command } from "@/lib/session/orchestrator";
 import type { FrameTrigger, SessionChannel } from "@/lib/domain/types";
 import { consolePath, customerPath, syntheticFrameUrl, type Result, type Transport } from "./transport";
 import { demoCustomerLabel } from "@/lib/domain/labels";
+import { can, commandPermission, denialMessage } from "@/lib/auth/rbac";
+import { actorTypeFor } from "@/lib/auth/security-log";
 
 /**
  * Browser-hosted runtime for the static demo (GitHub Pages). Every tab runs
@@ -132,9 +134,14 @@ export function createBrowserTransport(): Transport {
   }, 10_000);
 
   const customerActor = (id: string): Actor => ({ type: "customer", id: `customer:${id}`, name: rt.get(id)?.state.session.customerLabel ?? "Customer" });
-  const agentActor = (agentId: string): Actor | null => {
-    const u = users.find((x) => x.id === agentId && (x.role === "agent" || x.role === "supervisor"));
-    return u ? { type: "human_agent", id: u.id, name: u.name } : null;
+  /** The demo identity acting in the console, checked with the same RBAC rules as the server. */
+  const agentActor = (agentId: string, sessionId: string, commandType: string): Actor | string => {
+    const u = users.find((x) => x.id === agentId);
+    const tenantId = rt.get(sessionId)?.state.session.tenantId;
+    const permission = commandPermission(commandType);
+    if (!u || !tenantId || !permission) return "Not permitted";
+    if (!can(u, permission, { tenantId })) return denialMessage(u, permission, { tenantId });
+    return { type: actorTypeFor(u), id: u.id, name: u.name };
   };
   const result = (error?: string): Result => (error ? { ok: false, error } : { ok: true });
   const byToken = (token: string) => rt.idForToken(token);
@@ -226,8 +233,8 @@ export function createBrowserTransport(): Transport {
       channel?.postMessage({ type: "preview", id, url: dataUrl, at });
     },
     async agentCommand(id, agentId, command) {
-      const actor = agentActor(agentId);
-      if (!actor) return result("Unknown agent");
+      const actor = agentActor(agentId, id, String(command.type));
+      if (typeof actor === "string") return result(actor);
       return result(rt.dispatch(id, command as Command, actor).error);
     },
     async latestPreview(id) {

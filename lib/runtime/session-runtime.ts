@@ -1,6 +1,6 @@
 import type { SessionState } from "@/lib/domain/session";
 import type { AuditEvent, DomainEventType, SessionChannel, WorkflowDefinition } from "@/lib/domain/types";
-import { agents, getPolicy, getTenant, getWorkflow } from "@/lib/config/catalog";
+import { agents, getPolicy, getTenant, getWorkflow, tenants } from "@/lib/config/catalog";
 import {
   createSession,
   handleCommand,
@@ -14,6 +14,7 @@ import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { expectedIntents } from "@/lib/workflow/engine";
 import { RoutingReasoningProvider } from "@/lib/providers/routing";
 import type { ReasoningProvider, ToolExecutor } from "@/lib/providers/types";
+import { applyRetention, type RetentionRun } from "@/lib/privacy/retention";
 import { toAgentView, toCustomerView, toSummary, type AgentView, type CustomerView, type SessionSummaryView } from "@/lib/session/projections";
 
 /** Web Crypto is available in modern browsers and Node 20+, so the engine runs in both. */
@@ -61,6 +62,14 @@ export interface StoredFrame {
 }
 
 export const MAX_FRAME_BYTES = 750_000;
+
+/** Outcome of the retention job, for the Settings › Retention panel. */
+export interface RetentionStatus {
+  lastRunAt: string;
+  lastPurgeAt?: string;
+  /** Cumulative counts per tenant since the runtime started. */
+  byTenant: Record<string, { sessions: number; frames: number; transcriptEvents: number; lastPurgeAt?: string }>;
+}
 
 export class SessionRuntime {
   private sessions = new Map<string, Entry>();
@@ -349,6 +358,46 @@ export class SessionRuntime {
   }
 
   // -------------------------------------------------------------------------
+  // Retention (docs/06 §3). Policy logic lives in lib/privacy/retention.ts;
+  // this only applies its result to the hosted sessions and the frame store.
+  // -------------------------------------------------------------------------
+
+  retentionStatus?: RetentionStatus;
+
+  runRetention(now = Date.now()): RetentionRun {
+    const entries = [...this.sessions.values()];
+    const policies = Object.fromEntries(tenants.map((t) => [t.id, t.retention]));
+    const run = applyRetention(
+      entries.map((e) => e.state),
+      policies,
+      now,
+    );
+    run.states.forEach((state, i) => {
+      const entry = entries[i];
+      if (state === entry.state) return;
+      entry.state = state;
+      this.notify(entry);
+      this.onCommit?.(state.session.id);
+    });
+    for (const { sessionId, frameReference } of run.purgedFrames) {
+      if (!frameReference.startsWith("mem:")) continue;
+      const frameId = frameReference.slice(4);
+      this.frames.delete(frameId);
+      this.onFrameDeleted?.(sessionId, frameId);
+    }
+    const byTenant = { ...this.retentionStatus?.byTenant };
+    for (const p of run.purges) {
+      const t = (byTenant[p.tenantId] = { ...(byTenant[p.tenantId] ?? { sessions: 0, frames: 0, transcriptEvents: 0 }) });
+      t.sessions += 1;
+      t.frames += p.framesPurged;
+      t.transcriptEvents += p.transcriptEventsPurged;
+      t.lastPurgeAt = run.ranAt;
+    }
+    this.retentionStatus = { lastRunAt: run.ranAt, lastPurgeAt: run.purges.length ? run.ranAt : this.retentionStatus?.lastPurgeAt, byTenant };
+    return run;
+  }
+
+  // -------------------------------------------------------------------------
   // Subscriptions
   // -------------------------------------------------------------------------
 
@@ -379,6 +428,8 @@ export class SessionRuntime {
 
   /** Called after a selected-evidence frame is stored (used to persist it). */
   onFrameStored?: (frameId: string, frame: StoredFrame) => void;
+  /** Called when retention deletes a frame, so durable copies are deleted too. */
+  onFrameDeleted?: (sessionId: string, frameId: string) => void;
   /** Fallback for frames not held in memory (e.g. read lazily from a durable store). */
   frameLoader?: (sessionId: string, frameId: string) => StoredFrame | undefined;
 

@@ -1,6 +1,6 @@
 import { getPolicyRegistry, PolicyRegistryError } from "@/lib/policy/registry";
 import { jsonError, readJson } from "@/lib/server/http";
-import { resolvePolicyAdmin } from "@/lib/server/config-admin";
+import { authorizeConfig } from "@/lib/server/admin";
 
 /**
  * Lifecycle transitions: submit (draft → in review), reopen (review → draft),
@@ -13,8 +13,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const policy = reg.get(id);
   if (!policy) return jsonError("Policy not found", 404);
   const body = await readJson(request);
-  const actor = resolvePolicyAdmin(body?.actorId, policy);
-  if (!actor) return jsonError("Not permitted", 403);
+  const auth = await authorizeConfig(body?.action === "publish" ? "policy.publish" : "policy.edit", policy, "policy");
+  if (!auth.ok) return auth.response;
+  const actor = auth.actor;
   try {
     switch (body?.action) {
       case "submit":
