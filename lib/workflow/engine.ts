@@ -148,6 +148,23 @@ export function validateWorkflow(def: WorkflowDefinition): ValidationIssue[] {
     if (step.type === "human_escalation" && !step.escalation) {
       issues.push({ stepKey: step.key, severity: "error", message: "Escalation step must define a reason" });
     }
+    const vocab = def.observationVocabulary;
+    if (vocab) {
+      for (const rule of step.next) {
+        if (rule.when.kind !== "observation") continue;
+        const allowed = vocab[rule.when.observationType]?.values;
+        if (!allowed) {
+          issues.push({ stepKey: step.key, severity: "error", message: `Observation type "${rule.when.observationType}" is not in the workflow vocabulary` });
+          continue;
+        }
+        for (const v of rule.when.values) {
+          if (!allowed.includes(v)) issues.push({ stepKey: step.key, severity: "error", message: `Value "${v}" is not allowed for ${rule.when.observationType}` });
+        }
+      }
+      for (const t of step.evidence?.observationTypes ?? []) {
+        if (!vocab[t]) issues.push({ stepKey: step.key, severity: "error", message: `Required evidence "${t}" is not in the workflow vocabulary` });
+      }
+    }
     const hasFallback = step.next.some((r) => r.when.kind === "always");
     if ((step.type === "question" || step.type === "guidance") && !hasFallback) {
       issues.push({ stepKey: step.key, severity: "info", message: "No fallback rule; unmatched answers are re-asked" });

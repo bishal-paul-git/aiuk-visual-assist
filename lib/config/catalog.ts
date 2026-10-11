@@ -124,7 +124,17 @@ export const policies: Policy[] = [
   },
 ];
 
-export const workflows: WorkflowDefinition[] = [routerTroubleshootingV3, routerTroubleshootingV2, boilerFaultV1, homeDamageV1];
+/**
+ * Process-wide so workflow versioning (lib/workflow/registry.ts) and every
+ * reader see the same list, including across dev hot reloads.
+ */
+const g = globalThis as unknown as { __aiukWorkflows?: WorkflowDefinition[] };
+export const workflows: WorkflowDefinition[] = (g.__aiukWorkflows ??= [
+  structuredClone(routerTroubleshootingV3),
+  structuredClone(routerTroubleshootingV2),
+  structuredClone(boilerFaultV1),
+  structuredClone(homeDamageV1),
+]);
 
 export const agents: AgentConfig[] = [
   {

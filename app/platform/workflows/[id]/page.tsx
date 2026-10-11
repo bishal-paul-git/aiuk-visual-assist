@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Ban, CheckCircle2, Lock, PencilLine, ShieldCheck, XCircle } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, Lock, ShieldCheck, XCircle } from "lucide-react";
 import { platformRuntime } from "@/lib/server/platform-data";
 import { getPolicy, getWorkflow, tenantName, workflows } from "@/lib/config/catalog";
 import { validateWorkflow } from "@/lib/workflow/engine";
 import { computeMetrics, stepFunnel } from "@/lib/analytics/metrics";
 import { confidencePct, formatDateTime, formatMinutes, pct } from "@/lib/format";
-import { Badge, KeyValue, Meter, PageHeader, Panel, Table, Td, Th, buttonClass, cx } from "@/components/ui/primitives";
+import { Badge, KeyValue, Meter, PageHeader, Panel, Table, Td, Th, cx } from "@/components/ui/primitives";
 import { WorkflowStatusBadge } from "@/components/domain/badges";
 import { SECTOR_LABELS, orderSteps } from "@/components/platform/config-data";
 import { ConfigStatusBadge, FieldLabel, Mono } from "@/components/platform/config-ui";
 import { IssueLine, STEP_TYPE_META, StepTypeBadge, WorkflowNode } from "@/components/platform/config-workflow-node";
+import { WorkflowVersionActions } from "@/components/platform/workflow-version-actions";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -35,7 +36,9 @@ export default async function WorkflowDetailPage({ params }: Props) {
   const states = rt.states({ tenantId: def.tenantId }).filter((s) => s.session.workflowId === def.id);
   const funnel = stepFunnel(states);
   const m = computeMetrics(states);
-  const versions = workflows.filter((w) => w.key === def.key).sort((a, b) => b.version - a.version);
+  const versions = workflows.filter((w) => w.key === def.key && w.tenantId === def.tenantId).sort((a, b) => b.version - a.version);
+  const draft = versions.find((w) => w.status === "draft" || w.status === "in_review");
+  const openDraft = draft && draft.id !== def.id ? { id: draft.id, version: draft.version, status: draft.status } : undefined;
   const typeCounts = steps.reduce<Record<string, number>>((acc, s) => ((acc[s.type] = (acc[s.type] ?? 0) + 1), acc), {});
 
   return (
@@ -59,21 +62,14 @@ export default async function WorkflowDetailPage({ params }: Props) {
                 {errors.length} blocking error{errors.length === 1 ? "" : "s"}
               </Badge>
             )}
-            <Badge tone="neutral" icon={<Lock className="size-3" aria-hidden />}>
-              Read-only
-            </Badge>
+            {def.status === "published" || def.status === "retired" ? (
+              <Badge tone="neutral" icon={<Lock className="size-3" aria-hidden />}>
+                Immutable version
+              </Badge>
+            ) : null}
           </>
         }
-        actions={
-          <div className="flex flex-col items-end gap-1">
-            <button type="button" disabled className={buttonClass("secondary", "sm")} aria-describedby="edit-note" title="Editing arrives with workflow versioning service">
-              <PencilLine className="size-3.5" aria-hidden /> Edit draft
-            </button>
-            <span id="edit-note" className="text-[11px] text-muted">
-              Editing arrives with workflow versioning service
-            </span>
-          </div>
-        }
+        actions={<WorkflowVersionActions id={def.id} status={def.status} version={def.version} openDraft={openDraft} />}
       />
 
       {versions.length > 1 && (

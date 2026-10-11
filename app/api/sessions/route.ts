@@ -14,13 +14,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await readJson(request);
   if (!body) return jsonError("Invalid JSON body");
-  const workflowId = str(body.workflowId, 100) ?? "wf_router_v3";
+  const workflowKey = str(body.workflowKey, 100) ?? undefined;
+  const tenantId = str(body.tenantId, 100) ?? undefined;
+  const workflowId = workflowKey ? undefined : (str(body.workflowId, 100) ?? "wf_router_v3");
   const channel = (str(body.channel, 40) ?? "secure_link") as SessionChannel;
   if (!CHANNELS.includes(channel)) return jsonError("Unknown channel");
-  const scenario = getScenario(str(body.scenario, 60) ?? undefined).key;
+  // "live" runs on the configured model provider; anything else is a simulation scenario.
+  const requested = str(body.scenario, 60) ?? undefined;
+  const scenario = requested === "live" ? undefined : getScenario(requested).key;
   const customerLabel = str(body.customerLabel, 60) ?? `Test customer ${new Date().toISOString().slice(11, 16)}`;
   try {
-    const { id, token } = getRuntime().create({ workflowId, channel, customerLabel, scenario });
+    const { id, token } = getRuntime().create({ workflowId, workflowKey, tenantId, channel, customerLabel, scenario });
     return Response.json({ id, token, customerPath: `/assist/${token}`, consolePath: `/console/sessions/${id}` }, { status: 201 });
   } catch (e) {
     return jsonError((e as Error).message, 422);

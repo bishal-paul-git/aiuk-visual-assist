@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Copy, ExternalLink, FlaskConical, Headset, Smartphone, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Copy, ExternalLink, FlaskConical, Headset, Sparkles, Smartphone, X } from "lucide-react";
 import { SCENARIOS } from "@/lib/providers/mock/scenarios";
 import { buttonClass, cx } from "@/components/ui/primitives";
 
@@ -23,6 +23,15 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
   const [error, setError] = useState<string>();
   const [created, setCreated] = useState<Created>();
   const [copied, setCopied] = useState(false);
+  const [live, setLive] = useState<{ liveReasoning: boolean; model: string | null }>();
+
+  useEffect(() => {
+    if (!open || live) return;
+    fetch("/api/capabilities")
+      .then((r) => r.json())
+      .then(setLive)
+      .catch(() => setLive({ liveReasoning: false, model: null }));
+  }, [open, live]);
 
   async function create() {
     setBusy(true);
@@ -31,7 +40,7 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workflowId: "wf_router_v3", scenario, channel }),
+        body: JSON.stringify({ workflowKey: "router-troubleshooting", tenantId: "tnt_northline", scenario, channel }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Could not create session");
@@ -72,9 +81,39 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
             {!created ? (
               <div className="space-y-4 p-5">
                 <p className="text-xs text-muted">
-                  Creates a live session on <strong>Northline · Router Troubleshooting v3</strong> and issues a secure customer link. The AI
-                  provider is <strong>simulated</strong>: the scenario decides what the vision model “sees”, so every branch can be tested.
+                  Creates a live session on <strong>Northline · Router Troubleshooting</strong> (current published version) and issues a secure
+                  customer link. Choose live AI, or a <strong>simulation</strong> scenario that decides what the vision model “sees” so every
+                  branch can be tested.
                 </p>
+                <label
+                  className={cx(
+                    "flex gap-3 rounded-md border px-3 py-2",
+                    !live?.liveReasoning ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                    scenario === "live" ? "border-brand bg-brand-soft" : "border-line hover:bg-surface-2",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="scenario"
+                    value="live"
+                    disabled={!live?.liveReasoning}
+                    checked={scenario === "live"}
+                    onChange={() => setScenario("live")}
+                    className="mt-0.5 accent-brand"
+                  />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+                      <Sparkles className="size-3.5 text-brand" aria-hidden /> Live AI{live?.model ? ` · ${live.model}` : ""}
+                    </span>
+                    <span className="block text-xs text-muted">
+                      {live === undefined
+                        ? "Checking availability…"
+                        : live.liveReasoning
+                          ? "Real multimodal reasoning on the frames the camera sends. Results depend on what you actually show."
+                          : "Not configured on this deployment — set ANTHROPIC_API_KEY on the server to enable."}
+                    </span>
+                  </span>
+                </label>
                 <fieldset>
                   <legend className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ink-2">
                     <FlaskConical className="size-3.5" aria-hidden /> Simulation scenario

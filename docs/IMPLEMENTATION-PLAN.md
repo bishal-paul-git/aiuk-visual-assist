@@ -40,6 +40,9 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Business automation outside the media loop | ✅ | Tools run as async effects in the runtime, never inside the orchestrator or media path |
 | Human escalation works when AI is unavailable | ✅ | Deterministic human-request detection + `ai_model_failure` fallback (tested) |
 | Provider abstraction (reasoning, tools) | ✅ | `lib/providers/types.ts`; simulated implementations in `lib/providers/mock/` |
+| Real multimodal reasoning | ✅ (needs key) | `lib/providers/claude/reasoning.ts` — Claude (`claude-opus-5-5`, low effort, server-side refusal fallback) with JSON-schema output, validated against each workflow's `observationVocabulary`; enabled when `ANTHROPIC_API_KEY` is set. Scenario sessions keep using the simulator (`lib/providers/routing.ts`) |
+| Sensitive visual data policy (docs/06 §4) | ✅ | Vision layer flags people, cards, ID, screens, plates; tenant policy decides escalate / ask to re-frame / allow |
+| Workflow versioning (draft → review → publish, retire, pinning) | ✅ | `lib/workflow/registry.ts`, `/platform/workflows/[id]/edit`; config changes audited; structural (step/rule) editing still to come |
 | Provider abstraction (video transport, speech, identity, storage, notifications) | 🟡 | Voice is browser-native behind hooks (`lib/client/speech.ts`); media transport is an interim preview relay; storage is in-memory |
 | Multi-tenancy | 🟡 | All entities tenant-scoped; config per tenant (workflow, policy, agent, retention, branding, flags). No auth-enforced isolation yet |
 | Durable data platform | ⬜ | In-memory runtime (`lib/server/runtime.ts`) — Phase 3 |
@@ -82,7 +85,7 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Live Sessions, Session History, Session Detail (audit reconstruction) | ✅ |
 | Clients, AI Agents, Visual Workflows (builder view + publish checks + funnel), Policies, Human Teams, Integrations | ✅ read-only views over tenant configuration |
 | QA, Analytics, Costs, Audit Logs, System Health, Settings | ✅ computed from session records; unmeasurable metrics labelled as such |
-| Editing/publishing workflows and policies | ⬜ Phase 3/6 (versioning service) |
+| Editing/publishing workflows | 🟡 Wording, thresholds, attempts and durations editable with versioned publish; step/rule structure editing and policy editing still to come |
 
 ### 2.5 Security, privacy, NFRs (docs/06, 07)
 
@@ -118,8 +121,8 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 - In-process runtime with SSE fan-out; seed history generated through the real orchestrator.
 - 50+ unit/E2E tests.
 
-### Phase 2 — Technical POC: real router interaction (next)
-1. **Real multimodal reasoning provider** behind `ReasoningProvider` — structured JSON output (docs/05 §2) validated against the schema; prompt versioned; latency and cost recorded. Keep the simulated provider for tests and demos.
+### Phase 2 — Technical POC: real router interaction (in progress)
+1. ✅ **Real multimodal reasoning provider** behind `ReasoningProvider` — structured JSON output (docs/05 §2) validated against the workflow vocabulary; refusals/invalid output escalate. Remaining: per-token cost capture from `usage`, prompt-version registry, evaluation set with real images.
 2. **Real voice layer** — streaming ASR/TTS with barge-in/turn-taking, behind the existing hooks.
 3. **WebRTC media layer** — SFU rooms with customer, AI and human participants; replaces the preview relay; human join uses the same room.
 4. **Media gateway service** — server-side frame selection on the video track (scene change, scheduled low-rate sample), alongside the client stability gate.
@@ -127,7 +130,7 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 
 ### Phase 3 — Internal alpha
 - Durable event store + session store (Postgres), orchestrator as a service, outbox for effects.
-- Workflow and policy versioning service with draft → review → publish and rollback; editable builder.
+- ✅ Workflow versioning (draft → review → publish, pinning, audit). Remaining: durable storage, four-eyes approval, structural builder, policy versioning.
 - OpenTelemetry traces with session correlation IDs; alerting.
 - QA tooling: human review queue, evaluation sets with labelled images, calibration reports.
 
@@ -151,6 +154,8 @@ npm test           # unit + orchestrator E2E tests
 npm run typecheck
 npm run lint
 ```
+
+Optional: set `ANTHROPIC_API_KEY` (and optionally `VISUAL_ASSIST_MODEL`, default `claude-opus-5-5`) to enable **Live AI** sessions. Without it, every session uses the simulated provider.
 
 - `/` — entry point; **Start test session** creates a live router session and gives you the customer link.
 - `/assist/<token>` — customer experience (use a phone on the same network over HTTPS for the real camera, or the demo camera).

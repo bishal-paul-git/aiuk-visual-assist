@@ -23,6 +23,8 @@ export interface ScenarioDefinition {
   unclear?: Partial<Record<string, number[]>>;
   wrongDeviceFirst?: boolean;
   visionOutage?: boolean;
+  /** Sensitive content visible in the first router frame. */
+  sensitiveFirst?: "payment_card" | "person";
   /** Simulated customer answer to "is it working now?" */
   confirmsWorking: boolean;
 }
@@ -98,6 +100,18 @@ export const SCENARIOS: ScenarioDefinition[] = [
     confirmsWorking: true,
   },
   {
+    key: "card_in_frame",
+    name: "Bank card in view",
+    description: "A payment card is visible next to the router; tenant policy says this must go to a person.",
+    expectedOutcome: "Escalates — safety policy",
+    lightsBefore: { power: "on", internet: "off", wifi: "on" },
+    lightsAfter: { power: "on", internet: "off", wifi: "on" },
+    broadbandCable: "connected",
+    lineTest: "no_fault",
+    sensitiveFirst: "payment_card",
+    confirmsWorking: false,
+  },
+  {
     key: "vision_outage",
     name: "Vision model outage",
     description: "The visual reasoning provider fails; the session falls back to a human without losing context.",
@@ -143,6 +157,26 @@ export function scenarioObservations(sc: ScenarioDefinition, f: FrameContext): O
 
   switch (f.checkpoint) {
     case "router_front":
+      if (sc.sensitiveFirst && f.attempt === 1) {
+        return [
+          {
+            observationType: "device_identified",
+            value: "router",
+            observationText: "Northline Hub 4 router identified (front panel)",
+            confidence: 0.92,
+            status: "confirmed_visible",
+            requiresConfirmation: false,
+          },
+          {
+            observationType: "sensitive_content",
+            value: sc.sensitiveFirst,
+            observationText: `Sensitive content may be visible: ${sc.sensitiveFirst.replace("_", " ")}`,
+            confidence: 0.81,
+            status: "likely_visible",
+            requiresConfirmation: true,
+          },
+        ];
+      }
       if (sc.wrongDeviceFirst && f.attempt === 1) {
         return [
           {

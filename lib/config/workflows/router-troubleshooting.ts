@@ -32,6 +32,14 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
   policyId: "pol_northline_standard",
   startStep: "welcome",
   changeNote: "v3: adds rear-cable checkpoint before power cycle and a line test before escalation.",
+  observationVocabulary: {
+    device_identified: { description: "What device is shown", values: ["router", "other_device"] },
+    power_light: { description: "Router power indicator", values: ["on", "off", "amber"] },
+    internet_light: { description: "Router internet/broadband indicator", values: ["on", "off", "red", "amber", "flashing"] },
+    wifi_light: { description: "Router Wi-Fi indicator", values: ["on", "off"] },
+    broadband_cable: { description: "Broadband/DSL/fibre cable seated in its port", values: ["connected", "disconnected"] },
+    power_cable: { description: "Power adapter seated in the router", values: ["connected", "disconnected"] },
+  },
   publishedAt: "2026-09-02T09:12:00.000Z",
   publishedBy: "Priya Shah",
   steps: [

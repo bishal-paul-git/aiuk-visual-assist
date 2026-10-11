@@ -358,6 +358,33 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
         }
       }
 
+      // Sensitive visual data is governed by tenant policy (docs/06 §4), never by the model.
+      const sensitive = created.find((o) => o.observationType === "sensitive_content" && o.value);
+      if (sensitive && s.session.status === "active") {
+        const category = SENSITIVE_CATEGORY[sensitive.value!];
+        const handling = ctx.deps.policy.sensitiveData.find((d) => d.category === category)?.handling ?? "avoid_capture";
+        ctx.audit("policy.check", { check: "sensitive_content", category: category ?? sensitive.value, handling });
+        if (handling === "escalate") {
+          ctx.escalate("safety_policy", `Sensitive content in frame (${sensitive.value!.replace(/_/g, " ")}) requires a person`, "high");
+          return;
+        }
+        if (handling === "avoid_capture" && s.session.ownerType === "ai") {
+          const step = ctx.currentStep();
+          if (step?.type === "visual_request" && ve.stepKey === step.key) {
+            const attempts = (s.workflow.attempts[step.key] ?? 1) + 1;
+            if (attempts > (step.maxAttempts ?? ctx.deps.policy.maxCaptureAttempts)) {
+              ctx.escalate("safety_policy", "Sensitive content kept appearing in frame", "medium");
+              return;
+            }
+            s.workflow.attempts[step.key] = attempts;
+            ctx.say(`For your privacy, please point the camera only at the equipment and keep any ${sensitive.value!.replace(/_/g, " ")}s out of view.`);
+            ctx.requestEvidence(step, "another_angle", attempts, "uncertainty_confirmation");
+            s.customerState = "need_another_angle";
+            return;
+          }
+        }
+      }
+
       // After takeover the AI acts as copilot only: observations are shown, workflow does not move.
       if (s.session.ownerType !== "ai" || s.session.status !== "active") return;
       const step = ctx.currentStep();
@@ -594,6 +621,16 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
     }
   }
 }
+
+const SENSITIVE_CATEGORY: Record<string, Policy["sensitiveData"][number]["category"]> = {
+  person: "bystanders",
+  child: "children",
+  payment_card: "payment_cards",
+  identity_document: "identity_documents",
+  computer_screen: "computer_screens",
+  confidential_document: "confidential_documents",
+  vehicle_plate: "vehicle_plates",
+};
 
 function resumableStep(ctx: Ctx): string | undefined {
   // Resume at the last non-escalation step the AI was working on.

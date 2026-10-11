@@ -157,6 +157,11 @@ export interface WorkflowDefinition {
   name: string;
   version: number;
   status: WorkflowStatus;
+  /** Version this draft was created from (versioning lineage). */
+  basedOnVersion?: number;
+  submittedAt?: ISODateString;
+  submittedBy?: string;
+  retiredAt?: ISODateString;
   sector: Sector;
   objective: string;
   allowedScope: string[];
@@ -166,6 +171,11 @@ export interface WorkflowDefinition {
   policyId: string;
   startStep: string;
   steps: WorkflowStep[];
+  /**
+   * Allowed normalised values per observation type. Model output is validated
+   * against this so a reasoning provider can never invent a workflow branch.
+   */
+  observationVocabulary?: Record<string, { description: string; values: string[] }>;
   changeNote: string;
   publishedAt?: ISODateString;
   publishedBy?: string;
@@ -452,4 +462,10 @@ export type DomainEventType =
   | "tool.failed"
   | "tool.duplicate_blocked"
   | "tool.denied"
-  | "policy.check";
+  | "policy.check"
+  | "config.workflow_draft_created"
+  | "config.workflow_updated"
+  | "config.workflow_submitted"
+  | "config.workflow_published"
+  | "config.workflow_retired"
+  | "config.workflow_discarded";

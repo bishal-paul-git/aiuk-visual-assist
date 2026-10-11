@@ -49,6 +49,10 @@ export const boilerFaultV1: WorkflowDefinition = {
   policyId: "pol_brightwater_safety",
   startStep: "welcome",
   changeNote: "Initial draft for pilot review with Brightwater gas-safe team.",
+  observationVocabulary: {
+    fault_code: { description: "Code shown on the boiler display", values: ["F22", "E119", "F28", "E133", "none", "other"] },
+    pressure_bar: { description: "Pressure gauge reading band", values: ["below_1", "normal", "above_2_5"] },
+  },
   steps: [
     {
       key: "welcome",
@@ -156,6 +160,10 @@ export const homeDamageV1: WorkflowDefinition = {
   policyId: "pol_harbour_claims",
   startStep: "welcome",
   changeNote: "Draft; awaiting DPIA sign-off for private-interior capture.",
+  observationVocabulary: {
+    damage_area: { description: "Whole damaged area in frame", values: ["visible"] },
+    damage_detail: { description: "Close-up detail of the damage", values: ["visible"] },
+  },
   steps: [
     {
       key: "welcome",

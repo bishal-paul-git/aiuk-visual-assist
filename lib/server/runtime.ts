@@ -11,8 +11,12 @@ import {
   type OrchestratorDeps,
 } from "@/lib/session/orchestrator";
 import { canReturnToAi } from "@/lib/policy/engine";
+import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { expectedIntents } from "@/lib/workflow/engine";
 import { MockReasoningProvider } from "@/lib/providers/mock/reasoning";
+import { RoutingReasoningProvider } from "@/lib/providers/routing";
+import { ClaudeReasoningProvider } from "@/lib/providers/claude/reasoning";
+import Anthropic from "@anthropic-ai/sdk";
 import { MockToolExecutor } from "@/lib/providers/mock/tools";
 import type { ReasoningProvider, ToolExecutor } from "@/lib/providers/types";
 import { toAgentView, toCustomerView, toSummary, type AgentView, type CustomerView, type SessionSummaryView } from "@/lib/session/projections";
@@ -57,6 +61,12 @@ export class SessionRuntime {
     private readonly tools: ToolExecutor,
   ) {}
 
+  /** Whether sessions without a simulation scenario run on a real model. */
+  get liveReasoning(): { available: boolean; model?: string } {
+    const r = this.reasoning;
+    return r instanceof RoutingReasoningProvider ? { available: r.liveAvailable, model: r.liveModel } : { available: !r.simulated };
+  }
+
   // -------------------------------------------------------------------------
   // Creation
   // -------------------------------------------------------------------------
@@ -73,10 +83,24 @@ export class SessionRuntime {
     return `VA-${this.referenceCounter}`;
   }
 
-  create(input: { workflowId: string; channel: SessionChannel; customerLabel: string; scenario?: string }): { id: string; token: string } {
-    const workflow = getWorkflow(input.workflowId);
+  create(input: {
+    workflowId?: string;
+    workflowKey?: string;
+    tenantId?: string;
+    channel: SessionChannel;
+    customerLabel: string;
+    scenario?: string;
+  }): { id: string; token: string } {
+    // New sessions start on the current published version; running sessions stay pinned to theirs.
+    const workflow =
+      input.workflowKey && input.tenantId
+        ? getWorkflowRegistry().latestPublished(input.tenantId, input.workflowKey)
+        : input.workflowId
+          ? getWorkflow(input.workflowId)
+          : undefined;
     if (!workflow) throw new Error("Unknown workflow");
     if (workflow.status !== "published") throw new Error(`Workflow ${workflow.name} v${workflow.version} is not published`);
+    if (!input.scenario && !this.liveReasoning.available) throw new Error("Live AI is not configured; choose a simulation scenario");
     const deps = this.depsFor(workflow);
     const id = `ses_${randomUUID().slice(0, 8)}`;
     const state = createSession(
@@ -259,7 +283,7 @@ export class SessionRuntime {
       tenantName: tenant?.name ?? e.state.session.tenantId,
       allowedHumanTools: e.deps.policy.tools.filter((t) => t.mode !== "deny").map((t) => ({ tool: t.tool, risk: t.risk, mode: t.mode })),
       returnToAiAllowed: canReturnToAi(e.deps.policy, e.state.escalation),
-      simulatedProvider: this.reasoning.simulated,
+      simulatedProvider: this.reasoning instanceof RoutingReasoningProvider ? this.reasoning.isSimulatedFor(e.state) : this.reasoning.simulated,
     });
   }
 
@@ -309,11 +333,20 @@ export function getRuntime(): SessionRuntime {
   const g = globalThis as unknown as Record<string, SessionRuntime | undefined>;
   let rt = g[GLOBAL_KEY];
   if (!rt) {
-    rt = new SessionRuntime(new MockReasoningProvider(), new MockToolExecutor());
+    rt = new SessionRuntime(new RoutingReasoningProvider(new MockReasoningProvider(), liveProvider()), new MockToolExecutor());
     seedSessions(rt);
     const timer = setInterval(() => rt!.tick(), 10_000);
     if (typeof timer === "object" && "unref" in timer) timer.unref();
     g[GLOBAL_KEY] = rt;
   }
   return rt;
+}
+
+/**
+ * Real multimodal reasoning is enabled when Anthropic credentials are
+ * configured (ANTHROPIC_API_KEY). VISUAL_ASSIST_MODEL overrides the model.
+ */
+function liveProvider(): ClaudeReasoningProvider | undefined {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return undefined;
+  return new ClaudeReasoningProvider(new Anthropic(), { model: process.env.VISUAL_ASSIST_MODEL || undefined });
 }
