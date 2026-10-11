@@ -31,6 +31,8 @@ export interface DraftPatch {
 
 export class WorkflowRegistry {
   readonly audit: AuditEvent[] = [];
+  /** Called after every recorded change (used to persist configuration). */
+  onChange?: () => void;
   private counter = 0;
 
   constructor(
@@ -204,6 +206,7 @@ export class WorkflowRegistry {
       timestamp: this.now(),
       context: { workflowVersion: wf.version },
     });
+    this.onChange?.();
   }
 }
 

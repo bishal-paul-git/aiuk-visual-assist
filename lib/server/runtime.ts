@@ -6,6 +6,7 @@ import { ClaudeReasoningProvider } from "@/lib/providers/claude/reasoning";
 import { SessionRuntime } from "@/lib/runtime/session-runtime";
 import { seedSessions } from "@/lib/runtime/seed";
 import { attachStore, createStoreFromEnv, MemorySessionStore, type Persistence } from "@/lib/server/store";
+import { attachConfigStore } from "@/lib/server/store/config";
 import { getProviderStats } from "@/lib/server/telemetry";
 import { log } from "@/lib/server/log";
 
@@ -26,6 +27,8 @@ export function getRuntime(): SessionRuntime {
     g[BOOT_KEY] = Date.now();
     // The static demo build prerenders from a fresh seeded runtime; it never touches DATA_DIR.
     const store = process.env.STATIC_EXPORT === "1" ? new MemorySessionStore() : createStoreFromEnv();
+    // Workflow and policy versions first, so sessions pinned to them restore.
+    if (store.durable && process.env.DATA_DIR) attachConfigStore(process.env.DATA_DIR);
     const persistence = attachStore(rt, store, { seed: seedSessions, debounceMs: Number(process.env.PERSIST_DEBOUNCE_MS) || 250 });
     g[PERSIST_KEY] = persistence;
     if (store.durable && typeof process.on === "function") {

@@ -30,6 +30,8 @@ export class PolicyRegistryError extends Error {}
 
 export class PolicyRegistry {
   readonly audit: AuditEvent[] = [];
+  /** Called after every recorded change (used to persist configuration). */
+  onChange?: () => void;
   private counter = 0;
 
   constructor(
@@ -228,6 +230,7 @@ export class PolicyRegistry {
       timestamp: this.now(),
       context: { policyVersion: p.version },
     });
+    this.onChange?.();
   }
 }
 
