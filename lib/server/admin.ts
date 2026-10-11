@@ -1,6 +1,7 @@
 import type { WorkflowDefinition } from "@/lib/domain/types";
 import type { Permission } from "@/lib/auth/rbac";
 import { authorize } from "./auth";
+import { getRuntime } from "./runtime";
 
 export type ConfigAuth = { ok: true; actor: { id: string; name: string } } | { ok: false; response: Response };
 
@@ -14,6 +15,9 @@ export async function authorizeConfig(
   target?: Pick<WorkflowDefinition, "id" | "tenantId">,
   kind: "workflow" | "policy" = "workflow",
 ): Promise<ConfigAuth> {
+  // Boot the runtime first: it restores persisted configuration and attaches
+  // the store that saves every configuration change (lib/server/store/config.ts).
+  getRuntime();
   const auth = await authorize(permission, target ? { tenantId: target.tenantId } : undefined, target ? { [`${kind}Id`]: target.id } : {});
   if (!auth.ok) return auth;
   return { ok: true, actor: { id: auth.user.id, name: auth.user.name } };
