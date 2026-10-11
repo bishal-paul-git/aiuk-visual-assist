@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Absolute Intelligence Visual Assist
 
-## Getting Started
+Enterprise Human + AI visual assistance platform by Absolute Intelligence UK. Customers open a secure browser session, talk to an AI and show the problem through their phone camera; the AI follows approved workflows, records confidence-rated observations, triggers controlled business actions and escalates to a human who joins the **same** interaction with full context.
 
-First, run the development server:
+- Product specification: [`docs/`](docs/00-README.md) (source of truth)
+- Gap analysis, status and phased plan: [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)
+
+## Experiences
+
+| Route | Experience |
+|---|---|
+| `/assist/<token>` | Customer Visual Assistance (mobile-first) |
+| `/console` | Human Agent Console — live queue and session workspace |
+| `/platform` | AIUK Management Platform — 16 modules |
+
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000 → "Start test session"
+npm test         # domain, policy, workflow and end-to-end orchestrator tests
+npm run typecheck && npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Two editions
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Edition | Build | Where | Notes |
+|---|---|---|---|
+| **Server** | `npm run build` | Any Node host | Full product: API routes, SSE, cross-device sessions (phone ↔ console), optional live AI with `ANTHROPIC_API_KEY`. |
+| **Static demo** | `npm run build:static` | **GitHub Pages** (`.github/workflows/deploy-pages.yml`) | The session runtime runs in the browser. Tabs on one device stay in sync; separate devices can't share a session. Platform reports are a build-time snapshot; workflow editing is read-only. Start at `/demo` for the phone + console side by side. |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+To publish the static demo: **Settings → Pages → Build and deployment → Source: GitHub Actions**, then merge to `main` (or run the "Deploy static demo to GitHub Pages" workflow). It is served at `https://<owner>.github.io/<repo>/`.
 
-## Learn More
+This is a POC environment: reasoning and business actions use **simulated providers** (clearly labelled in the UI) behind production interfaces, and the session runtime is in-memory. See the implementation plan for what is real, what is simulated and what comes next.
 
-To learn more about Next.js, take a look at the following resources:
+## Code map
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `lib/domain` — data model, labels, pricing
+- `lib/session` — orchestrator (pure, deterministic), handover, role-scoped projections
+- `lib/workflow`, `lib/policy` — workflow engine and deterministic policy checks
+- `lib/config` — tenant configuration catalog and versioned workflows
+- `lib/providers` — provider interfaces + simulated implementations
+- `lib/server` — session runtime, SSE, seed history
+- `components/assist`, `components/console`, `components/platform` — the three experiences
