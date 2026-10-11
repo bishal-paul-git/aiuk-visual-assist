@@ -62,7 +62,7 @@ Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TO
   - `sessions/<id>.json` — one snapshot per session (state, customer token, pinned workflow id, live flag).
   - `frames/<sessionId>/<frameId>.bin` + `.json` — selected-evidence frames only; read from disk on demand.
 - The runtime writes through on every commit (debounced per session); a newer sequence number always wins, so an out-of-order write can never roll a session back.
-- Known limits: workflow versions published at runtime are not yet persisted, so a session pinned to such a version cannot be restored after a restart (it is skipped and logged as `store.sessions_skipped`). The live preview relay is intentionally never stored.
+- Workflow and policy versions (including those published from the platform) and their config audit are saved to `<DATA_DIR>/config.json` and loaded before sessions. A session whose workflow version is missing is skipped and logged as `store.sessions_skipped`. The live preview relay is intentionally never stored.
 
 ### 3.2 Link delivery (`lib/server/notifications/`)
 
