@@ -1,0 +1,263 @@
+import type { WorkflowDefinition } from "@/lib/domain/types";
+
+/**
+ * Router Troubleshooting v3 — the first production candidate (docs/01 §10).
+ * Low-risk guidance only; anything beyond a power cycle or cable reseat is a
+ * human step.
+ */
+export const routerTroubleshootingV3: WorkflowDefinition = {
+  id: "wf_router_v3",
+  tenantId: "tnt_northline",
+  key: "router-troubleshooting",
+  name: "Router Troubleshooting",
+  version: 3,
+  status: "published",
+  sector: "telecommunications",
+  objective: "Restore home broadband by checking router status lights and cabling, using approved low-risk steps only.",
+  allowedScope: [
+    "Home broadband outage or intermittent connection",
+    "Router status light interpretation",
+    "Cable seating checks",
+    "Router power cycle",
+  ],
+  prohibitedGuidance: [
+    "Factory reset or pin-hole reset",
+    "Opening the router casing",
+    "Changing router admin, ISP or Wi-Fi credentials",
+    "Advice on mains electrical wiring or sockets",
+    "Promising compensation, credits or engineer appointments",
+  ],
+  defaultConfidenceThreshold: 0.75,
+  maxAiDurationSec: 900,
+  policyId: "pol_northline_standard",
+  startStep: "welcome",
+  changeNote: "v3: adds rear-cable checkpoint before power cycle and a line test before escalation.",
+  publishedAt: "2026-09-02T09:12:00.000Z",
+  publishedBy: "Priya Shah",
+  steps: [
+    {
+      key: "welcome",
+      type: "start",
+      title: "Welcome",
+      instruction:
+        "Hi, I'm the Northline visual assistant. I can see what your camera shows, so you can show me the problem rather than describe it.",
+      customerPrompt: "Connected to your visual assistant",
+      next: [{ when: { kind: "always" }, to: "intake", label: "Begin" }],
+    },
+    {
+      key: "intake",
+      type: "question",
+      title: "Understand the issue",
+      instruction: "What seems to be the problem today?",
+      customerPrompt: "Tell me what's wrong",
+      next: [
+        { when: { kind: "intent", intents: ["broadband_issue"] }, to: "show_router", label: "Broadband issue" },
+        { when: { kind: "intent", intents: ["out_of_scope"] }, to: "escalate_out_of_scope", label: "Not covered by this workflow" },
+      ],
+    },
+    {
+      key: "show_router",
+      type: "visual_request",
+      title: "Identify router",
+      instruction: "Let's take a look. Please point your camera at the front of your router so I can see the whole device.",
+      customerPrompt: "Show me the front of your router",
+      evidence: {
+        checkpoint: "router_front",
+        description: "Whole router visible from the front",
+        observationTypes: ["device_identified"],
+        view: "front",
+      },
+      confidenceThreshold: 0.7,
+      maxAttempts: 3,
+      onFailure: { to: "escalate_visual", reason: "repeated_capture_failure" },
+      next: [
+        { when: { kind: "observation", observationType: "device_identified", values: ["router"] }, to: "inspect_lights", label: "Router identified" },
+        { when: { kind: "observation", observationType: "device_identified", values: ["other_device"] }, to: "show_router", label: "Different device shown" },
+      ],
+    },
+    {
+      key: "inspect_lights",
+      type: "visual_request",
+      title: "Read status lights",
+      instruction: "Thanks. Now move a little closer to the lights on the front so I can read each one clearly.",
+      customerPrompt: "Move closer to the lights",
+      evidence: {
+        checkpoint: "router_lights",
+        description: "Power, Internet and Wi-Fi indicators legible",
+        observationTypes: ["power_light", "internet_light", "wifi_light"],
+        view: "close_up",
+      },
+      confidenceThreshold: 0.75,
+      maxAttempts: 3,
+      onFailure: { to: "escalate_visual", reason: "low_visual_confidence" },
+      next: [
+        { when: { kind: "observation", observationType: "power_light", values: ["off"] }, to: "guide_power_supply", label: "No power" },
+        { when: { kind: "observation", observationType: "internet_light", values: ["off", "red", "amber"] }, to: "show_cables", label: "No internet signal" },
+        { when: { kind: "observation", observationType: "internet_light", values: ["on"] }, to: "confirm_working", label: "Lights normal" },
+      ],
+    },
+    {
+      key: "guide_power_supply",
+      type: "guidance",
+      title: "Check power supply",
+      instruction:
+        "The power light looks off. Please check the power adapter is plugged into the router and the wall socket is switched on. Tell me when you've done that.",
+      customerPrompt: "Check the power plug, then say “done”",
+      allowedGuidance: ["Check adapter seated in router", "Check wall socket switched on"],
+      next: [
+        { when: { kind: "intent", intents: ["done", "affirm"] }, to: "recheck_lights", label: "Customer checked power" },
+        { when: { kind: "intent", intents: ["negate", "cannot"] }, to: "escalate_unresolved", label: "Customer unable" },
+      ],
+    },
+    {
+      key: "show_cables",
+      type: "visual_request",
+      title: "Check rear cables",
+      instruction:
+        "The internet light isn't showing a connection. Please turn the router around and show me the cables plugged into the back.",
+      customerPrompt: "Show me the cables at the back",
+      evidence: {
+        checkpoint: "router_rear",
+        description: "Broadband and power cables visible at the rear ports",
+        observationTypes: ["broadband_cable", "power_cable"],
+        view: "rear",
+      },
+      confidenceThreshold: 0.75,
+      maxAttempts: 3,
+      onFailure: { to: "escalate_visual", reason: "low_visual_confidence" },
+      next: [
+        { when: { kind: "observation", observationType: "broadband_cable", values: ["disconnected"] }, to: "guide_reseat_cable", label: "Broadband cable loose" },
+        { when: { kind: "observation", observationType: "broadband_cable", values: ["connected"] }, to: "guide_power_cycle", label: "Cables connected" },
+      ],
+    },
+    {
+      key: "guide_reseat_cable",
+      type: "guidance",
+      title: "Reseat broadband cable",
+      instruction:
+        "The broadband cable looks like it isn't fully in. Please push it firmly into the port marked Broadband until it clicks, then tell me when it's done.",
+      customerPrompt: "Push the broadband cable in until it clicks",
+      allowedGuidance: ["Reseat broadband/DSL/fibre cable"],
+      next: [
+        { when: { kind: "intent", intents: ["done", "affirm"] }, to: "recheck_lights", label: "Cable reseated" },
+        { when: { kind: "intent", intents: ["negate", "cannot"] }, to: "escalate_unresolved", label: "Customer unable" },
+      ],
+    },
+    {
+      key: "guide_power_cycle",
+      type: "guidance",
+      title: "Power cycle router",
+      instruction:
+        "The cables look connected. Let's restart the router: switch it off at the wall, wait 30 seconds, then switch it back on. It can take two or three minutes to reconnect. Say “done” when the lights have settled.",
+      customerPrompt: "Restart the router, then say “done”",
+      allowedGuidance: ["Power cycle at wall socket"],
+      next: [
+        { when: { kind: "intent", intents: ["done", "affirm"] }, to: "recheck_lights", label: "Power cycle complete" },
+        { when: { kind: "intent", intents: ["negate", "cannot"] }, to: "escalate_unresolved", label: "Customer unable" },
+      ],
+    },
+    {
+      key: "recheck_lights",
+      type: "visual_request",
+      title: "Re-check status lights",
+      instruction: "Thanks. Please show me the lights on the front again, nice and close.",
+      customerPrompt: "Show me the lights again",
+      evidence: {
+        checkpoint: "router_lights_recheck",
+        description: "Internet indicator legible after intervention",
+        observationTypes: ["power_light", "internet_light"],
+        view: "close_up",
+      },
+      confidenceThreshold: 0.75,
+      maxAttempts: 3,
+      onFailure: { to: "escalate_visual", reason: "low_visual_confidence" },
+      next: [
+        { when: { kind: "observation", observationType: "internet_light", values: ["on"] }, to: "confirm_working", label: "Internet restored" },
+        { when: { kind: "observation", observationType: "power_light", values: ["off"] }, to: "escalate_unresolved", label: "Still no power" },
+        { when: { kind: "observation", observationType: "internet_light", values: ["off", "red", "amber"] }, to: "run_line_test", label: "Still no internet" },
+      ],
+    },
+    {
+      key: "run_line_test",
+      type: "business_action",
+      title: "Run remote line test",
+      instruction: "The internet light is still off, so I'm running a remote test on your line. This takes a few seconds.",
+      customerPrompt: "Running a quick line test…",
+      action: { tool: "line_test", params: { depth: "standard" } },
+      onFailure: { to: "escalate_unresolved", reason: "workflow_failure" },
+      next: [
+        { when: { kind: "tool_result", field: "line_test.status", values: ["fault_detected"] }, to: "escalate_network", label: "Line fault found" },
+        { when: { kind: "tool_result", field: "line_test.status", values: ["no_fault"] }, to: "escalate_unresolved", label: "No line fault" },
+      ],
+    },
+    {
+      key: "confirm_working",
+      type: "question",
+      title: "Confirm resolution",
+      instruction: "Your router lights look normal now. Could you try opening a web page — is your internet working?",
+      customerPrompt: "Is your internet working now?",
+      next: [
+        { when: { kind: "intent", intents: ["affirm", "done"] }, to: "close_case", label: "Customer confirms working" },
+        { when: { kind: "intent", intents: ["negate", "cannot"] }, to: "escalate_unresolved", label: "Still not working" },
+      ],
+    },
+    {
+      key: "close_case",
+      type: "business_action",
+      title: "Close case as resolved",
+      instruction: "Great news. I'm recording that on your account now.",
+      customerPrompt: "Updating your account…",
+      action: { tool: "update_case", params: { status: "resolved", resolution: "self_service_visual" } },
+      onFailure: { to: "resolved", reason: "workflow_failure" },
+      next: [{ when: { kind: "always" }, to: "resolved", label: "Case updated" }],
+    },
+    {
+      key: "resolved",
+      type: "completion",
+      title: "Resolved",
+      instruction: "You're all set. Thanks for showing me — you can end the session whenever you're ready.",
+      customerPrompt: "All sorted",
+      completion: { outcome: "resolved_by_ai" },
+      next: [],
+    },
+    {
+      key: "escalate_network",
+      type: "human_escalation",
+      title: "Escalate to Level 2 network team",
+      instruction:
+        "The line test found a fault on the network side, so I'm bringing in a specialist. They can already see everything we've checked, so you won't need to repeat anything.",
+      customerPrompt: "Connecting you to a specialist",
+      escalation: { reason: "unresolved_after_workflow", severity: "medium", humanOnly: true },
+      next: [],
+    },
+    {
+      key: "escalate_unresolved",
+      type: "human_escalation",
+      title: "Escalate to support agent",
+      instruction:
+        "I'd like a member of the team to help from here. They'll see everything we've done so far, so you won't need to start again.",
+      customerPrompt: "Connecting you to a support agent",
+      escalation: { reason: "unresolved_after_workflow", severity: "medium" },
+      next: [],
+    },
+    {
+      key: "escalate_visual",
+      type: "human_escalation",
+      title: "Escalate — evidence unclear",
+      instruction:
+        "I can't see this clearly enough to be confident, so I'm bringing in a member of the team who can take a look with you.",
+      customerPrompt: "Connecting you to a support agent",
+      escalation: { reason: "low_visual_confidence", severity: "medium" },
+      next: [],
+    },
+    {
+      key: "escalate_out_of_scope",
+      type: "human_escalation",
+      title: "Escalate — out of scope",
+      instruction: "That's something a member of our team is best placed to help with. I'm connecting you now.",
+      customerPrompt: "Connecting you to a support agent",
+      escalation: { reason: "out_of_scope", severity: "low" },
+      next: [],
+    },
+  ],
+};

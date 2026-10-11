@@ -1,0 +1,455 @@
+/**
+ * Core domain model for Absolute Intelligence Visual Assist.
+ * Mirrors docs/04-DATA-MODEL-AND-EVENTS.md. Field names are camelCase in code;
+ * persistence adapters map them to snake_case columns.
+ */
+
+export type ISODateString = string;
+
+// ---------------------------------------------------------------------------
+// Tenancy and identity
+// ---------------------------------------------------------------------------
+
+export type TenantStatus = "active" | "onboarding" | "suspended";
+export type Region = "uk-south" | "uk-west" | "eu-west";
+
+export interface BrandConfig {
+  displayName: string;
+  primaryColor: string;
+  supportLine?: string;
+  privacyNoticeUrl?: string;
+}
+
+export interface RetentionPolicy {
+  /** live_only: nothing beyond structured metadata is kept after the session. */
+  evidenceMode: "live_only" | "retained_evidence";
+  evidenceRetentionDays: number;
+  transcriptRetentionDays: number;
+  auditRetentionDays: number;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  sector: Sector;
+  status: TenantStatus;
+  brand: BrandConfig;
+  region: Region;
+  retention: RetentionPolicy;
+  featureFlags: Record<string, boolean>;
+  createdAt: ISODateString;
+  updatedAt: ISODateString;
+}
+
+export type Sector =
+  | "telecommunications"
+  | "utilities"
+  | "insurance"
+  | "retail"
+  | "field_service"
+  | "local_government"
+  | "property";
+
+export type UserRole =
+  | "aiuk_admin"
+  | "client_admin"
+  | "supervisor"
+  | "agent"
+  | "qa_reviewer";
+
+export interface User {
+  id: string;
+  tenantId: string;
+  role: UserRole;
+  name: string;
+  email: string;
+  status: "active" | "invited" | "disabled";
+  teamId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// AI agent configuration
+// ---------------------------------------------------------------------------
+
+export interface AgentConfig {
+  id: string;
+  tenantId: string;
+  name: string;
+  model: { provider: string; model: string; visionModel: string };
+  voice: { provider: string; voiceId: string; speakingRate: number };
+  language: { primary: string; supported: string[] };
+  policyIds: string[];
+  workflowIds: string[];
+  promptVersion: string;
+  version: number;
+  status: "draft" | "active" | "retired";
+}
+
+// ---------------------------------------------------------------------------
+// Workflow definitions (versioned, tenant-scoped)
+// ---------------------------------------------------------------------------
+
+export type WorkflowStepType =
+  | "start"
+  | "question"
+  | "visual_request"
+  | "guidance"
+  | "business_action"
+  | "human_escalation"
+  | "completion";
+
+/** Conditions are data, evaluated deterministically by the workflow engine. */
+export type StepCondition =
+  | { kind: "always" }
+  | { kind: "intent"; intents: string[] }
+  | {
+      kind: "observation";
+      observationType: string;
+      values: string[];
+    }
+  | { kind: "tool_result"; field: string; values: string[] };
+
+export interface NextRule {
+  when: StepCondition;
+  to: string;
+  label: string;
+}
+
+export interface EvidenceRequirement {
+  checkpoint: string;
+  description: string;
+  /** Observation types that must be present at or above threshold. */
+  observationTypes: string[];
+  view: "front" | "close_up" | "rear" | "wide" | "detail";
+}
+
+export interface StepAction {
+  tool: string;
+  params: Record<string, string | number | boolean>;
+}
+
+export interface WorkflowStep {
+  key: string;
+  type: WorkflowStepType;
+  title: string;
+  /** What the AI says when entering this step. */
+  instruction: string;
+  /** One short instruction for the customer screen (one primary instruction at a time). */
+  customerPrompt: string;
+  allowedGuidance?: string[];
+  evidence?: EvidenceRequirement;
+  confidenceThreshold?: number;
+  maxAttempts?: number;
+  action?: StepAction;
+  next: NextRule[];
+  /** Step to go to when attempts are exhausted / the step fails. */
+  onFailure?: { to: string; reason: EscalationReasonCode };
+  escalation?: { reason: EscalationReasonCode; severity: EscalationSeverity; humanOnly?: boolean };
+  completion?: { outcome: SessionOutcome };
+}
+
+export type WorkflowStatus = "draft" | "in_review" | "published" | "retired";
+
+export interface WorkflowDefinition {
+  id: string;
+  tenantId: string;
+  key: string;
+  name: string;
+  version: number;
+  status: WorkflowStatus;
+  sector: Sector;
+  objective: string;
+  allowedScope: string[];
+  prohibitedGuidance: string[];
+  defaultConfidenceThreshold: number;
+  maxAiDurationSec: number;
+  policyId: string;
+  startStep: string;
+  steps: WorkflowStep[];
+  changeNote: string;
+  publishedAt?: ISODateString;
+  publishedBy?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Policy
+// ---------------------------------------------------------------------------
+
+export type ToolRisk = "low" | "medium" | "high" | "regulated";
+
+export interface ToolPermission {
+  tool: string;
+  risk: ToolRisk;
+  /** allow: AI may run it. human_only: a human must perform it. deny: never. */
+  mode: "allow" | "human_only" | "deny";
+  requiresIdempotencyKey: boolean;
+}
+
+export type SensitiveCategory =
+  | "bystanders"
+  | "children"
+  | "identity_documents"
+  | "payment_cards"
+  | "medical_information"
+  | "confidential_documents"
+  | "private_interiors"
+  | "computer_screens"
+  | "vehicle_plates"
+  | "special_category";
+
+export interface Policy {
+  id: string;
+  tenantId: string;
+  name: string;
+  version: number;
+  status: "draft" | "active" | "retired";
+  tools: ToolPermission[];
+  /** Escalation reasons that hand control to a human and forbid return to AI. */
+  mandatoryHumanReasons: EscalationReasonCode[];
+  sensitiveData: { category: SensitiveCategory; handling: "blur" | "avoid_capture" | "escalate" | "allowed" }[];
+  minObservationConfidence: number;
+  maxCaptureAttempts: number;
+  maxAiDurationSec: number;
+  allowReturnToAi: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Session aggregate pieces
+// ---------------------------------------------------------------------------
+
+export type SessionChannel = "secure_link" | "sms" | "qr" | "website" | "contact_centre";
+export type SessionStatus =
+  | "created"
+  | "awaiting_consent"
+  | "active"
+  | "escalated"
+  | "human_active"
+  | "completed"
+  | "failed";
+export type OwnerType = "ai" | "human";
+export type SessionOutcome =
+  | "resolved_by_ai"
+  | "resolved_by_human"
+  | "escalated_unresolved"
+  | "customer_abandoned"
+  | "failed"
+  | "out_of_scope";
+
+export interface Participant {
+  id: string;
+  sessionId: string;
+  type: "customer" | "ai" | "human_agent" | "supervisor";
+  userId?: string;
+  displayName: string;
+  joinedAt: ISODateString;
+  leftAt?: ISODateString;
+}
+
+export type Speaker = "customer" | "ai" | "human_agent" | "system";
+
+export interface TranscriptEvent {
+  id: string;
+  sessionId: string;
+  speaker: Speaker;
+  speakerName: string;
+  timestamp: ISODateString;
+  text: string;
+  /** ASR confidence for customer speech; 1 for typed/generated text. */
+  confidence: number;
+  /** Interpreted intent, set once the reasoning layer has processed the turn. */
+  intent?: string;
+}
+
+export type FrameTrigger =
+  | "scheduled_sample"
+  | "ai_request"
+  | "workflow_checkpoint"
+  | "customer_capture"
+  | "scene_change"
+  | "human_request"
+  | "uncertainty_confirmation";
+
+export interface VisualEvent {
+  id: string;
+  sessionId: string;
+  triggerType: FrameTrigger;
+  timestamp: ISODateString;
+  frameReference: string;
+  checkpoint?: string;
+  stepKey?: string;
+  width: number;
+  height: number;
+  bytes: number;
+  processingStatus: "pending" | "analysing" | "analysed" | "failed";
+}
+
+export const OBSERVATION_STATUSES = [
+  "confirmed_visible",
+  "likely_visible",
+  "uncertain",
+  "unreadable",
+  "not_visible",
+  "conflicting_evidence",
+  "needs_another_view",
+] as const;
+export type ObservationStatus = (typeof OBSERVATION_STATUSES)[number];
+
+export interface VisualObservation {
+  id: string;
+  visualEventId: string;
+  sessionId: string;
+  observationType: string;
+  /** Normalised value used by workflow conditions, e.g. "on" | "off" | "amber". */
+  value?: string;
+  observationText: string;
+  confidence: number;
+  status: ObservationStatus;
+  requiresConfirmation: boolean;
+  recommendedNextAction?: string;
+  modelVersion: string;
+  timestamp: ISODateString;
+  humanReview?: { userId: string; verdict: "confirmed" | "rejected"; at: ISODateString };
+}
+
+export interface ToolAction {
+  id: string;
+  sessionId: string;
+  toolName: string;
+  idempotencyKey: string;
+  request: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  status: "requested" | "running" | "completed" | "failed" | "duplicate_blocked" | "denied";
+  requestedBy: "ai" | "human";
+  stepKey?: string;
+  startedAt: ISODateString;
+  completedAt?: ISODateString;
+  error?: string;
+}
+
+export type EscalationReasonCode =
+  | "customer_requested"
+  | "low_visual_confidence"
+  | "repeated_capture_failure"
+  | "human_only_step"
+  | "safety_policy"
+  | "regulated_action"
+  | "ai_model_failure"
+  | "media_failure"
+  | "workflow_failure"
+  | "max_ai_duration"
+  | "out_of_scope"
+  | "unresolved_after_workflow"
+  | "agent_initiated";
+
+export type EscalationSeverity = "low" | "medium" | "high" | "critical";
+
+export interface Escalation {
+  id: string;
+  sessionId: string;
+  reason: EscalationReasonCode;
+  reasonDetail: string;
+  severity: EscalationSeverity;
+  requestedAt: ISODateString;
+  acceptedAt?: ISODateString;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  resolution?: string;
+  mandatoryHuman: boolean;
+}
+
+export type ActorType = "customer" | "ai" | "human_agent" | "system" | "admin";
+
+export interface AuditEvent {
+  id: string;
+  tenantId: string;
+  sessionId?: string;
+  actorType: ActorType;
+  actorId: string;
+  eventType: DomainEventType;
+  payload: Record<string, unknown>;
+  timestamp: ISODateString;
+  /** Versions in force when the event occurred (docs/06 §7). */
+  context?: { workflowVersion?: number; policyVersion?: number; modelVersion?: string; promptVersion?: string };
+}
+
+export interface CostEvent {
+  id: string;
+  sessionId: string;
+  provider: string;
+  category: "media" | "speech_to_text" | "text_to_speech" | "vision_inference" | "llm_turn" | "workflow_action";
+  quantity: number;
+  unit: "minute" | "frame" | "turn" | "character" | "call";
+  estimatedCost: number;
+  currency: "GBP";
+  timestamp: ISODateString;
+}
+
+export interface AgentNote {
+  id: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+  timestamp: ISODateString;
+}
+
+/** docs/05 §6 — the structured package a human receives on escalation. */
+export interface HandoverPayload {
+  sessionSummary: string;
+  customerIssue: string;
+  workflow: string;
+  completedSteps: { key: string; title: string; outcome?: string }[];
+  visualObservations: Pick<VisualObservation, "id" | "observationText" | "status" | "confidence" | "visualEventId">[];
+  uncertainItems: Pick<VisualObservation, "id" | "observationText" | "status" | "confidence">[];
+  actionsTaken: { tool: string; status: ToolAction["status"]; summary: string }[];
+  reasonForEscalation: string;
+  recommendedNextStep: string;
+}
+
+// ---------------------------------------------------------------------------
+// Events (docs/04 §2)
+// ---------------------------------------------------------------------------
+
+export type DomainEventType =
+  | "session.created"
+  | "session.started"
+  | "session.connected"
+  | "session.degraded"
+  | "session.completed"
+  | "session.failed"
+  | "session.consent_recorded"
+  | "media.camera_enabled"
+  | "media.camera_disabled"
+  | "media.microphone_enabled"
+  | "media.microphone_disabled"
+  | "media.connection_degraded"
+  | "media.connection_restored"
+  | "media.frame_selected"
+  | "media.frame_failed"
+  | "ai.turn_started"
+  | "ai.turn_completed"
+  | "ai.visual_request"
+  | "ai.observation_created"
+  | "ai.uncertain"
+  | "ai.escalation_requested"
+  | "ai.failure"
+  | "workflow.started"
+  | "workflow.step_entered"
+  | "workflow.step_completed"
+  | "workflow.branch_selected"
+  | "workflow.action_requested"
+  | "workflow.completed"
+  | "workflow.failed"
+  | "human.requested"
+  | "human.queued"
+  | "human.joined"
+  | "human.took_over"
+  | "human.returned_to_ai"
+  | "human.left"
+  | "human.note_added"
+  | "human.observation_reviewed"
+  | "tool.requested"
+  | "tool.completed"
+  | "tool.failed"
+  | "tool.duplicate_blocked"
+  | "tool.denied"
+  | "policy.check";
