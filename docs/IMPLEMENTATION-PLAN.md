@@ -158,6 +158,9 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 
 ## 4. How to run
 
+Deploying the server edition (Docker, Render, Railway/Fly, Hostinger): see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+
 ```bash
 npm install
 npm run dev        # http://localhost:3000

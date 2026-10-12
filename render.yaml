@@ -1,0 +1,31 @@
+# Render Blueprint: New → Blueprint → select this repository.
+# Secrets marked sync: false are entered in the Render dashboard.
+services:
+  - type: web
+    name: visual-assist
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: va-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: METRICS_TOKEN
+        generateValue: true
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false

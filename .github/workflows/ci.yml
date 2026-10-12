@@ -49,3 +49,20 @@ jobs:
           name: playwright-traces
           path: test-results/
           retention-days: 7
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build server image
+        run: docker build -t visual-assist:ci .
+      - name: Start container and check health
+        run: |
+          docker run -d --name va -p 3000:3000 -e AUTH_SECRET=ci-secret-0123456789abcdefghijklmnop visual-assist:ci
+          for i in $(seq 1 30); do
+            if curl -fsS "http://localhost:3000/api/health?probe=live"; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:3000/api/health
+          curl -fsS -o /dev/null http://localhost:3000/
+          docker logs va | tail -20
