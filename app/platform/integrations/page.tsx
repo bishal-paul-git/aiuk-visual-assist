@@ -1,6 +1,6 @@
 import { ArrowRight, Info } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
-import { integrations, tenantName } from "@/lib/config/catalog";
+import { platformScope } from "@/lib/server/platform-data";
+import { integrations as allIntegrations, tenantName } from "@/lib/config/catalog";
 import { formatDateTime, formatRelative, pct } from "@/lib/format";
 import { humanize } from "@/lib/domain/labels";
 import { Badge, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
@@ -33,7 +33,9 @@ function Lane({ title, tone, steps, note }: { title: string; tone: "media" | "bu
 }
 
 export default async function IntegrationsPage() {
-  const rt = await platformRuntime();
+  const scope = await platformScope("platform.access", "/platform/integrations");
+  const rt = scope.rt;
+  const integrations = scope.filter(allIntegrations);
   const tenantIds = [...new Set(integrations.map((i) => i.tenantId))];
 
   const rows = integrations.map((i) => {
@@ -152,7 +154,7 @@ export default async function IntegrationsPage() {
         ))}
       </div>
 
-      <LinkDeliveryPanel states={rt.states()} notifications={getNotifications()} staticDemo={STATIC_EXPORT} />
+      <LinkDeliveryPanel states={scope.states()} notifications={getNotifications()} staticDemo={STATIC_EXPORT} />
 
       <Note className="mt-4" icon={<Info className="size-3.5" />}>
         p95 latency, error rate and last sync are catalogue values for sandbox connections, not live monitoring. Observed calls are computed from session records,

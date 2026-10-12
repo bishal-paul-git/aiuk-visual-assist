@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { FlaskConical } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { users } from "@/lib/config/catalog";
 import type { SessionState } from "@/lib/domain/session";
 import { OBSERVATION_STATUSES, type EscalationReasonCode, type ObservationStatus, type VisualObservation } from "@/lib/domain/types";
@@ -242,8 +242,8 @@ function userName(id: string): string {
 }
 
 export default async function QaPage() {
-  const rt = await platformRuntime();
-  const q = computeQa(rt.states());
+  const scope = await platformScope("platform.access", "/platform/qa");
+  const q = computeQa(scope.states());
   const reasonRows = [...q.byReason.entries()].sort((a, b) => b[1].count - a[1].count);
   const supported = reasonRows.reduce((n, [, r]) => n + r.supported, 0);
   const assessed = reasonRows.reduce((n, [, r]) => n + r.supported + r.unsupported, 0);

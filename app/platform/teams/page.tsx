@@ -1,6 +1,6 @@
 import { Clock3, Info } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
-import { teams, tenantName, users } from "@/lib/config/catalog";
+import { platformScope } from "@/lib/server/platform-data";
+import { teams as allTeams, tenantName, users as allUsers } from "@/lib/config/catalog";
 import type { EscalationReasonCode } from "@/lib/domain/types";
 import { ESCALATION_REASON_LABELS, humanize } from "@/lib/domain/labels";
 import { formatMinutes, pct, secondsBetween } from "@/lib/format";
@@ -11,11 +11,13 @@ import { Chips, FieldLabel, Note } from "@/components/platform/config-ui";
 export const metadata = { title: "Human Teams" };
 
 export default async function TeamsPage() {
-  const rt = await platformRuntime();
-  const summaries = rt.summaries();
+  const scope = await platformScope("platform.access", "/platform/teams");
+  const teams = scope.filter(allTeams);
+  const users = scope.filter(allUsers);
+  const summaries = scope.summaries();
   const live = summaries.filter((s) => s.live && s.status !== "completed" && s.status !== "failed");
   const waitingAll = live.filter((s) => s.status === "escalated");
-  const recent = withinDays(rt.states(), 14);
+  const recent = withinDays(scope.states(), 14);
 
   const rows = teams.map((team) => {
     const members = users.filter((u) => u.teamId === team.id);
@@ -41,7 +43,7 @@ export default async function TeamsPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Waiting for a human" value={waitingAll.length} tone={waitingAll.length > 2 ? "warn" : undefined} hint="All clients, live" />
+        <Stat label="Waiting for a human" value={waitingAll.length} tone={waitingAll.length > 2 ? "warn" : undefined} hint={`${scope.label}, live`} />
         <Stat label="Human-active sessions" value={live.filter((s) => s.status === "human_active").length} hint="Live" />
         <Stat label="Agents on teams" value={users.filter((u) => u.teamId && u.role === "agent").length} hint={`${users.filter((u) => u.teamId && u.status !== "active").length} not yet active`} />
         <Stat label="Escalations answered (14 d)" value={rows.reduce((n, r) => n + r.answered, 0)} hint="Attributed to team members" />

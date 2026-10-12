@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Info } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
-import { policyKey, tenantName, workflows } from "@/lib/config/catalog";
+import { platformScope } from "@/lib/server/platform-data";
+import { policyKey, tenantName, workflows as allWorkflows } from "@/lib/config/catalog";
 import { getPolicyRegistry } from "@/lib/policy/registry";
 import type { SensitiveCategory } from "@/lib/domain/types";
 import { humanize } from "@/lib/domain/labels";
@@ -29,12 +29,13 @@ const SENSITIVE_CATEGORIES: SensitiveCategory[] = [
 ];
 
 export default async function PoliciesPage() {
-  const rt = await platformRuntime();
-  const states = withinDays(rt.states(), 14);
+  const scope = await platformScope("platform.access", "/platform/policies");
+  const states = withinDays(scope.states(), 14);
+  const workflows = scope.filter(allWorkflows);
   const denied = states.flatMap((s) => s.toolActions.filter((a) => a.status === "denied"));
   // One panel per policy lineage, showing its active version (or newest, if never published).
   const reg = getPolicyRegistry();
-  const policies = reg.current();
+  const policies = scope.filter(reg.current());
 
   return (
     <>
@@ -48,9 +49,9 @@ export default async function PoliciesPage() {
         <Stat
           label="Active policies"
           value={policies.filter((p) => p.status === "active").length}
-          hint={`${reg.list().filter((p) => p.status === "draft" || p.status === "in_review").length} draft or in review`}
+          hint={`${scope.filter(reg.list()).filter((p) => p.status === "draft" || p.status === "in_review").length} draft or in review`}
         />
-        <Stat label="Tools governed" value={policies.reduce((n, p) => n + p.tools.length, 0)} hint="Across all policies" />
+        <Stat label="Tools governed" value={policies.reduce((n, p) => n + p.tools.length, 0)} hint={scope.allClients ? "Across all policies" : `Across ${scope.label} policies`} />
         <Stat
           label="Human-only or denied tools"
           value={policies.reduce((n, p) => n + p.tools.filter((t) => t.mode !== "allow").length, 0)}

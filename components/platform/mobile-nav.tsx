@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cx } from "@/components/ui/primitives";
-import { NAV } from "./nav";
+import { visibleNav } from "./nav";
 
 /** Compact horizontal navigation for screens without the sidebar. */
-export function MobileNav() {
+export function MobileNav({ allowed }: { allowed?: readonly string[] }) {
   const pathname = usePathname();
-  const items = NAV.flatMap((g) => g.items);
+  const items = visibleNav(allowed).flatMap((g) => g.items);
   return (
     <nav aria-label="Platform" className="flex gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 lg:hidden">
       {items.map((item) => {

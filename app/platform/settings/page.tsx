@@ -1,11 +1,12 @@
 import { Check, Info, Minus } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { RETENTION_INTERVAL_MS } from "@/lib/server/runtime";
 import type { RetentionStatus } from "@/lib/runtime/session-runtime";
 import { formatDateTime } from "@/lib/format";
 import { PERMISSIONS, PERMISSION_LABELS, ROLES, ROLE_NAMES, ROLE_PERMISSIONS, isPlatformRole } from "@/lib/auth/rbac";
 import { evidenceRetentionDays } from "@/lib/privacy/retention";
-import { tenants, users } from "@/lib/config/catalog";
+import { tenants as allTenants, users } from "@/lib/config/catalog";
+import type { Tenant } from "@/lib/domain/types";
 import { Badge, KeyValue, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
 import { ROLE_LABELS } from "@/components/platform/config-data";
 import { ImplStateBadge, Note, type ImplState } from "@/components/platform/config-ui";
@@ -52,7 +53,10 @@ const NOTIFICATIONS: { name: string; state: ImplState; label: string; detail: st
 
 export default async function SettingsPage() {
   // Settings are static configuration, but the page renders per request like the rest of the platform.
-  const rt = await platformRuntime();
+  const scope = await platformScope("platform.access", "/platform/settings");
+  const rt = scope.rt;
+  // Client admins see only their own client's retention.
+  const tenants = allTenants.filter((t) => scope.includes(t.id));
   const transcriptDays = tenants.map((t) => t.retention.transcriptRetentionDays);
   const auditDays = tenants.map((t) => t.retention.auditRetentionDays);
   const evidenceDays = tenants.filter((t) => t.retention.evidenceMode === "retained_evidence").map((t) => t.retention.evidenceRetentionDays);
@@ -63,7 +67,11 @@ export default async function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Platform-wide configuration: environments, security controls, retention defaults and notifications. Where a control is not yet built, it is shown as planned."
+        description={
+          scope.allClients
+            ? "Platform-wide configuration: environments, security controls, retention defaults and notifications. Where a control is not yet built, it is shown as planned."
+            : `Platform controls, and retention settings for ${scope.label}. Where a control is not yet built, it is shown as planned.`
+        }
         meta={<Badge tone="neutral">Read-only in POC</Badge>}
       />
 
@@ -71,7 +79,11 @@ export default async function SettingsPage() {
         <Stat label="Controls implemented" value={CONTROLS.filter((c) => c.state === "implemented").length} hint={`of ${CONTROLS.length} required (docs/06 §2)`} />
         <Stat label="Partially in place" value={CONTROLS.filter((c) => c.state === "partial").length} />
         <Stat label="Planned" value={CONTROLS.filter((c) => c.state === "planned").length} hint="Phases 4–6" />
-        <Stat label="Platform staff" value={staff.length} hint={staff.map((u) => ROLE_LABELS[u.role]).join(" · ")} />
+        {scope.allClients ? (
+          <Stat label="Platform staff" value={staff.length} hint={staff.map((u) => ROLE_LABELS[u.role]).join(" · ")} />
+        ) : (
+          <Stat label="Your users" value={scope.filter(users).length} hint={scope.label} />
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-3">
@@ -121,9 +133,9 @@ export default async function SettingsPage() {
               items={[
                 ["Full video", "Never recorded"],
                 ["Default evidence mode", "Live only (fallback when unset)"],
-                ["Evidence (retained)", `${range(evidenceDays)} across tenants`],
-                ["Transcripts", `${range(transcriptDays)} across tenants`],
-                ["Audit trail", `${range(auditDays)} across tenants`],
+                ["Evidence (retained)", `${range(evidenceDays)}${scope.allClients ? " across tenants" : ""}`],
+                ["Transcripts", `${range(transcriptDays)}${scope.allClients ? " across tenants" : ""}`],
+                ["Audit trail", `${range(auditDays)}${scope.allClients ? " across tenants" : ""}`],
               ]}
             />
             <Note className="mt-3" icon={<Info className="size-3.5" />}>
@@ -133,7 +145,7 @@ export default async function SettingsPage() {
         </div>
       </div>
 
-      <RetentionPanel status={rt.retentionStatus} />
+      <RetentionPanel status={rt.retentionStatus} tenants={tenants} />
       <AccessPanel />
 
       <Panel title="Notifications" className="mt-4" bodyClassName="p-0">
@@ -162,7 +174,7 @@ export default async function SettingsPage() {
   );
 }
 
-function RetentionPanel({ status: st }: { status: RetentionStatus | undefined }) {
+function RetentionPanel({ status: st, tenants }: { status: RetentionStatus | undefined; tenants: Tenant[] }) {
   return (
     <Panel
       title="Retention"
@@ -219,7 +231,7 @@ function RetentionPanel({ status: st }: { status: RetentionStatus | undefined })
 
 function AccessPanel() {
   return (
-    <Panel title="Roles and permissions" description="docs/06 §2 · enforced on every API route and page in the server edition" className="mt-4" bodyClassName="p-0">
+    <Panel title="Roles and permissions" description="docs/06 §2 · read-only · enforced on every API route and page in the server edition" className="mt-4" bodyClassName="p-0">
       <Table>
         <thead>
           <tr>

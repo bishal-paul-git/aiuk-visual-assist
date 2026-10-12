@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { consolePath } from "@/lib/paths";
 import { AlertTriangle, ArrowRight, CheckCircle2, CircleDot } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { computeMetrics, dailySeries, escalationReasons } from "@/lib/analytics/metrics";
 import { ESCALATION_REASON_LABELS } from "@/lib/domain/labels";
 import { INCIDENTS } from "@/lib/config/operations";
@@ -15,24 +15,25 @@ import { BarList } from "@/components/charts/bar-list";
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const rt = await platformRuntime();
-  const states = rt.states();
+  const scope = await platformScope();
+  const states = scope.states();
   const SERVICES = effectiveServices();
-  const summaries = rt.summaries();
+  const summaries = scope.summaries();
   const live = summaries.filter((s) => s.live && s.status !== "completed" && s.status !== "failed");
   const waiting = live.filter((s) => s.status === "escalated").sort((a, b) => a.escalation!.requestedAt.localeCompare(b.escalation!.requestedAt));
   const m = computeMetrics(states);
   const series = dailySeries(states, 14);
   const reasons = escalationReasons(states);
-  const openIncidents = INCIDENTS.filter((i) => i.status !== "resolved");
+  // Internal incidents are platform-staff information; client admins see service status only.
+  const openIncidents = scope.allClients ? INCIDENTS.filter((i) => i.status !== "resolved") : [];
   const degraded = SERVICES.filter((s) => s.status === "degraded" || s.status === "outage");
 
   return (
     <>
       <PageHeader
         title="Operations dashboard"
-        description="What is happening now, whether sessions are resolving, and whether the platform is healthy. All figures are computed from session records."
-        meta={<Badge tone="neutral">All clients · last 14 days</Badge>}
+        description={`What is happening now, whether sessions are resolving, and whether the platform is healthy. All figures are computed from ${scope.allClients ? "session records" : `${scope.label} session records only`}.`}
+        meta={<Badge tone="neutral">{scope.label} · last 14 days</Badge>}
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { platformRuntime, STATIC_EXPORT } from "@/lib/server/platform-data";
+import { platformScope, STATIC_EXPORT } from "@/lib/server/platform-data";
 import { getPolicyRegistry } from "@/lib/policy/registry";
 import { policies, policyKey, tenantName } from "@/lib/config/catalog";
 import { editorIdentity } from "@/lib/server/config-admin";
@@ -10,7 +10,9 @@ import { PolicyEditor } from "@/components/platform/policy-editor";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const p = getPolicyRegistry().get(id);
+  const scope = await platformScope("platform.access", `/platform/policies/${id}/edit`);
+  const found = getPolicyRegistry().get(id);
+  const p = found && scope.includes(found.tenantId) ? found : undefined;
   return { title: p ? `Edit ${p.name} v${p.version}` : "Edit policy" };
 }
 
@@ -19,11 +21,11 @@ export async function generateStaticParams() {
 }
 
 export default async function EditPolicyPage({ params }: { params: Promise<{ id: string }> }) {
-  await platformRuntime();
   const { id } = await params;
+  const scope = await platformScope("platform.access", `/platform/policies/${id}/edit`);
   const reg = getPolicyRegistry();
   const policy = reg.get(id);
-  if (!policy) notFound();
+  if (!policy || !scope.includes(policy.tenantId)) notFound();
   if (STATIC_EXPORT) {
     return (
       <PageHeader

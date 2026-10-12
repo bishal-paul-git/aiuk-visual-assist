@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { platformRuntime, staticSafeSearchParams } from "@/lib/server/platform-data";
+import { platformScope, staticSafeSearchParams } from "@/lib/server/platform-data";
+import { effectiveClientFilter } from "@/lib/auth/scope";
 import { getTenant, getWorkflow, tenants } from "@/lib/config/catalog";
 import { computeMetrics, dailySeries, escalationReasons, latencyStats, outcomeBreakdown, stepFunnel } from "@/lib/analytics/metrics";
 import { ESCALATION_REASON_LABELS, OUTCOME_LABELS, humanize } from "@/lib/domain/labels";
@@ -15,11 +16,13 @@ export const metadata = { title: "Analytics" };
 type Props = { searchParams: Promise<{ client?: string | string[] }> };
 
 export default async function AnalyticsPage({ searchParams }: Props) {
-  const rt = await platformRuntime();
+  const scope = await platformScope("platform.access", "/platform/analytics");
+  const rt = scope.rt;
   const sp = await staticSafeSearchParams(searchParams);
-  const requested = typeof sp.client === "string" ? sp.client : undefined;
+  // Client-scoped users always see their own client, whatever the URL asks for.
+  const requested = effectiveClientFilter(scope, typeof sp.client === "string" ? sp.client : undefined);
   const tenant = requested ? getTenant(requested) : undefined;
-  const tenantId = tenant?.id;
+  const tenantId = scope.tenantId ?? tenant?.id;
 
   const states = withinDays(rt.states({ tenantId }), 14);
   const inWindow = new Set(states.map((s) => s.session.id));
@@ -62,9 +65,15 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         meta={
           <>
             <Badge tone="neutral">Last 14 days</Badge>
-            <span className="text-xs text-muted">Client:</span>
-            {filterLink(undefined, "All clients")}
-            {tenants.map((t) => filterLink(t.id, t.brand.displayName))}
+            {scope.allClients ? (
+              <>
+                <span className="text-xs text-muted">Client:</span>
+                {filterLink(undefined, "All clients")}
+                {tenants.map((t) => filterLink(t.id, t.brand.displayName))}
+              </>
+            ) : (
+              <Badge tone="neutral">{scope.label}</Badge>
+            )}
           </>
         }
       />
