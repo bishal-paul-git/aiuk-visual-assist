@@ -24,6 +24,7 @@ long-lived Node 22 server (not serverless functions) with a persistent disk for
 | `ELEVENLABS_API_KEY` | For live voice | British ElevenLabs voice for lines without a recorded clip. |
 | `STT_PROVIDER` + `ELEVENLABS_API_KEY` or `DEEPGRAM_API_KEY` | Recommended for iPhone customers | Server speech-to-text for the customer's voice: `STT_PROVIDER=elevenlabs` (Scribe) or `STT_PROVIDER=deepgram` (Nova-3). Used on iOS/Safari and wherever browser recognition is missing or fails. Unset: browser recognition only, and customers without it type. Audio is not stored. |
 | `METRICS_TOKEN` | Recommended | Protects `/api/metrics`. |
+| `ICE_SERVERS` | Recommended | JSON array of RTCIceServer for live video, including a TURN server with credentials. Default: public STUN only. |
 
 Full reference: [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).
 
@@ -129,7 +130,7 @@ If the variables are incomplete (for example `OIDC_ROLE_MAP` is not valid JSON
 or names an unknown role), the server logs an `[auth]` error and refuses
 sign-in rather than falling back to demo sign-in. `ALLOW_DEMO_SIGNIN=1` keeps
 demo users available beside single sign-on for a pilot; never in production.
-Full variable reference: [PRODUCTION-READINESS.md §2 and §3.5](PRODUCTION-READINESS.md).
+Full variable reference: [PRODUCTION-READINESS.md §2 and §3.7](PRODUCTION-READINESS.md).
 
 ## The static demo on GitHub Pages
 
@@ -172,6 +173,31 @@ the variables above, and expose port 3000.
    `npm ci && npm run build`, start command `npm start`.
 3. Set the environment variables above. Use a directory outside the web root
    for `DATA_DIR` (e.g. `/home/<user>/visual-assist-data`).
+
+## Live video
+
+When an agent joins a session, the customer's camera and microphone reach the
+console over WebRTC, and the agent's microphone reaches the customer. Video is
+not recorded. Signalling uses the app's own endpoints (`/api/.../rtc`), so no
+extra service is needed for that, but media needs a path between the two
+devices:
+
+- **STUN** (the default) is enough on most home networks.
+- **TURN** is needed for symmetric NAT and many mobile and corporate networks.
+  Use Twilio Network Traversal, Cloudflare Calls TURN or a self-hosted coturn,
+  and set its servers and credentials in `ICE_SERVERS`, for example
+  `[{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:turn.example.com:3478","username":"…","credential":"…"}]`.
+  Credentials are only served to signed-in agents and customer links, never
+  bundled. Details: [PRODUCTION-READINESS.md §3.8](PRODUCTION-READINESS.md).
+- The page must be served over **HTTPS** (browsers only allow camera and
+  microphone on secure origins) and SSE responses must not be buffered by a
+  proxy (the app sets `X-Accel-Buffering: no`).
+- Run **one instance**, or sticky sessions per session id: the signalling relay
+  is in-process like the session runtime.
+
+If WebRTC can't connect, the console shows "Fallback: snapshots" and the
+one-frame-a-second preview carries on. The static demo uses public STUN only,
+with signalling between tabs on the same device.
 
 ## After deploying
 

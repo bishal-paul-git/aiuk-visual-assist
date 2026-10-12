@@ -28,7 +28,8 @@ import { chooseRecogniser, type RecogniserKind } from "@/lib/client/voice-activi
 import { formatDuration } from "@/lib/format";
 import { useNow } from "@/lib/client/use-now";
 import { cx } from "@/components/ui/primitives";
-import { CameraStage, useCamera } from "./camera";
+import { useLiveCall } from "@/lib/client/live-call";
+import { CameraStage, RemoteAudio, useCamera } from "./camera";
 import { ConsentScreen, EndedScreen, NOTICE_VERSION, PermissionScreen } from "./consent";
 
 type Phase = "consent" | "permissions" | "live";
@@ -66,6 +67,12 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     },
     [token, transport],
   );
+
+  /** Mutes the microphone for the assistant and the live call alike (same track). */
+  const toggleMic = () => {
+    cam.toggleMic();
+    void send({ type: "media.update", media: { microphone: !cam.micOn } });
+  };
 
   // --- Voice ----------------------------------------------------------------
   const speaker = useSpeaker(soundOn && phase === "live" && !ended);
@@ -204,9 +211,25 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     return () => clearInterval(timer);
   }, [req, cam.mode, phase, doCapture]);
 
+  // --- Live video with the human agent (WebRTC) -----------------------------
+  // Runs only while an agent is with the customer, after consent, camera on.
+  // The demo camera is a canvas, so its captured stream is sent instead.
+  const [demoStream, setDemoStream] = useState<MediaStream | null>(null);
+  useEffect(() => () => demoStream?.getTracks().forEach((t) => t.stop()), [demoStream]);
+  const call = useLiveCall({
+    role: "customer",
+    sessionId: view.sessionId,
+    keyId: token,
+    transport,
+    eligible: view.liveVideo && phase === "live" && cam.mode !== "none" && !ended,
+    localStream: cam.mode === "camera" ? cam.stream : cam.mode === "demo" ? demoStream : null,
+  });
+  const callLive = call.state.phase === "live";
+
   // --- Low-rate preview relay while a human is present ---------------------
+  // Fallback for live video: paused while the WebRTC call is live.
   useEffect(() => {
-    if (!view.previewRequested || cam.mode === "none" || ended || phase !== "live") return;
+    if (!view.previewRequested || callLive || cam.mode === "none" || ended || phase !== "live") return;
     const timer = setInterval(() => {
       const src = sourceRef.current;
       if (!isSourceReady(src)) return;
@@ -214,7 +237,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
       if (f) void transport?.uploadPreview(token, f.dataUrl);
     }, 1000);
     return () => clearInterval(timer);
-  }, [view.previewRequested, cam.mode, ended, phase, token, transport]);
+  }, [view.previewRequested, callLive, cam.mode, ended, phase, token, transport]);
 
   // --- Connection quality ---------------------------------------------------
   const [offlineSince, setOfflineSince] = useState<number | null>(null);
@@ -236,6 +259,8 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
 
   const onSource = useCallback((el: FrameSource | null) => {
     sourceRef.current = el;
+    if (el instanceof HTMLCanvasElement) setDemoStream(typeof el.captureStream === "function" ? el.captureStream(15) : null);
+    else if (!el) setDemoStream(null);
   }, []);
 
   // --- Render ----------------------------------------------------------------
@@ -337,11 +362,34 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
           </div>
           <p className="mt-1 text-[17px] font-medium leading-snug">{view.instruction.text}</p>
         </div>
-        {view.previewRequested && cam.mode !== "none" && (
-          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px]">
-            <span className="size-1.5 rounded-full bg-[#e5484d]" aria-hidden /> Your camera is visible to {view.humanName ?? "the support team"}
-          </p>
+        {callLive ? (
+          <div className="mt-2 flex items-center gap-2">
+            <p role="status" className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px]">
+              <span className="size-1.5 rounded-full bg-[#e5484d] va-pulse" aria-hidden /> Agent can see your camera
+              <span className="text-white/60">· not recorded</span>
+            </p>
+            {cam.mode === "camera" && (
+              <button
+                type="button"
+                onClick={toggleMic}
+                aria-pressed={!cam.micOn}
+                aria-label={cam.micOn ? "Mute your microphone" : "Unmute your microphone"}
+                className="inline-flex h-7 items-center gap-1 rounded-full bg-black/55 px-2.5 text-[11px] font-medium hover:bg-black/70"
+              >
+                {cam.micOn ? <Mic className="size-3" aria-hidden /> : <MicOff className="size-3" aria-hidden />}
+                {cam.micOn ? "Mute" : "Unmute"}
+              </button>
+            )}
+          </div>
+        ) : (
+          view.previewRequested &&
+          cam.mode !== "none" && (
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px]">
+              <span className="size-1.5 rounded-full bg-[#e5484d]" aria-hidden /> Your camera is visible to {view.humanName ?? "the support team"}
+            </p>
+          )
         )}
+        {call.remoteStream && <RemoteAudio stream={call.remoteStream} />}
       </div>
 
       {/* Centre overlays */}
@@ -434,7 +482,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
         </div>
 
         <nav aria-label="Session controls" className="grid grid-cols-5 gap-1 rounded-2xl bg-black/55 p-2 backdrop-blur">
-          <Control label={cam.micOn ? "Mute" : "Unmute"} onClick={() => { cam.toggleMic(); void send({ type: "media.update", media: { microphone: !cam.micOn } }); }} active={!cam.micOn}>
+          <Control label={cam.micOn ? "Mute" : "Unmute"} onClick={toggleMic} active={!cam.micOn}>
             {cam.micOn ? <Mic className="size-5" /> : <MicOff className="size-5" />}
           </Control>
           <Control

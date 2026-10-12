@@ -13,6 +13,7 @@ import { consolePath, customerPath, syntheticFrameUrl, type Result, type Transpo
 import { demoCustomerLabel } from "@/lib/domain/labels";
 import { can, commandPermission, denialMessage } from "@/lib/auth/rbac";
 import { actorTypeFor } from "@/lib/auth/security-log";
+import { DEFAULT_ICE_SERVERS, callEligibility, parseSignal } from "@/lib/media/live-call";
 
 /**
  * Browser-hosted runtime for the static demo (GitHub Pages). Every tab runs
@@ -94,6 +95,7 @@ export function createBrowserTransport(): Transport {
   const frameUrls = new Map<string, string>();
   const previews = new Map<string, { url: string; at: number }>();
   const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(NS) : null;
+  const rtcChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`${NS}.rtc`) : null;
 
   let applying = false;
   rt.onCommit = (id) => {
@@ -272,6 +274,32 @@ export function createBrowserTransport(): Transport {
     },
     async transcribe() {
       return { ok: false, status: 404, error: "Speech-to-text needs the server edition" };
+    },
+    // Live video: signalling goes over its own BroadcastChannel between tabs
+    // and iframes on this device. Nothing is written to localStorage.
+    async rtcIceServers() {
+      return DEFAULT_ICE_SERVERS; // STUN only in the static demo: no TURN credentials in a public bundle.
+    },
+    subscribeSignals(role, key, onSignal) {
+      const id = role === "customer" ? byToken(key) : key;
+      if (!id || !rtcChannel) return () => {};
+      const listener = (e: MessageEvent) => {
+        const s = parseSignal(e.data);
+        if (s && s.sessionId === id && s.from !== role) onSignal(s);
+      };
+      rtcChannel.addEventListener("message", listener);
+      return () => rtcChannel.removeEventListener("message", listener);
+    },
+    async sendSignal(role, key, signal) {
+      const id = role === "customer" ? byToken(key) : key;
+      const entry = id ? rt.get(id) : undefined;
+      if (!id || !entry || !rtcChannel) return false;
+      // Same rule as the server relay: only a hang-up is allowed outside an eligible call.
+      if (signal.kind !== "bye" && !callEligibility(entry.state).eligible) return false;
+      const s = parseSignal({ ...signal }, { sessionId: id, from: role });
+      if (!s) return false;
+      rtcChannel.postMessage(s);
+      return true;
     },
   };
 }

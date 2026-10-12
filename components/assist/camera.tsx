@@ -127,6 +127,18 @@ export function CameraStage({
   return null;
 }
 
+/** Plays the human agent's voice from the live call. Not recorded. */
+export function RemoteAudio({ stream }: { stream: MediaStream }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    const a = ref.current;
+    if (!a) return;
+    a.srcObject = stream;
+    void a.play().catch(() => {});
+  }, [stream]);
+  return <audio ref={ref} autoPlay className="hidden" />;
+}
+
 /** Portrait, like a phone held upright. */
 const FEED_W = 450;
 const FEED_H = 900;

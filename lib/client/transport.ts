@@ -3,6 +3,7 @@
 import type { AgentView, CustomerView, SessionSummaryView } from "@/lib/session/projections";
 import type { VisualEvent } from "@/lib/domain/types";
 import { syntheticFrameSrc } from "@/lib/media/frame-src";
+import { DEFAULT_ICE_SERVERS, parseSignal, type CallRole, type IceServer, type OutgoingSignal, type Signal } from "@/lib/media/live-call";
 import { postJson } from "./use-event-stream";
 
 /**
@@ -62,6 +63,11 @@ export interface Transport {
    * Unavailable (ok: false) in the static demo.
    */
   transcribe(token: string, clip: { audio: Blob; durationMs: number }): Promise<TranscribeResult>;
+  // Live video (WebRTC). `key` is the customer token or the session id, by role.
+  // Signalling is ephemeral: relayed, never stored, audited or transcribed.
+  rtcIceServers(role: CallRole, key: string): Promise<IceServer[]>;
+  subscribeSignals(role: CallRole, key: string, onSignal: (s: Signal) => void): () => void;
+  sendSignal(role: CallRole, key: string, signal: OutgoingSignal): Promise<boolean>;
 }
 
 export interface Capabilities {
@@ -148,7 +154,37 @@ const serverTransport: Transport = {
       return { ok: false, status: 0, error: "Network error" };
     }
   },
+  async rtcIceServers(role, key) {
+    const r = await fetch(`${rtcUrl(role, key)}/ice`, { cache: "no-store" }).catch(() => null);
+    const d = r?.ok ? ((await r.json().catch(() => null)) as { iceServers?: IceServer[] } | null) : null;
+    return d?.iceServers?.length ? d.iceServers : DEFAULT_ICE_SERVERS;
+  },
+  subscribeSignals(role, key, onSignal) {
+    const es = new EventSource(rtcUrl(role, key));
+    es.onmessage = (e) => {
+      try {
+        const s = parseSignal(JSON.parse(e.data));
+        if (s) onSignal(s);
+      } catch {
+        /* ignore malformed frame */
+      }
+    };
+    return () => es.close();
+  },
+  async sendSignal(role, key, signal) {
+    try {
+      // keepalive lets a hang-up sent while the page unloads still arrive.
+      const r = await fetch(rtcUrl(role, key), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(signal), keepalive: true });
+      return r.ok;
+    } catch {
+      return false;
+    }
+  },
 };
+
+function rtcUrl(role: CallRole, key: string): string {
+  return role === "customer" ? `/api/assist/${key}/rtc` : `/api/sessions/${key}/rtc`;
+}
 
 // ---------------------------------------------------------------------------
 // Selection

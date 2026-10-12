@@ -44,14 +44,14 @@ docker run -p 3000:3000 -e DATA_DIR=/data -v va-data:/data \
 | `RESEND_API_KEY`, `EMAIL_FROM` | unset | Both enable email link delivery through a Resend-style HTTP API (`POST /emails`). `EMAIL_FROM` must be a verified sender. |
 | `ELEVENLABS_API_KEY` | unset | Enables live British text-to-speech (`POST /api/tts`) for assistant and agent lines that have no pre-recorded clip. Without it, recorded clips in `public/voice` are used where available and the browser's en-GB voice otherwise. |
 | `ELEVENLABS_VOICE_ID`, `ELEVENLABS_AGENT_VOICE_ID`, `ELEVENLABS_AGENT_VOICE_ID_MALE`, `ELEVENLABS_MODEL` | British defaults | Override the assistant voice (Clarice), the female and male agent voices (Grace, James) and the model (`eleven_turbo_v2_5`). |
-| `STT_PROVIDER` | unset → off | Server speech-to-text for the customer's voice (`POST /api/assist/[token]/stt`): `elevenlabs` (Scribe `scribe_v1`, uses `ELEVENLABS_API_KEY`) or `deepgram` (Nova-3, `en-GB`, uses `DEEPGRAM_API_KEY`). Off unless the named provider also has its key; the TTS key alone does not turn it on. When on, the customer app uses it on iOS and Safari, wherever Web Speech is missing, and after Web Speech fails; other browsers keep free browser recognition. See §3.4. |
+| `STT_PROVIDER` | unset → off | Server speech-to-text for the customer's voice (`POST /api/assist/[token]/stt`): `elevenlabs` (Scribe `scribe_v1`, uses `ELEVENLABS_API_KEY`) or `deepgram` (Nova-3, `en-GB`, uses `DEEPGRAM_API_KEY`). Off unless the named provider also has its key; the TTS key alone does not turn it on. When on, the customer app uses it on iOS and Safari, wherever Web Speech is missing, and after Web Speech fails; other browsers keep free browser recognition. See §3.5. |
 | `DEEPGRAM_API_KEY` | unset | Deepgram key, used when `STT_PROVIDER=deepgram`. |
 | `PUBLIC_BASE_URL` | request origin | Origin used to build the customer link sent by SMS/email, e.g. `https://assist.example.com`. |
 | `METRICS_TOKEN` | unset | When set, `/api/metrics` requires `Authorization: Bearer <token>`. |
 | `LOG_LEVEL` | `info` | `debug` · `info` · `warn` · `error`. |
 | `LOG_FORMAT` | JSON | `pretty` for compact human-readable lines in development. |
 | `AUTH_SECRET` | random per process | 32+ random characters. Signs the session cookie and encrypts the single sign-on transaction cookie. Without it sessions do not survive a restart. |
-| `OIDC_ISSUER` | unset → demo sign-in | Issuer URL of the organisation's identity provider; enables workforce single sign-on (§3.5). Must be HTTPS and match the `issuer` in its discovery document. Entra ID: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Okta: `https://<org>.okta.com/oauth2/default` (or your custom authorization server). |
+| `OIDC_ISSUER` | unset → demo sign-in | Issuer URL of the organisation's identity provider; enables workforce single sign-on (§3.7). Must be HTTPS and match the `issuer` in its discovery document. Entra ID: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Okta: `https://<org>.okta.com/oauth2/default` (or your custom authorization server). |
 | `OIDC_CLIENT_ID` | — | Application (client) ID. Required with `OIDC_ISSUER`. |
 | `OIDC_CLIENT_SECRET` | unset | Client secret (confidential web app). Omit only for a public client; PKCE is always used. |
 | `OIDC_REDIRECT_URI` | `${PUBLIC_BASE_URL}/api/auth/callback` | Callback URL registered with the IdP. Falls back to the request origin when `PUBLIC_BASE_URL` is unset (development only). |
@@ -68,8 +68,9 @@ docker run -p 3000:3000 -e DATA_DIR=/data -v va-data:/data \
 | `NEXT_PUBLIC_BASE_PATH` | empty | Path prefix when served under a sub-path. Build-time. |
 | `INTEGRATIONS_CONFIG` | unset → every tool simulated | JSON array (or `{ "connectors": [...] }`) of business-action connectors: `tenantId`, `tool`, `mode` (`simulated` \| `http`), `endpoint` (HTTPS; `http://localhost` only outside production), `secretRef`, `timeoutMs` (500–30000, default 8000), optional `includeScenarioSessions`, `system`. Overrides entries stored under `connectors` in `<DATA_DIR>/config.json`. See `INTEGRATION-CONTRACT.md` §9. |
 | `INTEGRATION_SECRET_<TENANT>` | unset | Per-tenant HMAC-SHA256 signing secret (≥ 32 characters) for connector calls, e.g. `INTEGRATION_SECRET_NORTHLINE` for `tnt_northline`. Referenced by a connector's `secretRef`; never written to config, audit or logs. A missing secret makes that tenant's HTTP calls fail closed (`secret_missing`). |
+| `ICE_SERVERS` | public STUN (`stun:stun.l.google.com:19302`) | JSON array of [RTCIceServer](https://developer.mozilla.org/docs/Web/API/RTCIceServer) for live video, e.g. `[{"urls":"stun:stun.example.com:3478"},{"urls":["turn:turn.example.com:3478?transport=udp","turns:turn.example.com:443?transport=tcp"],"username":"…","credential":"…"}]`. Invalid entries (and TURN entries without credentials) are dropped. See §3.8. |
 
-Secrets (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `DEEPGRAM_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`, `OIDC_CLIENT_SECRET`, `INTEGRATION_SECRET_*`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
+Secrets (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `DEEPGRAM_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`, `OIDC_CLIENT_SECRET`, `INTEGRATION_SECRET_*`, TURN credentials in `ICE_SERVERS`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
 
 ---
 
@@ -143,6 +144,21 @@ Agents, supervisors and administrators sign in through the organisation's identi
 - **Security log.** `security.signed_in` (provider, session id, `amr`, whether the role and tenant came from claims or the catalog), `security.sign_in_failed` (error code and reason), `security.signed_out` (whether IdP logout followed). Shown in the platform audit explorer.
 - **Limits.** Just-in-time users are held in memory: after a restart they sign in again (normally silently at the IdP), and multi-instance deployments need a shared user store. The static demo build ignores all of this and keeps its browser-only demo identities.
 
+### 3.8 Live video (`lib/media/live-call.ts`, `lib/client/live-call.ts`, `lib/server/signal-relay.ts`)
+
+While a human agent is with the customer, the customer's camera video and microphone go to the agent console over WebRTC, and the agent's microphone goes back to the customer. The call starts only when there is an active `human_agent` participant, the customer has consented and the camera is on; it stops when the agent leaves, the camera is turned off or the session ends. Video is not recorded or retained (docs/06 §3): media flows peer to peer (or through TURN, which relays encrypted packets it cannot read).
+
+- **Signalling.** Offers, answers and ICE candidates are relayed by `GET|POST /api/sessions/{id}/rtc` (agent, needs `session.join` and must be the agent the customer is with) and `GET|POST /api/assist/{token}/rtc` (customer). `GET` is an SSE stream of messages for that side. Messages are validated, rate limited, and held only while they are fanned out: they never enter the session audit, transcript or store. Like the session runtime, the relay is in-process; more than one instance needs sticky sessions or a shared pub/sub in its place.
+- **ICE servers.** `GET /api/sessions/{id}/rtc/ice` and `GET /api/assist/{token}/rtc/ice` serve `ICE_SERVERS` to authorised clients only, so TURN credentials never ship in the client bundle. The static demo uses public STUN only.
+- **TURN.** Without TURN, calls fail on symmetric NAT and strict corporate or mobile networks (often 10–20% of real calls). Use one of:
+  - *Twilio Network Traversal Service*: mint short-lived credentials with the Tokens API (`POST /2010-04-01/Accounts/{sid}/Tokens.json`) and put its `ice_servers` in `ICE_SERVERS`, rotating before the TTL (default 24 h).
+  - *Cloudflare Calls TURN*: create a TURN key in the dashboard and generate short-lived credentials with its API; it returns ready-made `iceServers` for `turn.cloudflare.com` (UDP/TCP 3478, TLS 5349 and 443).
+  - *Self-hosted coturn*: run it with `use-auth-secret` and a `static-auth-secret`, open UDP 3478, TCP/TLS 5349 (or 443) and the relay port range, and issue time-limited REST-API credentials.
+
+  Long-lived static credentials are acceptable for a pilot; for production, rotate them (a small job that rewrites `ICE_SERVERS` and restarts, or an extension of the `ice` endpoint that mints per-request credentials).
+- **Fallback.** If the browser has no WebRTC, or the connection fails three times (15 s connect timeout each), the console shows **Fallback: snapshots** and the low-rate preview relay (`/preview`, one JPEG a second, live only) carries on; the agent can press *Retry live video*. The relay pauses while the call is live.
+- **UI.** The console shows **Connecting**, **Live** or **Fallback: snapshots** on the video, with a microphone mute. The customer sees **Agent can see your camera** and can mute from that badge or the control bar.
+
 ---
 
 ## 4. Path to a database
@@ -169,6 +185,7 @@ The store interface is shaped for a Postgres adapter (table definitions are in `
 - [ ] Client secret rotation scheduled (Entra secrets expire; Okta supports two active secrets).
 - [ ] Model and price table reviewed (`VISUAL_ASSIST_MODEL`, `MODEL_PRICES_USD`, `STT_PRICES_USD_PER_MINUTE`, `USD_TO_GBP`).
 - [ ] If `STT_PROVIDER` is set: a spoken turn tested on a real iPhone (Safari) and an Android phone; the provider's data-retention setting reviewed (audio is sent to it).
+- [ ] `ICE_SERVERS` includes a TURN service (with rotated credentials) and a live call tested from a phone on mobile data to a console on the corporate network.
 - [ ] Retention/deletion schedule agreed (retention workstream) — the file store keeps sessions until deleted.
 - [ ] For each tenant going live on its own systems:
   - [ ] Client endpoints built to `INTEGRATION-CONTRACT.md`: signature check, idempotency, `{ status, result, externalRef }`.
