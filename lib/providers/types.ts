@@ -1,4 +1,4 @@
-import type { ModelUsage, ToolAction, TranscriptEvent, VisualEvent, WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
+import type { ModelUsage, ToolAction, ToolCallOutcome, TranscriptEvent, VisualEvent, WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
 import type { SessionState } from "@/lib/domain/session";
 import type { ObservationInput } from "@/lib/session/orchestrator";
 
@@ -59,7 +59,18 @@ export interface ReasoningProvider {
   interpretEvidence(input: EvidenceInput): Promise<EvidenceInterpretation>;
 }
 
+export interface ToolExecutionContext {
+  tenantId: string;
+  scenario?: string;
+}
+
 export interface ToolExecutor {
   readonly id: string;
-  execute(action: ToolAction, ctx: { tenantId: string; scenario?: string }): Promise<Record<string, unknown>>;
+  execute(action: ToolAction, ctx: ToolExecutionContext): Promise<Record<string, unknown>>;
+  /**
+   * Optional: executors that front client systems also report an audit-safe
+   * outcome (provider, latency, external reference). On failure they throw a
+   * ToolCallError (lib/integrations/contract.ts) carrying the outcome.
+   */
+  executeWithOutcome?(action: ToolAction, ctx: ToolExecutionContext): Promise<{ result: Record<string, unknown>; outcome: ToolCallOutcome }>;
 }

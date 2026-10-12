@@ -1,8 +1,8 @@
 # Production Readiness — Server Edition
 ## Absolute Intelligence Visual Assist
 
-**Last updated:** 2026-10-11
-**Scope:** how to configure and run the server edition durably on a single instance, what each environment variable does, and what is observable. Related specs: `07-NON-FUNCTIONAL-REQUIREMENTS.md`, `10-OPERATIONS-AND-SUPPORT.md`, `IMPLEMENTATION-PLAN.md`.
+**Last updated:** 2026-10-12
+**Scope:** how to configure and run the server edition durably on a single instance, what each environment variable does, and what is observable. Related specs: `07-NON-FUNCTIONAL-REQUIREMENTS.md`, `10-OPERATIONS-AND-SUPPORT.md`, `IMPLEMENTATION-PLAN.md`, `INTEGRATION-CONTRACT.md`.
 
 The static demo edition (`npm run build:static`, GitHub Pages) runs entirely in the browser and ignores everything in this document.
 
@@ -50,8 +50,10 @@ docker run -p 3000:3000 -e DATA_DIR=/data -v va-data:/data \
 | `LOG_FORMAT` | JSON | `pretty` for compact human-readable lines in development. |
 | `AUTH_SECRET` | — | Reserved for agent/admin sign-in (owned by the auth workstream). Set a long random value in every deployed environment. |
 | `NEXT_PUBLIC_BASE_PATH` | empty | Path prefix when served under a sub-path. Build-time. |
+| `INTEGRATIONS_CONFIG` | unset → every tool simulated | JSON array (or `{ "connectors": [...] }`) of business-action connectors: `tenantId`, `tool`, `mode` (`simulated` \| `http`), `endpoint` (HTTPS; `http://localhost` only outside production), `secretRef`, `timeoutMs` (500–30000, default 8000), optional `includeScenarioSessions`, `system`. Overrides entries stored under `connectors` in `<DATA_DIR>/config.json`. See `INTEGRATION-CONTRACT.md` §9. |
+| `INTEGRATION_SECRET_<TENANT>` | unset | Per-tenant HMAC-SHA256 signing secret (≥ 32 characters) for connector calls, e.g. `INTEGRATION_SECRET_NORTHLINE` for `tnt_northline`. Referenced by a connector's `secretRef`; never written to config, audit or logs. A missing secret makes that tenant's HTTP calls fail closed (`secret_missing`). |
 
-Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
+Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`, `INTEGRATION_SECRET_*`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
 
 ---
 
@@ -78,7 +80,19 @@ Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TO
 - Live Claude calls read `usage` (input, output, cache-write and cache-read tokens) from each response. When a server-side fallback ran, each model's share is priced at that model's rate.
 - Cost events carry `basis: "measured"` (token-priced) or `"estimated"` (unit rate). Simulated sessions and non-model costs (media, speech, tools) stay estimated. The Cost Centre and session detail label both.
 
-### 3.4 Observability
+### 3.4 Client integrations (`lib/integrations/`)
+
+- `RoutingToolExecutor` picks the executor per tenant and tool. Without a connector, or with `mode: "simulated"`, the tool runs on the sandbox executor, as before. With `mode: "http"`, `HttpToolExecutor` POSTs the contract body to the client's endpoint.
+- Every HTTP call carries an `Idempotency-Key` (the action id), `X-VA-Timestamp` and `X-VA-Signature` (`v1=` HMAC-SHA256 over `"<timestamp>.<body>"`). It has a per-connector timeout and makes one retry on a network error or 5xx only. Timeouts, 4xx and redirects are not retried.
+- Responses are validated. Only the tool's declared result fields become workflow facts (`line_test.status`, …), and free text passes PII redaction.
+- An invalid connector entry fails closed (`connector_invalid`) and never falls back to simulation. Invalid entries are logged at startup as `integration.connector_invalid`.
+- Sessions started with a simulation scenario stay on the sandbox unless the connector sets `includeScenarioSessions: true`.
+- Each call writes an `integration.called` audit event (provider, mode, status, latency, attempts, endpoint host, HTTP status, external reference, error code) and the log line `integration.called` or `integration.call_failed`. The event never includes secrets, bodies or URL paths.
+- **Platform → Integrations** and each client page show read-only connector status: mode, endpoint host, whether the secret is set, timeout and the last call.
+- The static demo build never reads `INTEGRATIONS_CONFIG` and always simulates.
+- `scripts/reference-client-api.mjs` is a reference implementation of the client side to hand to client developers.
+
+### 3.5 Observability
 
 | Endpoint | Use |
 |---|---|
@@ -86,7 +100,7 @@ Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TO
 | `GET /api/health` | Readiness: 503 until stored sessions are loaded; then 200 with `status: ok` or `degraded` (unresolved store write error), store status, session counts, reasoning and notification provider modes. |
 | `GET /api/metrics` | Prometheus text format: `va_sessions{status,live}`, `va_escalations_total{reason}`, `va_session_outcomes_total{outcome}`, `va_ai_resolution_ratio`, `va_escalation_ratio`, `va_queue_wait_seconds_avg`, `va_queue_waiting_sessions`, `va_queue_longest_wait_seconds`, `va_vision_latency_seconds` (from observations), `va_provider_call_duration_seconds{provider,model,operation,quantile}`, `va_provider_call_errors_total`, `va_provider_tokens_total{direction}`, `va_cost_gbp_total{category,basis}`, `va_notifications_total{channel,status,provider}`, `va_store_*`. |
 
-Logs are one JSON object per line (`lib/server/log.ts`) with `ts`, `level`, `msg`, `requestId` (from `x-request-id` or minted) and `sessionId` where known. Customer link tokens are stripped from logged routes. Useful messages: `session.created`, `session.create_rejected`, `command.rejected`, `notification.recorded`, `notification.failed`, `provider.call_failed`, `store.ready`, `store.save_failed`, `store.load_failed`.
+Logs are one JSON object per line (`lib/server/log.ts`) with `ts`, `level`, `msg`, `requestId` (from `x-request-id` or minted) and `sessionId` where known. Customer link tokens are stripped from logged routes. Useful messages: `session.created`, `session.create_rejected`, `command.rejected`, `notification.recorded`, `notification.failed`, `provider.call_failed`, `integration.called`, `integration.call_failed`, `integration.connector_invalid`, `store.ready`, `store.save_failed`, `store.load_failed`.
 
 Suggested alerts: `va_store_error == 1`; `va_store_pending_writes > 100` for 5 min; `rate(va_provider_call_errors_total[5m]) / rate(va_provider_call_duration_seconds_count[5m]) > 0.1`; `va_queue_longest_wait_seconds > 120` (docs/07 queue target); `va_notifications_total{status="failed"}` increasing.
 
@@ -108,3 +122,12 @@ The store interface is shaped for a Postgres adapter (table definitions are in `
 - [ ] `AUTH_SECRET` set; platform and console behind sign-in (auth workstream).
 - [ ] Model and price table reviewed (`VISUAL_ASSIST_MODEL`, `MODEL_PRICES_USD`, `USD_TO_GBP`).
 - [ ] Retention/deletion schedule agreed (retention workstream) — the file store keeps sessions until deleted.
+- [ ] For each tenant going live on its own systems:
+  - [ ] Client endpoints built to `INTEGRATION-CONTRACT.md`: signature check, idempotency, `{ status, result, externalRef }`.
+  - [ ] Endpoints tested against the client's sandbox using `includeScenarioSessions`.
+  - [ ] `INTEGRATIONS_CONFIG` set with HTTPS endpoints and realistic `timeoutMs` values.
+  - [ ] `INTEGRATION_SECRET_<TENANT>` (≥ 32 characters) in the secret store and shared with the client out of band.
+  - [ ] No connector shows *Misconfigured* or *Secret missing* on Platform → Integrations.
+  - [ ] Each workflow step that calls a client system has an `onFailure` path, or relies on escalation by design.
+  - [ ] An alert is set on `integration.call_failed` log volume.
+  - [ ] A secret rotation is rehearsed: the client accepts both signatures during the switch.

@@ -1,6 +1,6 @@
 import { ArrowRight, Info } from "lucide-react";
 import { platformScope } from "@/lib/server/platform-data";
-import { integrations as allIntegrations, tenantName } from "@/lib/config/catalog";
+import { integrations as allIntegrations, tenantName, tenants } from "@/lib/config/catalog";
 import { formatDateTime, formatRelative, pct } from "@/lib/format";
 import { humanize } from "@/lib/domain/labels";
 import { Badge, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
@@ -9,6 +9,9 @@ import { Chips, IntegrationStatusBadge, Note } from "@/components/platform/confi
 import { LinkDeliveryPanel } from "@/components/platform/link-delivery-panel";
 import { getNotifications } from "@/lib/server/notifications";
 import { STATIC_EXPORT } from "@/lib/server/platform-data";
+import { getConnectorRegistry } from "@/lib/integrations/config";
+import { connectorStatuses } from "@/lib/integrations/status";
+import { ConnectorTable } from "@/components/platform/connector-status";
 
 export const metadata = { title: "Integrations" };
 
@@ -50,6 +53,16 @@ export default async function IntegrationsPage() {
     };
   });
 
+  const registry = getConnectorRegistry();
+  const scopedStates = scope.states();
+  const connectorTenants = tenants
+    .filter((t) => scope.includes(t.id))
+    .map((t) => ({ tenant: t, connectors: connectorStatuses(t.id, registry, scopedStates) }))
+    .filter((x) => x.connectors.length > 0);
+  const allConnectors = connectorTenants.flatMap((x) => x.connectors);
+  const liveConnectors = allConnectors.filter((c) => c.mode === "http").length;
+  const invalidConnectors = allConnectors.filter((c) => c.mode === "invalid").length;
+
   return (
     <>
       <PageHeader
@@ -59,7 +72,12 @@ export default async function IntegrationsPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Connected (production)" value={integrations.filter((i) => i.status === "connected").length} hint="No live client systems in the POC" />
+        <Stat
+          label="Client API connectors"
+          value={liveConnectors}
+          tone={invalidConnectors ? "danger" : undefined}
+          hint={invalidConnectors ? `${invalidConnectors} misconfigured` : `${allConnectors.length - liveConnectors} tools on the sandbox`}
+        />
         <Stat label="Sandbox" value={integrations.filter((i) => i.status === "sandbox").length} />
         <Stat label="Not configured" value={integrations.filter((i) => i.status === "not_configured").length} />
         <Stat label="Tool calls (14 d)" value={rows.reduce((n, r) => n + r.calls, 0)} hint={`${rows.reduce((n, r) => n + r.blocked, 0)} duplicates blocked`} />
@@ -154,11 +172,33 @@ export default async function IntegrationsPage() {
         ))}
       </div>
 
+      <section className="mt-6" aria-labelledby="connectors-heading">
+        <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 id="connectors-heading" className="text-sm font-semibold text-ink">
+              Business action connectors
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">
+              How each tool reaches the client&apos;s system: the simulated sandbox (default) or the client&apos;s HTTPS endpoint, signed per tenant. Contract:
+              docs/INTEGRATION-CONTRACT.md.
+            </p>
+          </div>
+          <Badge tone="neutral">{STATIC_EXPORT ? "Static demo · always simulated" : "Read-only · set by INTEGRATIONS_CONFIG"}</Badge>
+        </div>
+        <div className="space-y-4">
+          {connectorTenants.map(({ tenant, connectors }) => (
+            <Panel key={tenant.id} title={tenant.name} description={`${connectors.length} tools`} bodyClassName="p-0">
+              <ConnectorTable connectors={connectors} />
+            </Panel>
+          ))}
+        </div>
+      </section>
+
       <LinkDeliveryPanel states={scope.states()} notifications={getNotifications()} staticDemo={STATIC_EXPORT} />
 
       <Note className="mt-4" icon={<Info className="size-3.5" />}>
-        p95 latency, error rate and last sync are catalogue values for sandbox connections, not live monitoring. Observed calls are computed from session records,
-        where tools run on the simulated sandbox executor. No integration holds client credentials in this POC.
+        p95 latency, error rate and last sync in the integrations table are catalogue values for sandbox connections, not live monitoring. Connector status and last
+        calls come from session records. Signing secrets are referenced by environment variable name only and are never shown, stored in configuration or audited.
       </Note>
     </>
   );

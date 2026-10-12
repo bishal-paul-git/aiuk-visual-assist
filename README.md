@@ -6,6 +6,7 @@ Enterprise Human + AI visual assistance platform by Absolute Intelligence UK. Cu
 
 - Product specification: [`docs/`](docs/00-README.md) (source of truth)
 - Deploying the full server edition: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+- Connecting business actions to a client's systems: [`docs/INTEGRATION-CONTRACT.md`](docs/INTEGRATION-CONTRACT.md) (reference client API: `scripts/reference-client-api.mjs`)
 - Gap analysis, status and phased plan: [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)
 
 ## Experiences

@@ -1,6 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { MockReasoningProvider } from "@/lib/providers/mock/reasoning";
 import { MockToolExecutor } from "@/lib/providers/mock/tools";
+import type { ToolExecutor } from "@/lib/providers/types";
+import { getConnectorRegistry } from "@/lib/integrations/config";
+import { HttpToolExecutor } from "@/lib/integrations/http-executor";
+import { RoutingToolExecutor } from "@/lib/integrations/routing-executor";
 import { RoutingReasoningProvider } from "@/lib/providers/routing";
 import { ClaudeReasoningProvider } from "@/lib/providers/claude/reasoning";
 import { SessionRuntime } from "@/lib/runtime/session-runtime";
@@ -24,7 +28,7 @@ export function getRuntime(): SessionRuntime {
   const g = globalThis as unknown as Globals;
   let rt = g[GLOBAL_KEY] as SessionRuntime | undefined;
   if (!rt) {
-    rt = new SessionRuntime(new RoutingReasoningProvider(new MockReasoningProvider(), liveProvider()), new MockToolExecutor());
+    rt = new SessionRuntime(new RoutingReasoningProvider(new MockReasoningProvider(), liveProvider()), toolExecutor());
     g[BOOT_KEY] = Date.now();
     // The static demo build prerenders from a fresh seeded runtime; it never touches DATA_DIR.
     const store = process.env.STATIC_EXPORT === "1" ? new MemorySessionStore() : createStoreFromEnv();
@@ -68,6 +72,30 @@ export function runtimeReady(): Promise<SessionRuntime> {
 export function bootedAt(): number {
   getRuntime();
   return (globalThis as unknown as Globals)[BOOT_KEY] as number;
+}
+
+/**
+ * Business actions: per tenant and tool, either the simulated sandbox (the
+ * default) or the client's own HTTPS endpoint (INTEGRATIONS_CONFIG / config
+ * store; docs/INTEGRATION-CONTRACT.md). The static demo always simulates.
+ */
+function toolExecutor(): ToolExecutor {
+  const sandbox = new MockToolExecutor();
+  if (process.env.STATIC_EXPORT === "1") return sandbox;
+  const registry = getConnectorRegistry();
+  for (const bad of registry.invalid()) log.error("integration.connector_invalid", { tenantId: bad.tenantId, tool: bad.tool, source: bad.source, error: bad.error });
+  const http = new HttpToolExecutor((tenantId, tool) => {
+    const r = registry.resolve(tenantId, tool);
+    return r.kind === "configured" ? r.config : undefined;
+  });
+  return new RoutingToolExecutor(registry, sandbox, http, {
+    observe: (o, info) => {
+      if (o.mode !== "http") return;
+      const fields = { ...info, provider: o.provider, status: o.status, latencyMs: o.latencyMs, attempts: o.attempts, endpointHost: o.endpointHost, httpStatus: o.httpStatus, errorCode: o.errorCode };
+      if (o.status === "failed") log.warn("integration.call_failed", fields);
+      else log.info("integration.called", fields);
+    },
+  });
 }
 
 /**

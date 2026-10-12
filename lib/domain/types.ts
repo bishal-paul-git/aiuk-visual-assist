@@ -371,6 +371,29 @@ export interface ToolAction {
   startedAt: ISODateString;
   completedAt?: ISODateString;
   error?: string;
+  /** Audit-safe record of the call to the client system (server edition). */
+  outcome?: ToolCallOutcome;
+}
+
+/**
+ * Audit-safe summary of one business-action call (docs/INTEGRATION-CONTRACT.md).
+ * Never holds secrets, request bodies or raw responses.
+ */
+export interface ToolCallOutcome {
+  /** Executor that ran the call, e.g. "sandbox-tools" or "http". */
+  provider: string;
+  mode: "simulated" | "http";
+  status: "succeeded" | "failed";
+  latencyMs: number;
+  /** HTTP attempts made (1, or 2 after a retry). Simulated calls report 1. */
+  attempts: number;
+  /** Host of the client endpoint (no path or query). */
+  endpointHost?: string;
+  httpStatus?: number;
+  /** Reference in the client system (ticket, job, case id). */
+  externalRef?: string;
+  /** Short machine-readable failure code, e.g. "timeout", "http_502", "invalid_response". */
+  errorCode?: string;
 }
 
 export type EscalationReasonCode =
@@ -522,6 +545,7 @@ export type DomainEventType =
   | "tool.failed"
   | "tool.duplicate_blocked"
   | "tool.denied"
+  | "integration.called"
   | "policy.check"
   | "config.workflow_draft_created"
   | "config.workflow_updated"

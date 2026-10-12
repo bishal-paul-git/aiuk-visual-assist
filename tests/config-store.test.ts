@@ -5,6 +5,7 @@ import path from "node:path";
 import { workflows } from "@/lib/config/catalog";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { attachConfigStore } from "@/lib/server/store/config";
+import { getConnectorRegistry } from "@/lib/integrations/config";
 
 const admin = { id: "usr_priya", name: "Priya Shah" };
 const approver = { id: "usr_james", name: "James Carter" };
@@ -33,5 +34,23 @@ describe("configuration store", () => {
     expect(workflows.find((w) => w.id === draft.id)?.status).toBe("published");
     expect(workflows.find((w) => w.id === "wf_router_v3")?.status).toBe("retired");
     expect(r.audit).toHaveLength(before);
+  });
+
+  it("persists integration connectors without secrets and restores them", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "va-config-"));
+    dirs.push(dir);
+    attachConfigStore(dir);
+    const reg = getConnectorRegistry();
+    const entry = { tenantId: "tnt_harbour", tool: "attach_claim_evidence", mode: "http", endpoint: "https://claims.harbour.example/va/evidence" };
+    reg.setStored([entry], { persist: true });
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, "config.json"), "utf8"));
+    expect(saved.connectors).toEqual([entry]);
+    expect(JSON.stringify(saved.connectors)).not.toMatch(/secret"/);
+
+    reg.setStored([]);
+    attachConfigStore(dir);
+    const r = reg.resolve("tnt_harbour", "attach_claim_evidence");
+    expect(r.kind === "configured" && r.config.endpoint).toBe("https://claims.harbour.example/va/evidence");
+    reg.setStored([]);
   });
 });

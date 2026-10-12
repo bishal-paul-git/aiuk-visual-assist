@@ -14,6 +14,7 @@ import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { expectedIntents } from "@/lib/workflow/engine";
 import { RoutingReasoningProvider } from "@/lib/providers/routing";
 import type { ReasoningProvider, ToolExecutor } from "@/lib/providers/types";
+import { ToolCallError } from "@/lib/integrations/contract";
 import { applyRetention, type RetentionRun } from "@/lib/privacy/retention";
 import { toAgentView, toCustomerView, toSummary, type AgentView, type CustomerView, type SessionSummaryView } from "@/lib/session/projections";
 
@@ -245,11 +246,18 @@ export class SessionRuntime {
         case "execute_tool": {
           const action = entry.state.toolActions.find((a) => a.id === effect.toolActionId);
           if (!action) return;
+          const ctx = { tenantId: entry.state.session.tenantId, scenario: entry.state.session.scenario };
           try {
-            const result = await this.tools.execute(action, { tenantId: entry.state.session.tenantId, scenario: entry.state.session.scenario });
-            this.dispatch(id, { type: "tool.completed", toolActionId: action.id, result }, system);
+            if (this.tools.executeWithOutcome) {
+              const { result, outcome } = await this.tools.executeWithOutcome(action, ctx);
+              this.dispatch(id, { type: "tool.completed", toolActionId: action.id, result, outcome }, system);
+            } else {
+              const result = await this.tools.execute(action, ctx);
+              this.dispatch(id, { type: "tool.completed", toolActionId: action.id, result }, system);
+            }
           } catch (e) {
-            this.dispatch(id, { type: "tool.failed", toolActionId: action.id, error: (e as Error).message }, system);
+            const outcome = e instanceof ToolCallError ? e.outcome : undefined;
+            this.dispatch(id, { type: "tool.failed", toolActionId: action.id, error: (e as Error).message, outcome }, system);
           }
           return;
         }

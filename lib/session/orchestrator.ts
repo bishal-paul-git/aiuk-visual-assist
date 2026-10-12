@@ -13,6 +13,7 @@ import type {
   SessionOutcome,
   Speaker,
   ToolAction,
+  ToolCallOutcome,
   TranscriptEvent,
   VisualEvent,
   VisualObservation,
@@ -94,8 +95,8 @@ export type Command =
       usage?: ModelUsage;
     }
   | { type: "evidence.failed"; visualEventId: string; error: string }
-  | { type: "tool.completed"; toolActionId: string; result: Record<string, unknown> }
-  | { type: "tool.failed"; toolActionId: string; error: string }
+  | { type: "tool.completed"; toolActionId: string; result: Record<string, unknown>; outcome?: ToolCallOutcome }
+  | { type: "tool.failed"; toolActionId: string; error: string; outcome?: ToolCallOutcome }
   | { type: "human.join" }
   | { type: "human.take_over" }
   | { type: "human.message"; text: string }
@@ -455,6 +456,11 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
       const action = s.toolActions.find((a) => a.id === cmd.toolActionId);
       if (!action) return "Unknown tool action";
       action.completedAt = ctx.now;
+      if (cmd.outcome) {
+        // Audit-safe call record: provider, latency, status and the client's reference only.
+        action.outcome = cmd.outcome;
+        ctx.audit("integration.called", { toolActionId: action.id, tool: action.toolName, ...cmd.outcome });
+      }
       if (cmd.type === "tool.completed") {
         action.status = "completed";
         action.result = cmd.result;

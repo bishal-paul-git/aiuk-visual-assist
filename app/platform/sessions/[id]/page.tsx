@@ -489,6 +489,17 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                   <Td>
                     <Badge tone={TOOL_TONE[a.status]}>{humanize(a.status)}</Badge>
                     {a.error && <div className="mt-1 max-w-[200px] text-xs text-danger">{a.error}</div>}
+                    {a.outcome && (
+                      <div className="mt-1 text-[11px] text-muted">
+                        {a.outcome.mode === "http" ? `Client API ${a.outcome.endpointHost ?? ""}` : "Sandbox"} · {a.outcome.latencyMs.toLocaleString("en-GB")} ms
+                        {a.outcome.attempts > 1 ? ` · ${a.outcome.attempts} attempts` : ""}
+                        {a.outcome.externalRef && (
+                          <div>
+                            ref <span className="font-mono">{a.outcome.externalRef}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </Td>
                   <Td>{a.requestedBy === "ai" ? "AI" : "Human"}</Td>
                   <Td className="font-mono text-xs break-all">{a.idempotencyKey}</Td>

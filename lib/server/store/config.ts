@@ -5,6 +5,7 @@ import { policies, workflows } from "@/lib/config/catalog";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { getPolicyRegistry } from "@/lib/policy/registry";
 import type { AuditEvent, Policy, WorkflowDefinition } from "@/lib/domain/types";
+import { getConnectorRegistry } from "@/lib/integrations/config";
 
 /**
  * Durable configuration for the file store: every workflow and policy version
@@ -22,12 +23,15 @@ interface ConfigFile {
   policies: Policy[];
   workflowAudit: AuditEvent[];
   policyAudit: AuditEvent[];
+  /** Integration connectors (no secrets: only secretRef names). INTEGRATIONS_CONFIG overrides per tenant/tool. */
+  connectors?: unknown[];
 }
 
 export function attachConfigStore(dir: string): { restored: boolean } {
   const file = path.join(path.resolve(dir), "config.json");
   const wfReg = getWorkflowRegistry();
   const polReg = getPolicyRegistry();
+  const connReg = getConnectorRegistry();
   let restored = false;
 
   try {
@@ -38,6 +42,7 @@ export function attachConfigStore(dir: string): { restored: boolean } {
       policies.splice(0, policies.length, ...saved.policies);
       wfReg.audit.splice(0, wfReg.audit.length, ...(saved.workflowAudit ?? []));
       polReg.audit.splice(0, polReg.audit.length, ...(saved.policyAudit ?? []));
+      if (saved.connectors) connReg.setStored(saved.connectors);
       restored = true;
     }
   } catch (e) {
@@ -52,6 +57,7 @@ export function attachConfigStore(dir: string): { restored: boolean } {
       policies,
       workflowAudit: wfReg.audit,
       policyAudit: polReg.audit,
+      connectors: connReg.storedEntries(),
     };
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const tmp = `${file}.${randomBytes(4).toString("hex")}.tmp`;
@@ -60,5 +66,6 @@ export function attachConfigStore(dir: string): { restored: boolean } {
   };
   wfReg.onChange = save;
   polReg.onChange = save;
+  connReg.onChange = save;
   return { restored };
 }

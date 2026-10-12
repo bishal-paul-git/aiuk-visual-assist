@@ -22,6 +22,9 @@ import {
   TenantStatusBadge,
   type ImplState,
 } from "@/components/platform/config-ui";
+import { ConnectorTable } from "@/components/platform/connector-status";
+import { getConnectorRegistry } from "@/lib/integrations/config";
+import { connectorStatuses } from "@/lib/integrations/status";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -56,16 +59,28 @@ export default async function ClientDetailPage({ params }: Props) {
   const tTeams = teams.filter((t) => t.tenantId === tenant.id);
   const tIntegrations = integrations.filter((i) => i.tenantId === tenant.id);
   const r = tenant.retention;
+  const connectors = connectorStatuses(tenant.id, getConnectorRegistry(), allStates);
+  const httpConnectors = connectors.filter((c) => c.mode === "http");
 
   const boundary: { area: string; scope: ReactNode; state: ImplState; how: string }[] = [
     { area: "Data", scope: `${allStates.length} session records`, state: "implemented", how: "Runtime queries filtered by tenant ID" },
     { area: "Workflows", scope: `${tWorkflows.length} versions`, state: "implemented", how: "Definitions carry tenantId" },
     { area: "Policies", scope: `${tPolicies.length} polic${tPolicies.length === 1 ? "y" : "ies"}`, state: "implemented", how: "Policy resolved from the tenant's workflow" },
     { area: "Users", scope: `${tUsers.length} users`, state: "implemented", how: "Sign-in with role-based access; client roles only see their own tenant" },
-    { area: "Credentials", scope: "No client credentials stored", state: "planned", how: "Per-tenant secrets manager planned" },
+    {
+      area: "Credentials",
+      scope: httpConnectors.length ? `Signing secret ${httpConnectors[0].secretRef}` : "No client credentials stored",
+      state: "partial",
+      how: "Per-tenant HMAC secret read from the environment by reference; secrets manager planned",
+    },
     { area: "Branding", scope: tenant.brand.displayName, state: "implemented", how: "Customer view resolves brand from session tenant" },
     { area: "Retention", scope: r.evidenceMode === "live_only" ? "Live only" : `${r.evidenceRetentionDays} d evidence`, state: "partial", how: "Configured per tenant; automated deletion planned" },
-    { area: "Integrations", scope: `${tIntegrations.length} configured`, state: "implemented", how: "Tool calls carry the session's tenantId" },
+    {
+      area: "Integrations",
+      scope: `${tIntegrations.length} configured · ${httpConnectors.length} on client API`,
+      state: "implemented",
+      how: "Tool calls carry the session's tenantId and use only this client's connectors",
+    },
     { area: "Regional settings", scope: REGION_LABELS[tenant.region], state: "partial", how: "Recorded per tenant; POC runs as one deployment" },
     { area: "Analytics access", scope: "Tenant-filtered metrics", state: "implemented", how: "Management platform and audit export are scoped to the viewer's tenant" },
   ];
@@ -382,6 +397,15 @@ export default async function ClientDetailPage({ params }: Props) {
           )}
         </Panel>
       </div>
+
+      <Panel
+        className="mt-4"
+        title="Business action connectors"
+        description="Where each tool runs for this client: simulated sandbox or the client's signed HTTPS endpoint"
+        bodyClassName="p-0"
+      >
+        <ConnectorTable connectors={connectors} />
+      </Panel>
     </>
   );
 }
