@@ -9,7 +9,7 @@ import type { User, UserRole } from "@/lib/domain/types";
  *
  * Roles (the `UserRole` values on catalog users):
  * - aiuk_admin    Platform administrator (Absolute Intelligence). All tenants.
- * - qa_reviewer   Platform analyst / QA reviewer. Read-only, all tenants.
+ * - qa_reviewer   Platform analyst / QA reviewer. Read-only, all tenants, plus QA reviews and evaluation runs.
  * - client_admin  Client administrator. Configuration, and a management platform
  *                 view confined to their own tenant (lib/auth/scope.ts).
  * - supervisor    Contact-centre supervisor. Operates sessions and reads audit for their tenant.
@@ -33,6 +33,8 @@ export const PERMISSIONS = [
   "settings.view",
   "settings.edit",
   "platform.access",
+  "qa.review",
+  "qa.evaluate",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -53,6 +55,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "settings.view": "View settings",
   "settings.edit": "Change settings",
   "platform.access": "Use the management platform (client roles see only their own client)",
+  "qa.review": "Review sampled sessions and record QA verdicts",
+  "qa.evaluate": "Run AI evaluation sets",
 };
 
 export const ROLES: UserRole[] = ["aiuk_admin", "qa_reviewer", "client_admin", "supervisor", "agent"];
@@ -72,7 +76,7 @@ const OPERATE: Permission[] = ["session.view", "session.create", "session.join",
 
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   aiuk_admin: PERMISSIONS.filter((p) => !OPERATE.includes(p) || p === "session.view" || p === "session.create"),
-  qa_reviewer: ["session.view", "workflow.view", "policy.view", "audit.view", "settings.view", "platform.access"],
+  qa_reviewer: ["session.view", "workflow.view", "policy.view", "audit.view", "settings.view", "platform.access", "qa.review", "qa.evaluate"],
   client_admin: [
     "session.view",
     "workflow.view",
@@ -86,7 +90,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     "settings.edit",
     "platform.access",
   ],
-  supervisor: [...OPERATE, "workflow.view", "policy.view", "audit.view"],
+  supervisor: [...OPERATE, "workflow.view", "policy.view", "audit.view", "qa.review"],
   agent: OPERATE,
 };
 

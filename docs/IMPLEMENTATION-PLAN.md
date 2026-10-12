@@ -117,7 +117,9 @@ Status key: ✅ built · 🟡 partial · ⬜ missing · 🔮 future production w
 | Browser E2E (Playwright) | ✅ `e2e/` — the demo walkthrough drives the real customer page and agent console for an AI-resolved and a human-resolved session; runs in CI |
 | Security tests | ✅ RBAC matrix, tenant isolation, platform scoping (`tests/scope.test.ts`, page-level `tests/platform-scope.test.ts`), audit export CSV escaping/injection and scoping (`tests/audit-export.test.ts`), cookie signing/tampering, redaction (incl. false-positive guards), retention (`tests/`); role check in `e2e/access.spec.ts` |
 | Network simulation | ⬜ |
-| AI evaluation sets with real images | ⬜ — needs real model |
+| Human review queue | ✅ `lib/qa/` + `/platform/qa/review`: deterministic sampling (all unclear-evidence / model-failure / human-rejected sessions + `QA_AI_RESOLVED_SAMPLE_RATE` of AI-resolved, seeded by session id); queued → in review → completed; per-observation verdicts with corrected values from the workflow vocabulary, outcome correctness, 1–5 rubric, notes; no self-review; `qa.review_*` audit on the session; `qa.review` permission; `DATA_DIR/qa.json` |
+| AI evaluation sets | 🟡 `/platform/qa/evaluations`: seeded 20-case router set from synthetic scenes (+ frames added from completed reviews); runner reports accuracy per type, confusion counts, hallucination rate and ECE; simulated scene reader by default, Claude on an explicit Run when `ANTHROPIC_API_KEY` is set (`qa.evaluate`). Remaining: photographed real-device images |
+| Calibration report | ✅ QA page: reported confidence vs human-confirmed accuracy per band, with ECE (QA verdicts + console checks) |
 
 ---
 
@@ -134,7 +136,7 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 - 50+ unit/E2E tests.
 
 ### Phase 2 — Technical POC: real router interaction (in progress)
-1. ✅ **Real multimodal reasoning provider** behind `ReasoningProvider` — structured JSON output (docs/05 §2) validated against the workflow vocabulary; refusals/invalid output escalate. ✅ Per-token cost capture from `usage` (measured vs estimated, fallback-aware). Remaining: prompt-version registry, evaluation set with real images.
+1. ✅ **Real multimodal reasoning provider** behind `ReasoningProvider` — structured JSON output (docs/05 §2) validated against the workflow vocabulary; refusals/invalid output escalate. ✅ Per-token cost capture from `usage` (measured vs estimated, fallback-aware). Remaining: prompt-version registry, evaluation set with real photographed images (synthetic set and runner ✅).
 2. **Real voice layer** — streaming ASR/TTS with barge-in/turn-taking, behind the existing hooks.
 3. **WebRTC media layer** — SFU rooms with customer, AI and human participants; replaces the preview relay; human join uses the same room.
 4. **Media gateway service** — server-side frame selection on the video track (scene change, scheduled low-rate sample), alongside the client stability gate.
@@ -144,7 +146,7 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 - Durable event store + session store (Postgres), orchestrator as a service, outbox for effects.
 - ✅ Workflow versioning (draft → review → publish, pinning, audit), structural builder, four-eyes approval and policy versioning. Remaining: durable storage of configuration versions; approver identity from SSO/RBAC instead of the POC "Acting as" picker.
 - ✅ Health/metrics endpoints and JSON logs with correlation ids. Remaining: OpenTelemetry traces, alerting.
-- QA tooling: human review queue, evaluation sets with labelled images, calibration reports.
+- ✅ QA tooling: human review queue, evaluation sets with labelled images, calibration reports. Remaining: real-photo evaluation set; QA events in the audit explorer's category filter.
 
 ### Phase 4 — Client pilot (Northline)
 - SSO for agents/admins (OIDC behind `IdentityProvider`), ✅ tenant-enforced RBAC, real CRM/line-test/engineer-booking integrations, privacy controls and DPIA. (✅ SMS/email link delivery adapters — needs pilot credentials.)

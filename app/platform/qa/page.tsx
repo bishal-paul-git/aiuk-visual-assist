@@ -10,6 +10,10 @@ import { formatDateTime, formatMinutes, pct } from "@/lib/format";
 import { Badge, EmptyState, PageHeader, Panel, Stat, Table, Td, Th, type Tone } from "@/components/ui/primitives";
 import { ConfidenceMeter, EscalationReasonBadge, ObservationStatusBadge, OutcomeBadge, SimulatedTag } from "@/components/domain/badges";
 import { BarList } from "@/components/charts/bar-list";
+import { buttonClass } from "@/components/ui/primitives";
+import { qaStore } from "@/lib/server/qa";
+import { reviewCalibration } from "@/lib/qa/calibration";
+import { CalibrationTable, eceVerdict } from "@/components/qa/calibration-table";
 
 export const metadata = { title: "QA" };
 
@@ -250,6 +254,8 @@ export default async function QaPage() {
   const reviewedRows = [...q.reviewed].sort((a, b) => b.o.humanReview!.at.localeCompare(a.o.humanReview!.at)).slice(0, 20);
   const rejectedCount = q.reviewed.filter(({ o }) => o.humanReview!.verdict === "rejected").length;
   const scenarioByKey = new Map(SCENARIOS.map((s) => [s.key, s]));
+  const reviewCal = reviewCalibration(scope.states(), qaStore().reviews);
+  const reviewEce = eceVerdict(reviewCal.ece);
 
   return (
     <>
@@ -260,6 +266,16 @@ export default async function QaPage() {
           <>
             <SimulatedTag label="All model output is simulated" />
             <Badge tone="neutral">Vision models: {q.modelVersions.join(", ") || "none"}</Badge>
+          </>
+        }
+        actions={
+          <>
+            <Link href="/platform/qa/review" className={buttonClass("primary", "sm")}>
+              Review queue
+            </Link>
+            <Link href="/platform/qa/evaluations" className={buttonClass("secondary", "sm")}>
+              Evaluation sets
+            </Link>
           </>
         }
       />
@@ -353,6 +369,31 @@ export default async function QaPage() {
           )}
         </Panel>
       </div>
+
+      <Panel
+        title="Calibration against human review"
+        description="Reported confidence against the share of readings a human confirmed, per confidence band. Uses QA review verdicts, plus agents' confirm/reject in the console for readings no QA reviewer has judged. Only readings where the AI gave a value are counted."
+        className="mt-4"
+        bodyClassName="p-0"
+        actions={
+          <Badge tone={reviewEce.tone ?? "neutral"}>
+            ECE {reviewCal.ece === undefined ? "—" : reviewCal.ece.toFixed(3)} · {reviewEce.label}
+          </Badge>
+        }
+      >
+        {reviewCal.points === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted">No human-judged readings yet. Complete reviews from the review queue to build this report.</p>
+        ) : (
+          <>
+            <CalibrationTable bins={reviewCal.bins} accuracyLabel="Human-confirmed" />
+            <p className="border-t border-line px-4 py-2 text-xs text-muted">
+              {reviewCal.points} readings: {reviewCal.fromQaReviews} from QA reviews, {reviewCal.fromConsoleReviews} from agent checks in the console. Overall{" "}
+              {reviewCal.accuracy === undefined ? "—" : pct(reviewCal.accuracy)} confirmed at a mean reported confidence of {reviewCal.meanConfidence === undefined ? "—" : pct(reviewCal.meanConfidence)}.
+              Agent checks are not a random sample: agents mostly check readings the AI flagged.
+            </p>
+          </>
+        )}
+      </Panel>
 
       <Panel
         title="Escalation correctness signals"

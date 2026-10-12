@@ -43,8 +43,10 @@ describe("permission matrix", () => {
       "settings.view",
       "settings.edit",
       "platform.access",
+      "qa.review",
+      "qa.evaluate",
     ],
-    qa_reviewer: ["session.view", "workflow.view", "policy.view", "audit.view", "settings.view", "platform.access"],
+    qa_reviewer: ["session.view", "workflow.view", "policy.view", "audit.view", "settings.view", "platform.access", "qa.review", "qa.evaluate"],
     client_admin: [
       "session.view",
       "workflow.view",
@@ -58,7 +60,7 @@ describe("permission matrix", () => {
       "settings.edit",
       "platform.access",
     ],
-    supervisor: ["session.view", "session.create", "session.join", "session.take_over", "session.end", "action.run", "workflow.view", "policy.view", "audit.view"],
+    supervisor: ["session.view", "session.create", "session.join", "session.take_over", "session.end", "action.run", "workflow.view", "policy.view", "audit.view", "qa.review"],
     agent: ["session.view", "session.create", "session.join", "session.take_over", "session.end", "action.run"],
   };
 

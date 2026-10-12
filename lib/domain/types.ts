@@ -548,4 +548,7 @@ export type DomainEventType =
   | "security.permission_denied"
   | "privacy.redacted"
   | "privacy.retention_purged"
-  | "audit.exported";
+  | "audit.exported"
+  | "qa.review_claimed"
+  | "qa.review_released"
+  | "qa.review_submitted";

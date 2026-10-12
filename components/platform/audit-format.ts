@@ -3,7 +3,7 @@ import { users } from "@/lib/config/catalog";
 
 /** Shared formatting for audit events (session detail + audit explorer). */
 
-export const EVENT_CATEGORIES = ["session", "media", "ai", "workflow", "human", "tool", "policy", "notification", "config", "privacy", "security", "audit"] as const;
+export const EVENT_CATEGORIES = ["session", "media", "ai", "workflow", "human", "tool", "policy", "notification", "config", "privacy", "security", "audit", "qa"] as const;
 export type EventCategory = (typeof EVENT_CATEGORIES)[number];
 
 export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
@@ -19,6 +19,7 @@ export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
   privacy: "Privacy",
   security: "Security",
   audit: "Audit export",
+  qa: "QA review",
 };
 
 export const ACTOR_TYPES: ActorType[] = ["customer", "ai", "human_agent", "system", "admin"];
