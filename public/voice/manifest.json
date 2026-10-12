@@ -1,0 +1,149 @@
+{
+ "voices": {
+  "assistant": "MWUpoNpAY0rOQGP294mF",
+  "agentFemale": "LZAcK8Cx5QjdQhfBsJQZ",
+  "agentMale": "dNH3PGQenpJn3UgJkJS8"
+ },
+ "clips": {
+  "baf1f4fc": {
+   "file": "baf1f4fc.mp3",
+   "role": "assistant",
+   "text": "Hi, I'm the Northline visual assistant. I can see what your camera shows, so you can show me the problem rather than describe it."
+  },
+  "3d1e004c": {
+   "file": "3d1e004c.mp3",
+   "role": "assistant",
+   "text": "What seems to be the problem today?"
+  },
+  "1adf44db": {
+   "file": "1adf44db.mp3",
+   "role": "assistant",
+   "text": "Let's take a look. Please point your camera at the front of your router so I can see the whole device."
+  },
+  "6eb9a6dc": {
+   "file": "6eb9a6dc.mp3",
+   "role": "assistant",
+   "text": "Thanks. Now move a little closer to the lights on the front so I can read each one clearly."
+  },
+  "4c452054": {
+   "file": "4c452054.mp3",
+   "role": "assistant",
+   "text": "Thanks, that's clear — the power light is on, the internet light is off, the Wi-Fi light is on."
+  },
+  "abbaabad": {
+   "file": "abbaabad.mp3",
+   "role": "assistant",
+   "text": "The internet light isn't showing a connection. Please turn the router around and show me the cables plugged into the back."
+  },
+  "4e43be34": {
+   "file": "4e43be34.mp3",
+   "role": "assistant",
+   "text": "The cables look connected. Let's restart the router: switch it off at the wall, wait 30 seconds, then switch it back on. It can take two or three minutes to reconnect. Say “done” when the lights have settled."
+  },
+  "434dcf96": {
+   "file": "434dcf96.mp3",
+   "role": "assistant",
+   "text": "Thanks. Please show me the lights on the front again, nice and close."
+  },
+  "1e42a57d": {
+   "file": "1e42a57d.mp3",
+   "role": "assistant",
+   "text": "The internet light is still off, so I'm running a remote test on your line. This takes a few seconds."
+  },
+  "5bb84a9b": {
+   "file": "5bb84a9b.mp3",
+   "role": "assistant",
+   "text": "The line test found a fault on the network side, so I'm bringing in a specialist. They can already see everything we've checked, so you won't need to repeat anything."
+  },
+  "6410020f": {
+   "file": "6410020f.mp3",
+   "role": "agentFemale",
+   "text": "Hi, it's Sarah. I've got everything you've shown so far, so let's carry on from here."
+  },
+  "9a4bab36": {
+   "file": "9a4bab36.mp3",
+   "role": "assistant",
+   "text": "Thanks, that's clear — the power light is on, the internet light is on, the Wi-Fi light is on."
+  },
+  "39600f1d": {
+   "file": "39600f1d.mp3",
+   "role": "assistant",
+   "text": "Your router lights look normal now. Could you try opening a web page — is your internet working?"
+  },
+  "5dde45c9": {
+   "file": "5dde45c9.mp3",
+   "role": "assistant",
+   "text": "Great news. I'm recording that on your account now."
+  },
+  "806e8d0f": {
+   "file": "806e8d0f.mp3",
+   "role": "assistant",
+   "text": "You're all set. Thanks for showing me — you can end the session whenever you're ready."
+  },
+  "5f701082": {
+   "file": "5f701082.mp3",
+   "role": "assistant",
+   "text": "Thanks, that's clear — the power light is on, the internet light is red, the Wi-Fi light is on."
+  },
+  "947aa72e": {
+   "file": "947aa72e.mp3",
+   "role": "assistant",
+   "text": "The broadband cable looks like it isn't fully in. Please push it firmly into the port marked Broadband until it clicks, then tell me when it's done."
+  },
+  "79433f8a": {
+   "file": "79433f8a.mp3",
+   "role": "assistant",
+   "text": "I can't quite make that out. Could you move a little closer and hold the phone steady?"
+  },
+  "488bd166": {
+   "file": "488bd166.mp3",
+   "role": "assistant",
+   "text": "I can't see this clearly enough to be confident, so I'm bringing in a member of the team who can take a look with you."
+  },
+  "79ce710b": {
+   "file": "79ce710b.mp3",
+   "role": "assistant",
+   "text": "I'm bringing in a member of the team to help. They'll see everything we've covered, so you won't need to start again."
+  },
+  "bf582aa2": {
+   "file": "bf582aa2.mp3",
+   "role": "agentMale",
+   "text": "Hi, it's Marcus. I've got everything you've shown so far, so let's carry on from here."
+  },
+  "0a5b3e16": {
+   "file": "0a5b3e16.mp3",
+   "role": "agentFemale",
+   "text": "Hi, it's Aisha. I've got everything you've shown so far, so let's carry on from here."
+  },
+  "b5db36f7": {
+   "file": "b5db36f7.mp3",
+   "role": "agentMale",
+   "text": "Hi, it's Tom. I've got everything you've shown so far, so let's carry on from here."
+  },
+  "f4e5e67d": {
+   "file": "f4e5e67d.mp3",
+   "role": "agentFemale",
+   "text": "I can see a fault on the line, so I'm booking an engineer for you."
+  },
+  "38bb4d8e": {
+   "file": "38bb4d8e.mp3",
+   "role": "agentMale",
+   "text": "I can see a fault on the line, so I'm booking an engineer for you."
+  },
+  "f7ca7d74": {
+   "file": "f7ca7d74.mp3",
+   "role": "assistant",
+   "text": "Of course. I'm connecting you to a member of the team now. They'll see everything we've covered, so you won't need to repeat yourself."
+  },
+  "6905f8df": {
+   "file": "6905f8df.mp3",
+   "role": "agentFemale",
+   "text": "Could you tilt the phone slightly so the light from the window isn't on the router?"
+  },
+  "e07f5e0a": {
+   "file": "e07f5e0a.mp3",
+   "role": "agentMale",
+   "text": "Could you tilt the phone slightly so the light from the window isn't on the router?"
+  }
+ }
+}

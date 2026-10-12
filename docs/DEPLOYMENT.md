@@ -20,6 +20,7 @@ long-lived Node 22 server (not serverless functions) with a persistent disk for
 | `ANTHROPIC_API_KEY` | For live AI | Enables the "Live AI" provider; otherwise sessions use the simulator. |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | For SMS | Customer link by text message. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | For email | Customer link by email. |
+| `ELEVENLABS_API_KEY` | For live voice | British ElevenLabs voice for lines without a recorded clip. |
 | `METRICS_TOKEN` | Recommended | Protects `/api/metrics`. |
 
 Full reference: [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).

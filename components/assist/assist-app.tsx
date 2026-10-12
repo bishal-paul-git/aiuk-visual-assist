@@ -74,7 +74,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     const idx = view.transcript.findIndex((t) => t.id === lastSpoken.current);
     const fresh = view.transcript.slice(idx + 1).filter((t) => t.speaker === "ai" || t.speaker === "human_agent");
     if (view.transcript.length) lastSpoken.current = view.transcript.at(-1)!.id;
-    for (const t of fresh) speaker.speak(t.text);
+    for (const t of fresh) speaker.speak({ text: t.text, speaker: t.speaker, speakerName: t.speakerName });
   }, [view.transcript, phase, speaker]);
 
   const onFinal = useCallback(
@@ -118,6 +118,13 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
       return () => clearTimeout(t);
     }
   }, [autoplay, phase, ended]);
+
+  // Tell the demo stage when the assistant is speaking, so the walkthrough
+  // waits for the end of a sentence before the next scripted move.
+  useEffect(() => {
+    if (!autoplay || window.parent === window) return;
+    window.parent.postMessage({ type: "va-speaking", speaking: speaker.speaking }, window.location.origin);
+  }, [autoplay, speaker.speaking]);
 
   // --- Media gateway: stability-gated evidence capture ---------------------
   const req = view.evidenceRequest;
