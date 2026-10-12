@@ -17,10 +17,7 @@ import { BASE_PATH, STATIC_DEMO } from "@/lib/paths";
  * browser runtime in the demo) is what enforces permissions.
  */
 
-export type IdentityState =
-  | { status: "loading" }
-  | { status: "signed_out" }
-  | { status: "signed_in"; user: PublicUser; demo: boolean };
+export type IdentityState = { status: "loading" } | { status: "signed_out" } | { status: "signed_in"; user: PublicUser; demo: boolean };
 
 const DEMO_KEY = "va.demo.identity";
 /** Earlier versions stored the console agent here. */
@@ -115,8 +112,39 @@ export async function signInDemo(userId: string, next?: string): Promise<{ ok: t
   }
 }
 
-export async function signOut(): Promise<void> {
-  if (STATIC_DEMO) return;
-  await fetch(`${BASE_PATH}/api/auth/sign-out`, { method: "POST" }).catch(() => undefined);
+/**
+ * Server edition: end the local session. For single sign-on sessions the
+ * result carries the identity provider's logout URL, to end the IdP session too.
+ */
+export async function signOut(): Promise<{ logoutUrl?: string }> {
+  if (STATIC_DEMO) return {};
+  const d = await fetch(`${BASE_PATH}/api/auth/sign-out`, { method: "POST" })
+    .then((r) => r.json() as Promise<{ logoutUrl?: string }>)
+    .catch(() => ({}) as { logoutUrl?: string });
   emit({ status: "signed_out" });
+  return { logoutUrl: typeof d.logoutUrl === "string" && /^https?:\/\//.test(d.logoutUrl) ? d.logoutUrl : undefined };
+}
+
+/** Sign-in methods enabled on this deployment (server edition). */
+export interface SignInMethods {
+  sso: { name: string; mfa: boolean } | null;
+  demo: boolean;
+}
+
+/** Server edition: which sign-in methods to offer. The static demo only has demo identities. */
+export async function loadSignInMethods(): Promise<SignInMethods> {
+  if (STATIC_DEMO) return { sso: null, demo: true };
+  try {
+    const r = await fetch(`${BASE_PATH}/api/auth/me`, { cache: "no-store" });
+    if (!r.ok) return { sso: null, demo: false };
+    const d = (await r.json()) as { signIn?: SignInMethods };
+    return d.signIn ?? { sso: null, demo: true };
+  } catch {
+    return { sso: null, demo: false };
+  }
+}
+
+/** Server edition: URL that starts single sign-on, returning to `next` afterwards. */
+export function ssoSignInUrl(next?: string): string {
+  return `${BASE_PATH}/api/auth/sign-in${next ? `?next=${encodeURIComponent(next)}` : ""}`;
 }

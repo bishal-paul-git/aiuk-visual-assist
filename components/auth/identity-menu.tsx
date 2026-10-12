@@ -119,8 +119,8 @@ function SignedInMenu({
 
   async function doSignOut() {
     setBusy(true);
-    await signOut();
-    window.location.assign(`${BASE_PATH}/sign-in`);
+    const { logoutUrl } = await signOut();
+    window.location.assign(logoutUrl ?? `${BASE_PATH}/sign-in?signed_out=1`);
   }
 
   return (

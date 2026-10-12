@@ -1,11 +1,12 @@
-import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { User } from "@/lib/domain/types";
 import { can, denialMessage, type Permission, type TenantResource } from "@/lib/auth/rbac";
-import { getIdentityProvider } from "@/lib/auth/identity";
-import { verifySession } from "@/lib/auth/session-token";
+import type { IdentityProvider } from "@/lib/auth/identity";
+import { newSessionClaims, signSession, verifySession, SESSION_TTL_SEC, type SessionClaims } from "@/lib/auth/session-token";
 import { actorTypeFor, recordSecurityEvent } from "@/lib/auth/security-log";
+import { authSecret } from "@/lib/server/auth-secret";
+import { getIdentityProvider } from "@/lib/server/identity-provider";
 import type { Actor } from "@/lib/session/orchestrator";
 
 /**
@@ -16,39 +17,62 @@ import type { Actor } from "@/lib/session/orchestrator";
 export const SESSION_COOKIE = "va_session";
 const STATIC_EXPORT = process.env.STATIC_EXPORT === "1";
 
-const g = globalThis as unknown as { __aiukAuthSecret?: string };
+export { authSecret };
 
-/**
- * HMAC secret for session cookies. Set AUTH_SECRET (32+ characters) in every
- * deployed environment. Without it a random per-process secret is used, so
- * sessions do not survive a restart, and a warning is logged.
- */
-export function authSecret(): string {
-  const env = process.env.AUTH_SECRET;
-  if (env && env.length >= 32) return env;
-  if (!g.__aiukAuthSecret) {
-    console.warn(
-      env
-        ? "[auth] AUTH_SECRET is shorter than 32 characters and was ignored; using a random per-process secret."
-        : "[auth] AUTH_SECRET is not set; using a random per-process secret (development only). Set AUTH_SECRET in deployed environments.",
-    );
-    g.__aiukAuthSecret = randomBytes(32).toString("base64url");
-  }
-  return g.__aiukAuthSecret;
+export interface CurrentSession {
+  user: User;
+  provider: IdentityProvider;
+  claims: SessionClaims;
 }
 
-/** Resolve a raw cookie value to an active user. Roles and tenant always come from the identity provider. */
-export function userFromToken(token: string | undefined): User | null {
+/**
+ * Resolve a raw cookie value to an active user. Roles and tenant always come
+ * from the identity provider, and only from a provider that is still enabled
+ * (a demo session stops working once OIDC is configured).
+ */
+export function sessionFromToken(token: string | undefined): CurrentSession | null {
   const v = verifySession(token, authSecret());
   if (!v.ok) return null;
-  const idp = getIdentityProvider();
-  if (v.claims.idp !== idp.id) return null;
-  return idp.resolveUser(v.claims.sub) ?? null;
+  const provider = getIdentityProvider(v.claims.idp);
+  const user = provider?.resolveUser(v.claims.sub);
+  return provider && user ? { user, provider, claims: v.claims } : null;
+}
+
+export function userFromToken(token: string | undefined): User | null {
+  return sessionFromToken(token)?.user ?? null;
+}
+
+export async function currentSession(): Promise<CurrentSession | null> {
+  const jar = await cookies();
+  return sessionFromToken(jar.get(SESSION_COOKIE)?.value);
 }
 
 export async function currentUser(): Promise<User | null> {
-  const jar = await cookies();
-  return userFromToken(jar.get(SESSION_COOKIE)?.value);
+  return (await currentSession())?.user ?? null;
+}
+
+/** True when the request reached us over HTTPS (directly or through a TLS-terminating proxy). */
+export function isSecureRequest(request: Request): boolean {
+  return new URL(request.url).protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
+}
+
+/** Public origin plus base path. PUBLIC_BASE_URL wins (correct behind proxies); otherwise the request's own origin. */
+export function publicBaseUrl(request: Request): string {
+  const configured = process.env.PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
+  return `${configured || new URL(request.url).origin}${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
+}
+
+/** Issue the signed, HttpOnly session cookie for `user`. */
+export async function startSession(user: User, provider: IdentityProvider, request: Request): Promise<SessionClaims> {
+  const claims = newSessionClaims(user.id, provider.id);
+  (await cookies()).set(SESSION_COOKIE, signSession(claims, authSecret()), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isSecureRequest(request),
+    path: "/",
+    maxAge: SESSION_TTL_SEC,
+  });
+  return claims;
 }
 
 export function actorFor(user: User): Actor {
