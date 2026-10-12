@@ -161,6 +161,8 @@ Phases follow `09-DELIVERY-ROADMAP.md`, adjusted so the first complete router lo
 
 ## 4. How to run
 
+Live static demo: https://bishal-paul-git.github.io/aiuk-visual-assist/ (rebuilt on every push to `main`).
+
 Deploying the server edition (Docker, Render, Railway/Fly, Hostinger): see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 
