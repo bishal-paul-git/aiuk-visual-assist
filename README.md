@@ -4,6 +4,8 @@ Enterprise Human + AI visual assistance platform by Absolute Intelligence UK. Cu
 
 **Live demo:** https://bishal-paul-git.github.io/aiuk-visual-assist/ (runs in the browser with simulated AI and sample data; works on phones; the assistant speaks with a British ElevenLabs voice). Start with **Watch a 2-minute session**, or open `/demo/` to pick a scenario.
 
+**Testing with the team:** follow [docs/TEAM-TESTING.md](docs/TEAM-TESTING.md) and report findings with the [test feedback form](https://github.com/bishal-paul-git/aiuk-visual-assist/issues/new?template=test-feedback.yml).
+
 - Product specification: [`docs/`](docs/00-README.md) (source of truth)
 - Deploying the full server edition: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 - Connecting business actions to a client's systems: [`docs/INTEGRATION-CONTRACT.md`](docs/INTEGRATION-CONTRACT.md) (reference client API: `scripts/reference-client-api.mjs`)
