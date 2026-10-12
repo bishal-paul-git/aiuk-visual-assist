@@ -23,7 +23,7 @@ export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView
   const ended = sessions.filter((s) => s.status === "completed" || s.status === "failed").slice(0, 8);
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6">
+    <div className="mx-auto max-w-[1400px] px-4 pt-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-6">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ink">Live queue</h1>
@@ -34,7 +34,7 @@ export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView
         </span>
       </div>
 
-      <div className="mb-5 grid grid-cols-3 gap-3">
+      <div className="mb-5 grid grid-cols-3 gap-2 sm:gap-3">
         <Counter icon={<Hourglass className="size-4" />} label="Waiting for a human" value={waiting.length} tone={waiting.some((w) => (now - Date.parse(w.escalation!.requestedAt)) / 1000 > SLA_SEC) ? "warn" : "neutral"} />
         <Counter icon={<Headset className="size-4" />} label="With a human" value={human.length} />
         <Counter icon={<Bot className="size-4" />} label="AI handling" value={ai.length} />
@@ -110,7 +110,7 @@ export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView
           {ended.length === 0 && <li className="px-3 py-3 text-xs text-muted">No sessions ended yet.</li>}
           {ended.map((s) => (
             <li key={s.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <Link href={consolePath(s.id)} className="font-medium text-brand hover:underline">
+              <Link href={consolePath(s.id)} className="flex min-h-10 items-center font-medium text-brand hover:underline sm:min-h-0">
                 {s.reference}
               </Link>
               <OutcomeBadge outcome={s.outcome} />
@@ -125,13 +125,13 @@ export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView
 
 function Counter({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone?: "warn" | "neutral" }) {
   return (
-    <div className={cx("flex items-center gap-3 rounded-lg border bg-surface px-4 py-3", tone === "warn" ? "border-warn/50" : "border-line")}>
-      <span className={cx("flex size-8 items-center justify-center rounded-md", tone === "warn" ? "bg-warn-soft text-warn" : "bg-surface-2 text-ink-2")} aria-hidden>
+    <div className={cx("flex flex-col items-start gap-2 rounded-lg border bg-surface px-3 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-4", tone === "warn" ? "border-warn/50" : "border-line")}>
+      <span className={cx("flex size-7 items-center justify-center rounded-md sm:size-8", tone === "warn" ? "bg-warn-soft text-warn" : "bg-surface-2 text-ink-2")} aria-hidden>
         {icon}
       </span>
-      <div>
+      <div className="min-w-0">
         <div className="tabular text-xl font-semibold text-ink">{value}</div>
-        <div className="text-xs text-muted">{label}</div>
+        <div className="text-[11px] leading-tight text-muted sm:text-xs">{label}</div>
       </div>
     </div>
   );

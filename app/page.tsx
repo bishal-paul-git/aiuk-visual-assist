@@ -34,8 +34,8 @@ const PRINCIPLES = [
 export default function Home() {
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="sticky top-0 z-20 border-b border-line bg-surface/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5">
+      <header className="sticky top-0 z-20 border-b border-line bg-surface/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:gap-4 sm:px-5">
           <Logo />
           <nav className="flex items-center gap-1 text-sm">
             <a href="#how" className="hidden rounded-md px-3 py-1.5 text-ink-2 hover:bg-surface-2 sm:inline">
@@ -44,8 +44,8 @@ export default function Home() {
             <a href="#product" className="hidden rounded-md px-3 py-1.5 text-ink-2 hover:bg-surface-2 sm:inline">
               Product
             </a>
-            <Link href="/demo/" className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-md bg-brand px-3 text-[13px] font-semibold text-white hover:bg-brand-ink">
-              <PlayCircle className="size-4" aria-hidden /> Watch the demo
+            <Link href="/demo/" className="ml-1 inline-flex h-10 items-center gap-1.5 rounded-md bg-brand px-3 text-[13px] whitespace-nowrap sm:h-8 font-semibold text-white hover:bg-brand-ink">
+              <PlayCircle className="size-4 shrink-0" aria-hidden /> <span className="min-[400px]:hidden">Watch demo</span><span className="hidden min-[400px]:inline">Watch the demo</span>
             </Link>
           </nav>
         </div>
@@ -54,25 +54,25 @@ export default function Home() {
       <main>
         {/* Hero */}
         <section className="border-b border-line bg-surface">
-          <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 py-14 lg:grid-cols-[1fr_1.15fr] lg:py-20">
+          <div className="mx-auto grid max-w-6xl items-center gap-8 px-5 py-9 sm:gap-10 sm:py-14 lg:grid-cols-[1fr_1.15fr] lg:py-20">
             <div>
               <p className="text-xs font-semibold tracking-[0.12em] text-brand uppercase">Human + AI visual assistance</p>
-              <h1 className="mt-3 text-[34px] leading-[1.1] font-semibold tracking-tight text-ink sm:text-[42px]">
+              <h1 className="mt-3 text-[30px] leading-[1.12] sm:text-[34px] font-semibold tracking-tight text-ink sm:text-[42px]">
                 Let customers show the problem. Resolve it with AI, with a human one tap away.
               </h1>
               <p className="mt-4 max-w-xl text-[16px] leading-relaxed text-ink-2">
                 Visual Assist combines a live phone camera, a voice assistant, each client&apos;s approved workflows and seamless human takeover. The first
                 use case is broadband router support.
               </p>
-              <div className="mt-7 flex flex-wrap items-center gap-3">
-                <Link href="/demo/?play=power_cycle_fix" className="inline-flex h-11 items-center gap-2 rounded-md bg-navy px-5 text-sm font-semibold text-white hover:bg-navy-2">
+              <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
+                <Link href="/demo/?play=power_cycle_fix" className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-navy px-5 sm:h-11 text-sm font-semibold text-white hover:bg-navy-2">
                   <PlayCircle className="size-4.5" aria-hidden /> Watch a 1-minute session
                 </Link>
-                <Link href="/platform/" className="inline-flex h-11 items-center gap-2 rounded-md border border-line-strong bg-surface px-5 text-sm font-semibold text-ink hover:bg-surface-2">
+                <Link href="/platform/" className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-5 sm:h-11 text-sm font-semibold text-ink hover:bg-surface-2">
                   Explore the platform <ArrowRight className="size-4" aria-hidden />
                 </Link>
               </div>
-              <p className="mt-4 text-xs text-muted">Interactive demo with sample data and simulated AI. Works in any modern browser; best on a laptop or desktop.</p>
+              <p className="mt-4 text-xs text-muted">Interactive demo with sample data and simulated AI. Works in any modern browser, on a phone or a desktop.</p>
             </div>
             <figure className="overflow-hidden rounded-lg border border-line bg-navy shadow-[0_20px_50px_-24px_rgba(11,27,51,0.45)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -88,7 +88,7 @@ export default function Home() {
         </section>
 
         {/* How it works */}
-        <section id="how" className="mx-auto max-w-6xl scroll-mt-16 px-5 py-16">
+        <section id="how" className="mx-auto max-w-6xl scroll-mt-16 px-5 py-12 sm:py-16">
           <h2 className="text-2xl font-semibold tracking-tight text-ink">How a session works</h2>
           <p className="mt-2 max-w-2xl text-[15px] text-ink-2">The router loop from first contact to resolution, with the AI on approved rails the whole way.</p>
           <ol className="mt-8 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2 lg:grid-cols-5">
@@ -104,7 +104,7 @@ export default function Home() {
 
         {/* Product */}
         <section id="product" className="scroll-mt-16 border-y border-line bg-surface">
-          <div className="mx-auto max-w-6xl px-5 py-16">
+          <div className="mx-auto max-w-6xl px-5 py-12 sm:py-16">
             <h2 className="text-2xl font-semibold tracking-tight text-ink">Three connected experiences</h2>
             <p className="mt-2 max-w-2xl text-[15px] text-ink-2">One session engine sits behind the customer&apos;s phone, the agent&apos;s console and the operations platform.</p>
             <div className="mt-8 grid gap-6 lg:grid-cols-3">
@@ -140,7 +140,7 @@ export default function Home() {
         </section>
 
         {/* Principles */}
-        <section className="mx-auto max-w-6xl px-5 py-16">
+        <section className="mx-auto max-w-6xl px-5 py-12 sm:py-16">
           <h2 className="text-2xl font-semibold tracking-tight text-ink">Built for regulated customer operations</h2>
           <div className="mt-8 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
             {PRINCIPLES.map(({ icon: Icon, title, body }) => (
@@ -164,7 +164,7 @@ export default function Home() {
               <h2 className="text-xl font-semibold text-white">See the whole loop in about a minute</h2>
               <p className="mt-1 text-sm text-white/70">Pick a scenario. The demo plays the customer and the agent side by side, explaining each step.</p>
             </div>
-            <Link href="/demo/" className="inline-flex h-11 shrink-0 items-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-navy hover:bg-white/90">
+            <Link href="/demo/" className="inline-flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-white px-5 sm:h-11 sm:w-auto text-sm font-semibold text-navy hover:bg-white/90">
               <PlayCircle className="size-4.5" aria-hidden /> Open the demo
             </Link>
           </div>
@@ -172,7 +172,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-line bg-surface">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between pb-[max(24px,env(safe-area-inset-bottom))] sm:pb-6">
           <span>© {new Date().getFullYear()} Absolute Intelligence UK. Visual Assist.</span>
           <span>Demo environment: sample data and simulated AI. No real customer data.</span>
         </div>

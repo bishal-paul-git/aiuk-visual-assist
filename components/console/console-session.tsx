@@ -8,6 +8,7 @@ import {
   Bot,
   Camera,
   CheckCircle2,
+  ChevronDown,
   Circle,
   CircleDot,
   FileText,
@@ -68,22 +69,22 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
   const previewActive = !ended && (Boolean(me) || Boolean(s.escalation));
 
   return (
-    <div className="mx-auto max-w-[1600px] px-3 py-3 sm:px-5">
+    <div className={cx("mx-auto max-w-[1600px] px-3 py-3 sm:px-5", !ended && "pb-[calc(84px+env(safe-area-inset-bottom))] lg:pb-3")}>
       {/* Session header */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-          <Link href="/console" className={buttonClass("ghost", "sm")} aria-label="Back to queue">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface px-3 py-3 sm:px-4">
+        <div className="flex min-w-0 items-start gap-x-2 sm:items-center sm:gap-x-4">
+          <Link href="/console" className={cx(buttonClass("ghost", "sm"), "size-11 shrink-0 px-0 lg:size-auto lg:h-7 lg:px-2.5")} aria-label="Back to queue">
             <ArrowLeft className="size-4" />
           </Link>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold tracking-tight text-ink">Session {s.session.reference}</h1>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-1.5 sm:pt-0">
+              <h1 className="text-base font-semibold tracking-tight text-ink sm:text-lg">Session {s.session.reference}</h1>
               <SessionStatusBadge status={s.session.status} />
               <OwnerBadge owner={s.session.ownerType} />
               {ended && <OutcomeBadge outcome={s.session.outcome} />}
               {view.simulatedProvider && <SimulatedTag />}
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted sm:mt-0.5">
               <span>{view.tenantName}</span>
               <span>{s.session.customerLabel}</span>
               <span>
@@ -101,7 +102,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
           </div>
         </div>
         {!ended && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="hidden flex-wrap items-center gap-2 lg:flex">
             {!me && (
               <button type="button" className={buttonClass(s.escalation && !humanOwner ? "primary" : "secondary")} disabled={!!cmd.pending} onClick={() => cmd.run({ type: "human.join" })}>
                 <LogIn className="size-4" aria-hidden /> Join session
@@ -128,6 +129,27 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
         )}
       </div>
 
+      {!ended && (
+        <MobileActionBar
+          joined={Boolean(me)}
+          humanOwner={humanOwner}
+          escalated={Boolean(s.escalation)}
+          pending={!!cmd.pending}
+          returnAllowed={view.returnToAiAllowed.allowed}
+          onRun={(command) => cmd.run(command)}
+        />
+      )}
+      {s.escalation && !ended && (
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-danger/30 bg-danger-soft px-3 py-2.5 text-[13px] xl:hidden">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden />
+          <div className="min-w-0">
+            <p className="font-semibold text-ink">{ESCALATION_REASON_LABELS[s.escalation.reason]}</p>
+            <p className="text-[12px] text-ink-2">
+              {s.escalation.acceptedAt ? `Accepted by ${s.escalation.assignedUserName}` : `Waiting ${formatDuration(secondsBetween(s.escalation.requestedAt, now))} for an agent`}
+            </p>
+          </div>
+        </div>
+      )}
       {cmd.error && (
         <div role="alert" className="mb-3 flex items-center justify-between rounded-md border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
           {cmd.error}
@@ -146,7 +168,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
       <div className="grid gap-3 xl:grid-cols-12">
         {/* Left: video + evidence */}
         <div className="min-w-0 space-y-3 xl:col-span-7">
-          <Panel
+          <Fold
             title="Customer camera"
             bodyClassName="p-3"
             actions={
@@ -174,9 +196,15 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
                 <CaptureRequest disabled={ended || !humanOwner} onRequest={(prompt) => cmd.run({ type: "human.request_capture", prompt })} />
               </div>
             </div>
-          </Panel>
+          </Fold>
 
-          <Panel title="Selected evidence" description={`${frames.length} frame(s) — only frames requested by the workflow or an agent are captured`} bodyClassName="p-3">
+          <Fold
+            title="Selected evidence"
+            description={`${frames.length} frame(s) — only frames requested by the workflow or an agent are captured`}
+            bodyClassName="p-3"
+            defaultOpen={false}
+            badge={frames.length || undefined}
+          >
             <Filmstrip frames={frames} selected={inspected?.id} onSelect={setSelectedFrame} frameSrc={frameSrc} />
             {inspected && (
               <div className="mt-3 grid gap-3 border-t border-line pt-3 md:grid-cols-[200px_1fr]">
@@ -204,12 +232,18 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
                 </div>
               </div>
             )}
-          </Panel>
+          </Fold>
         </div>
 
         {/* Right: transcript / handover / audit */}
         <div className="min-w-0 xl:col-span-5">
-          <section className="flex h-full max-h-[calc(100vh-150px)] min-h-[520px] flex-col rounded-lg border border-line bg-surface">
+          <FoldShell
+            title="Conversation"
+            hideTitleOnDesktop
+            badge={s.transcript.length || undefined}
+            className="flex flex-col lg:h-full lg:max-h-[calc(100vh-150px)] lg:min-h-[520px]"
+          >
+            <div className="flex h-[min(70dvh,560px)] flex-col lg:h-auto lg:min-h-0 lg:flex-1">
             <div role="tablist" aria-label="Session context" className="flex gap-1 border-b border-line px-2 pt-2">
               {(
                 [
@@ -234,13 +268,14 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
             {tab === "handover" && <Handover view={view} />}
             {tab === "audit" && <AuditTrail view={view} />}
             {tab === "transcript" && <Composer disabled={ended || !humanOwner} owned={iOwn} onSend={(text) => cmd.run({ type: "human.message", text })} />}
-          </section>
+            </div>
+          </FoldShell>
         </div>
       </div>
 
       {/* Lower panels: summary, observations, steps, escalation, next action */}
       <div className="mt-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
-        <Panel title={<span className="flex items-center gap-1.5"><Bot className="size-4 text-brand" aria-hidden /> AI summary</span>}>
+        <Fold title={<span className="flex items-center gap-1.5"><Bot className="size-4 text-brand" aria-hidden /> AI summary</span>}>
           <p className="text-[13px] leading-relaxed text-ink-2">{view.summary}</p>
           <div className="mt-3">
             <KeyValue
@@ -253,9 +288,9 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
               ]}
             />
           </div>
-        </Panel>
+        </Fold>
 
-        <Panel title="Visual observations" description="Latest per item, from selected frames">
+        <Fold title="Visual observations" description="Latest per item, from selected frames" defaultOpen={false} badge={latest.length || undefined}>
           <ObservationList
             observations={latest}
             frames={frames}
@@ -264,11 +299,11 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
             onReview={(observationId, verdict) => cmd.run({ type: "human.review_observation", observationId, verdict })}
             onInspect={setSelectedFrame}
           />
-        </Panel>
+        </Fold>
 
-        <Panel title="Workflow progress" description={`${view.workflow.name} v${view.workflow.version}`}>
+        <Fold title="Workflow progress" description={`${view.workflow.name} v${view.workflow.version}`} defaultOpen={false} badge={step?.title}>
           <WorkflowProgress view={view} />
-        </Panel>
+        </Fold>
 
         <div className="min-w-0 space-y-3">
           {s.escalation ? (
@@ -311,18 +346,28 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
       </div>
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <Panel title="Business actions" description="Policy-checked and idempotent; executed outside the live media loop">
+        <Fold
+          title="Business actions"
+          description="Policy-checked and idempotent; executed outside the live media loop"
+          defaultOpen={false}
+          badge={s.toolActions.length || undefined}
+        >
           <BusinessActions view={view} disabled={ended || !humanOwner} onRun={(tool) => cmd.run({ type: "human.run_action", tool, params: {} })} />
-        </Panel>
-        <Panel title={<span className="flex items-center gap-1.5"><StickyNote className="size-4" aria-hidden /> Agent notes</span>} description="Internal — never shown to the customer">
+        </Fold>
+        <Fold
+          title={<span className="flex items-center gap-1.5"><StickyNote className="size-4" aria-hidden /> Agent notes</span>}
+          description="Internal — never shown to the customer"
+          defaultOpen={false}
+          badge={s.notes.length || undefined}
+        >
           <Notes view={view} onAdd={(text) => cmd.run({ type: "human.note", text })} />
-        </Panel>
+        </Fold>
       </div>
     </div>
   );
 }
 
-function EndMenu({ onEnd, disabled }: { onEnd: (o: SessionOutcome) => void; disabled: boolean }) {
+function EndMenu({ onEnd, disabled, up, className }: { onEnd: (o: SessionOutcome) => void; disabled: boolean; up?: boolean; className?: string }) {
   const [open, setOpen] = useState(false);
   const options: [SessionOutcome, string][] = [
     ["resolved_by_human", "Resolved"],
@@ -330,19 +375,19 @@ function EndMenu({ onEnd, disabled }: { onEnd: (o: SessionOutcome) => void; disa
     ["out_of_scope", "Out of scope"],
   ];
   return (
-    <div className="relative">
-      <button type="button" className={buttonClass("danger")} disabled={disabled} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+    <div className={cx("relative", className)}>
+      <button type="button" className={cx(buttonClass("danger"), up && "h-11 w-full")} disabled={disabled} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <PhoneOff className="size-4" aria-hidden /> End
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-60 rounded-md border border-line bg-surface p-1 shadow-xl" role="menu">
+        <div className={cx("absolute right-0 z-30 w-60 rounded-md border border-line bg-surface p-1 shadow-xl", up ? "bottom-full mb-2" : "mt-1")} role="menu">
           <div className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Record outcome and end</div>
           {options.map(([o, label]) => (
             <button
               key={o}
               type="button"
               role="menuitem"
-              className="block w-full rounded px-2 py-1.5 text-left text-[13px] text-ink hover:bg-surface-2"
+              className={cx("block w-full rounded px-2 text-left text-[13px] text-ink hover:bg-surface-2", up ? "py-3" : "py-1.5")}
               onClick={() => {
                 setOpen(false);
                 onEnd(o);
@@ -372,7 +417,7 @@ function CaptureRequest({ disabled, onRequest }: { disabled: boolean; onRequest:
         Request a view
       </label>
       <select
-        className="mt-1 w-full rounded-md border border-line-strong bg-surface px-1.5 py-1 text-[12px]"
+        className="mt-1 h-10 w-full rounded-md border border-line-strong bg-surface px-1.5 text-[13px] lg:h-auto lg:py-1 lg:text-[12px]"
         disabled={disabled}
         value=""
         onChange={(e) => e.target.value && onRequest(e.target.value)}
@@ -392,9 +437,9 @@ function CaptureRequest({ disabled, onRequest }: { disabled: boolean; onRequest:
           onChange={(e) => setText(e.target.value)}
           disabled={disabled}
           placeholder={disabled ? "Take over to request" : "Custom request…"}
-          className="h-7 min-w-0 flex-1 rounded-md border border-line-strong px-2 text-[12px]"
+          className="h-10 min-w-0 flex-1 rounded-md border border-line-strong px-2 text-[13px] lg:h-7 lg:text-[12px]"
         />
-        <button type="submit" disabled={disabled || !text.trim()} className={buttonClass("secondary", "sm")} aria-label="Send capture request">
+        <button type="submit" disabled={disabled || !text.trim()} className={cx(buttonClass("secondary", "sm"), "size-10 lg:h-7 lg:w-auto")} aria-label="Send capture request">
           <Camera className="size-3.5" />
         </button>
       </div>
@@ -469,9 +514,9 @@ function Composer({ disabled, owned, onSend }: { disabled: boolean; owned: boole
           onChange={(e) => setText(e.target.value)}
           disabled={disabled}
           placeholder={disabled ? "Take over the session to speak to the customer" : "Say something to the customer (shown and spoken on their screen)"}
-          className="h-9 min-w-0 flex-1 rounded-md border border-line-strong px-3 text-[13px] disabled:bg-surface-2"
+          className="h-11 min-w-0 flex-1 rounded-md border border-line-strong px-3 text-[14px] disabled:bg-surface-2 lg:h-9 lg:text-[13px]"
         />
-        <button type="submit" disabled={disabled || !text.trim()} className={buttonClass("primary")}>
+        <button type="submit" disabled={disabled || !text.trim()} className={cx(buttonClass("primary"), "h-11 lg:h-9")}>
           <Send className="size-4" aria-hidden /> Send
         </button>
       </div>
@@ -699,5 +744,104 @@ function Notes({ view, onAdd }: { view: AgentView; onAdd: (t: string) => void })
         </button>
       </form>
     </div>
+  );
+}
+
+/**
+ * A console panel that folds away on phones and tablets (< lg) and is always
+ * open on desktop, where it looks like a regular Panel. On small screens the
+ * heading doubles as the toggle.
+ */
+function FoldShell({
+  title,
+  description,
+  actions,
+  badge,
+  defaultOpen = true,
+  hideTitleOnDesktop,
+  className,
+  children,
+}: {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  badge?: React.ReactNode;
+  defaultOpen?: boolean;
+  hideTitleOnDesktop?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className={cx("min-w-0 rounded-lg border border-line bg-surface", className)}>
+      <header className={cx("flex items-stretch justify-between gap-3 border-line", open ? "border-b" : "lg:border-b", hideTitleOnDesktop && "lg:hidden")}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-lg px-4 py-2.5 text-left lg:pointer-events-none lg:min-h-0 lg:items-start"
+        >
+          <span className="min-w-0 flex-1">
+            <h2 className="text-[13px] font-semibold text-ink">{title}</h2>
+            {description && <span className="mt-0.5 hidden text-xs text-muted lg:block">{description}</span>}
+          </span>
+          {badge !== undefined && (
+            <span className="max-w-[50%] shrink-0 truncate rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink-2 ring-1 ring-line lg:hidden">{badge}</span>
+          )}
+          <ChevronDown className={cx("size-4 shrink-0 text-muted transition-transform lg:hidden", open && "rotate-180")} aria-hidden />
+        </button>
+        {actions && <div className="hidden shrink-0 items-center gap-2 pr-4 lg:flex">{actions}</div>}
+      </header>
+      <div className={open ? "contents" : "hidden lg:contents"}>{children}</div>
+    </section>
+  );
+}
+
+function Fold({ bodyClassName, children, ...props }: Omit<React.ComponentProps<typeof FoldShell>, "className" | "hideTitleOnDesktop"> & { bodyClassName?: string }) {
+  return (
+    <FoldShell {...props}>
+      <div className={cx("p-4", bodyClassName)}>{children}</div>
+    </FoldShell>
+  );
+}
+
+/** Phones and tablets: the session's main controls stay at the bottom of the screen. */
+function MobileActionBar({
+  joined,
+  humanOwner,
+  escalated,
+  pending,
+  returnAllowed,
+  onRun,
+}: {
+  joined: boolean;
+  humanOwner: boolean;
+  escalated: boolean;
+  pending: boolean;
+  returnAllowed: boolean;
+  onRun: (command: Record<string, unknown>) => void;
+}) {
+  return (
+    <nav
+      aria-label="Session actions"
+      className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-line bg-surface/95 px-3 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] shadow-[0_-6px_20px_-12px_rgba(11,27,51,0.35)] backdrop-blur lg:hidden"
+    >
+      {!joined && (
+        <button type="button" className={cx(buttonClass(escalated && !humanOwner ? "primary" : "secondary"), "h-11 flex-1 px-2")} disabled={pending} onClick={() => onRun({ type: "human.join" })}>
+          <LogIn className="size-4" aria-hidden /> Join
+        </button>
+      )}
+      {!humanOwner && (
+        <button type="button" className={cx(buttonClass(joined ? "primary" : "secondary"), "h-11 flex-1 px-2")} disabled={pending} onClick={() => onRun({ type: "human.take_over" })}>
+          <UserCheck className="size-4" aria-hidden /> Take over
+        </button>
+      )}
+      {humanOwner && (
+        <button type="button" className={cx(buttonClass("secondary"), "h-11 flex-1 px-2")} disabled={pending || !returnAllowed} onClick={() => onRun({ type: "human.return_to_ai" })}>
+          <RotateCcw className="size-4" aria-hidden /> Return to AI
+        </button>
+      )}
+      <EndMenu up className="flex-1" disabled={pending} onEnd={(outcome) => onRun({ type: "session.end", outcome })} />
+    </nav>
   );
 }

@@ -65,7 +65,7 @@ export function IdentityMenu({ variant = "light" }: { variant?: "light" | "navy"
           onChange={(e) => setDemoIdentity(e.target.value)}
           title="Demo identity: switch role to see what each role can do"
           className={cx(
-            "h-8 max-w-40 rounded-md border px-2 text-xs sm:max-w-none",
+            "h-8 max-w-40 rounded-md border px-2 text-xs sm:max-w-56 xl:max-w-none",
             navy ? "border-white/20 bg-navy-2 text-white" : "border-line bg-surface text-ink",
           )}
         >
