@@ -2,7 +2,10 @@
 
 Enterprise Human + AI visual assistance platform by Absolute Intelligence UK. Customers open a secure browser session, talk to an AI and show the problem through their phone camera; the AI follows approved workflows, records confidence-rated observations, triggers controlled business actions and escalates to a human who joins the **same** interaction with full context.
 
+**Live demo:** https://bishal-paul-git.github.io/aiuk-visual-assist/ (runs in the browser with simulated AI and sample data; works on phones; the assistant speaks with a British ElevenLabs voice). Start with **Watch a 2-minute session**, or open `/demo/` to pick a scenario.
+
 - Product specification: [`docs/`](docs/00-README.md) (source of truth)
+- Deploying the full server edition: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 - Gap analysis, status and phased plan: [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)
 
 ## Experiences
