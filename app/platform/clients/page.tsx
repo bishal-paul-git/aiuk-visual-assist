@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Lock } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { agents, integrations, tenants, users, workflows } from "@/lib/config/catalog";
 import { computeMetrics } from "@/lib/analytics/metrics";
 import { formatDateTime, formatGBP, pct } from "@/lib/format";
@@ -11,8 +11,11 @@ import { Note, TenantStatusBadge } from "@/components/platform/config-ui";
 export const metadata = { title: "Clients" };
 
 export default async function ClientsPage() {
-  const rt = await platformRuntime();
-  const rows = tenants.map((t) => {
+  const scope = await platformScope("platform.access", "/platform/clients");
+  const rt = scope.rt;
+  const visible = tenants.filter((t) => scope.includes(t.id));
+  const scopedWorkflows = scope.filter(workflows);
+  const rows = visible.map((t) => {
     const states = withinDays(rt.states({ tenantId: t.id }), 14);
     const live = rt.summaries({ tenantId: t.id }).filter((s) => s.live && s.status !== "completed" && s.status !== "failed").length;
     return {
@@ -31,18 +34,22 @@ export default async function ClientsPage() {
     <>
       <PageHeader
         title="Clients"
-        description="Tenants configured on the platform. Each client's data, workflows, policies, users, credentials, branding, retention, integrations, regional settings and analytics are isolated to its tenant."
-        meta={<Badge tone="neutral">{tenants.length} tenants · session figures last 14 days</Badge>}
+        description={
+          scope.allClients
+            ? "Tenants configured on the platform. Each client's data, workflows, policies, users, credentials, branding, retention, integrations, regional settings and analytics are isolated to its tenant."
+            : "Your organisation's configuration on the platform. Other clients' data is never shown to you."
+        }
+        meta={<Badge tone="neutral">{visible.length === 1 ? "1 tenant" : `${visible.length} tenants`} · session figures last 14 days</Badge>}
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Active clients" value={tenants.filter((t) => t.status === "active").length} hint={`${tenants.filter((t) => t.status === "onboarding").length} onboarding`} />
-        <Stat label="Sessions (14 days)" value={totalSessions} hint="Across all tenants" />
-        <Stat label="Published workflows" value={workflows.filter((w) => w.status === "published").length} hint={`${workflows.length} versions in total`} />
+        <Stat label="Active clients" value={visible.filter((t) => t.status === "active").length} hint={`${visible.filter((t) => t.status === "onboarding").length} onboarding`} />
+        <Stat label="Sessions (14 days)" value={totalSessions} hint={scope.allClients ? "Across all tenants" : scope.label} />
+        <Stat label="Published workflows" value={scopedWorkflows.filter((w) => w.status === "published").length} hint={`${scopedWorkflows.length} versions in total`} />
         <Stat
           label="Retained-evidence tenants"
-          value={tenants.filter((t) => t.retention.evidenceMode === "retained_evidence").length}
-          hint={`${tenants.filter((t) => t.retention.evidenceMode === "live_only").length} live-only`}
+          value={visible.filter((t) => t.retention.evidenceMode === "retained_evidence").length}
+          hint={`${visible.filter((t) => t.retention.evidenceMode === "live_only").length} live-only`}
         />
       </div>
 
@@ -105,10 +112,12 @@ export default async function ClientsPage() {
         </Table>
       </Panel>
 
+      {scope.allClients && (
       <Note className="mt-4" icon={<Lock className="size-3.5" />}>
         Platform staff (the internal <span className="font-mono">aiuk</span> tenant) are not listed as a client. In this POC, tenant isolation is enforced by
         tenant-scoped queries in the session runtime; database-level row security and per-tenant encryption keys are planned for production (docs/06 §2).
       </Note>
+      )}
     </>
   );
 }

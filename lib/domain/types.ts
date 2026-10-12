@@ -547,4 +547,5 @@ export type DomainEventType =
   | "security.sign_in_failed"
   | "security.permission_denied"
   | "privacy.redacted"
-  | "privacy.retention_purged";
+  | "privacy.retention_purged"
+  | "audit.exported";

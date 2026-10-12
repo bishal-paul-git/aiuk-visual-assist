@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FlaskConical } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
-import { agents, getPolicy, getWorkflow, tenantName } from "@/lib/config/catalog";
+import { platformScope } from "@/lib/server/platform-data";
+import { agents as allAgents, getPolicy, getWorkflow, tenantName } from "@/lib/config/catalog";
 import { computeMetrics } from "@/lib/analytics/metrics";
 import { pct } from "@/lib/format";
 import { Badge, KeyValue, PageHeader, Panel, Stat } from "@/components/ui/primitives";
@@ -18,8 +18,9 @@ function providerLabel(provider: string): { label: string; simulated: boolean; b
 }
 
 export default async function AgentsPage() {
-  const rt = await platformRuntime();
-  const all = withinDays(rt.states(), 14);
+  const scope = await platformScope("platform.access", "/platform/agents");
+  const agents = scope.filter(allAgents);
+  const all = withinDays(scope.states(), 14);
   const simulatedCount = agents.filter((a) => a.model.provider === "mock").length;
 
   return (
@@ -44,7 +45,7 @@ export default async function AgentsPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Active agents" value={agents.filter((a) => a.status === "active").length} hint={`${agents.filter((a) => a.status === "draft").length} draft`} />
         <Stat label="Clients covered" value={new Set(agents.map((a) => a.tenantId)).size} />
-        <Stat label="Sessions handled (14 d)" value={computeMetrics(all).sessions} hint="All agents" />
+        <Stat label="Sessions handled (14 d)" value={computeMetrics(all).sessions} hint={scope.allClients ? "All agents" : scope.label} />
         <Stat label="Real model providers" value={agents.filter((a) => a.model.provider !== "mock").length} hint="Simulated until Phase 2" />
       </div>
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { tenants } from "@/lib/config/catalog";
 import type { SessionSummaryView } from "@/lib/session/projections";
 import { Badge, PageHeader } from "@/components/ui/primitives";
@@ -21,16 +21,16 @@ function boardSnapshot(summaries: SessionSummaryView[], serverNow = Date.now()) 
 }
 
 export default async function LiveSessionsPage() {
-  const rt = await platformRuntime();
-  const { live, recentEnded, serverNow } = boardSnapshot(rt.summaries());
-  const tenantNames = Object.fromEntries([...tenants.map((t) => [t.id, t.name]), ["aiuk", "Absolute Intelligence UK"]]);
+  const scope = await platformScope();
+  const { live, recentEnded, serverNow } = boardSnapshot(scope.summaries());
+  const tenantNames = Object.fromEntries([...scope.filter(tenants.map((t) => ({ tenantId: t.id, name: t.name }))).map((t) => [t.tenantId, t.name]), ...(scope.allClients ? [["aiuk", "Absolute Intelligence UK"]] : [])]);
 
   return (
     <>
       <PageHeader
         title="Live sessions"
         description="Operations wallboard. Updates in real time as sessions move between the AI, the queue and human agents."
-        meta={<Badge tone="neutral">All clients</Badge>}
+        meta={<Badge tone="neutral">{scope.label}</Badge>}
         actions={
           <Link href="/console" className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
             Open agent console <ArrowRight className="size-3" aria-hidden />

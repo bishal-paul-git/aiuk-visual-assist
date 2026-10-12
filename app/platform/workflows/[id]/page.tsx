@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Ban, CheckCircle2, Lock, ShieldCheck, XCircle } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { getPolicy, getWorkflow, tenantName, workflows } from "@/lib/config/catalog";
 import { validateWorkflow } from "@/lib/workflow/engine";
 import { computeMetrics, stepFunnel } from "@/lib/analytics/metrics";
@@ -21,15 +21,19 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  const wf = getWorkflow(id);
+  const scope = await platformScope("platform.access", `/platform/workflows/${id}`);
+  const found = getWorkflow(id);
+  const wf = found && scope.includes(found.tenantId) ? found : undefined;
   return { title: wf ? `${wf.name} v${wf.version}` : "Workflow" };
 }
 
 export default async function WorkflowDetailPage({ params }: Props) {
   const { id } = await params;
-  const rt = await platformRuntime();
+  const scope = await platformScope("platform.access", `/platform/workflows/${id}`);
+  const rt = scope.rt;
   const def = getWorkflow(id);
-  if (!def) notFound();
+  // Another client's workflow is "not found", never "forbidden".
+  if (!def || !scope.includes(def.tenantId)) notFound();
 
   const policy = getPolicy(def.policyId);
   const issues = validateWorkflow(def);

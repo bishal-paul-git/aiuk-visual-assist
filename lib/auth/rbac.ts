@@ -10,7 +10,8 @@ import type { User, UserRole } from "@/lib/domain/types";
  * Roles (the `UserRole` values on catalog users):
  * - aiuk_admin    Platform administrator (Absolute Intelligence). All tenants.
  * - qa_reviewer   Platform analyst / QA reviewer. Read-only, all tenants.
- * - client_admin  Client administrator. Configuration for their own tenant.
+ * - client_admin  Client administrator. Configuration, and a management platform
+ *                 view confined to their own tenant (lib/auth/scope.ts).
  * - supervisor    Contact-centre supervisor. Operates sessions and reads audit for their tenant.
  * - agent         Human agent. Operates sessions for their tenant.
  */
@@ -51,7 +52,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "audit.view": "Read audit logs",
   "settings.view": "View settings",
   "settings.edit": "Change settings",
-  "platform.access": "Use the cross-client management platform",
+  "platform.access": "Use the management platform (client roles see only their own client)",
 };
 
 export const ROLES: UserRole[] = ["aiuk_admin", "qa_reviewer", "client_admin", "supervisor", "agent"];
@@ -72,7 +73,19 @@ const OPERATE: Permission[] = ["session.view", "session.create", "session.join",
 export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   aiuk_admin: PERMISSIONS.filter((p) => !OPERATE.includes(p) || p === "session.view" || p === "session.create"),
   qa_reviewer: ["session.view", "workflow.view", "policy.view", "audit.view", "settings.view", "platform.access"],
-  client_admin: ["session.view", "workflow.view", "workflow.edit", "workflow.publish", "policy.view", "policy.edit", "policy.publish", "audit.view", "settings.view", "settings.edit"],
+  client_admin: [
+    "session.view",
+    "workflow.view",
+    "workflow.edit",
+    "workflow.publish",
+    "policy.view",
+    "policy.edit",
+    "policy.publish",
+    "audit.view",
+    "settings.view",
+    "settings.edit",
+    "platform.access",
+  ],
   supervisor: [...OPERATE, "workflow.view", "policy.view", "audit.view"],
   agent: OPERATE,
 };

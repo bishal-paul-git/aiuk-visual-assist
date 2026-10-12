@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { platformRuntime, staticSafeSearchParams } from "@/lib/server/platform-data";
+import { platformScope, staticSafeSearchParams } from "@/lib/server/platform-data";
 import { tenants, tenantName } from "@/lib/config/catalog";
 import type { SessionOutcome, SessionStatus } from "@/lib/domain/types";
 import type { SessionSummaryView } from "@/lib/session/projections";
@@ -44,16 +44,17 @@ function durationSec(s: SessionSummaryView, now = Date.now()): number {
 }
 
 export default async function SessionHistoryPage({ searchParams }: { searchParams: SearchParams }) {
-  const rt = await platformRuntime();
+  const scope = await platformScope();
   const sp = await staticSafeSearchParams(searchParams);
   const filters: Filters = {
     outcome: firstParam(sp.outcome),
     status: firstParam(sp.status),
     escalated: firstParam(sp.escalated),
     q: firstParam(sp.q),
-    client: firstParam(sp.client),
+    // Client-scoped users are always confined to their own client, whatever the URL says.
+    client: scope.allClients ? firstParam(sp.client) : undefined,
   };
-  const all = rt.summaries();
+  const all = scope.summaries();
   const matched = applyFilters(all, filters);
   const pages = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
   const page = Math.min(parsePage(firstParam(sp.page)), pages);
@@ -88,17 +89,19 @@ export default async function SessionHistoryPage({ searchParams }: { searchParam
               <input name="q" defaultValue={filters.q} placeholder="VA-12467" className={`${fieldClass} w-36 pl-7`} />
             </span>
           </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-            Client
-            <select name="client" defaultValue={filters.client ?? ""} className={fieldClass}>
-              <option value="">All clients</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {scope.allClients && (
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+              Client
+              <select name="client" defaultValue={filters.client ?? ""} className={fieldClass}>
+                <option value="">All clients</option>
+                {tenants.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="flex flex-col gap-1 text-xs font-medium text-muted">
             Status
             <select name="status" defaultValue={filters.status ?? ""} className={fieldClass}>

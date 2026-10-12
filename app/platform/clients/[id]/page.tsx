@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Lock, ShieldCheck } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { agents, getTenant, integrations, policies, teams, tenants, users, workflows } from "@/lib/config/catalog";
 import { computeMetrics, dailySeries } from "@/lib/analytics/metrics";
 import { ESCALATION_REASON_LABELS, humanize } from "@/lib/domain/labels";
@@ -27,7 +27,8 @@ type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const { id } = await params;
-  return { title: getTenant(id)?.name ?? "Client" };
+  const scope = await platformScope("platform.access", `/platform/clients/${id}`);
+  return { title: (scope.includes(id) && getTenant(id)?.name) || "Client" };
 }
 
 export async function generateStaticParams() {
@@ -36,9 +37,11 @@ export async function generateStaticParams() {
 
 export default async function ClientDetailPage({ params }: Props) {
   const { id } = await params;
-  const rt = await platformRuntime();
+  const scope = await platformScope("platform.access", `/platform/clients/${id}`);
+  const rt = scope.rt;
   const tenant = getTenant(id);
-  if (!tenant) notFound();
+  // Client admins only ever see their own client; anything else is "not found".
+  if (!tenant || !scope.includes(tenant.id)) notFound();
 
   const allStates = rt.states({ tenantId: tenant.id });
   const states = withinDays(allStates, 14);
@@ -58,19 +61,19 @@ export default async function ClientDetailPage({ params }: Props) {
     { area: "Data", scope: `${allStates.length} session records`, state: "implemented", how: "Runtime queries filtered by tenant ID" },
     { area: "Workflows", scope: `${tWorkflows.length} versions`, state: "implemented", how: "Definitions carry tenantId" },
     { area: "Policies", scope: `${tPolicies.length} polic${tPolicies.length === 1 ? "y" : "ies"}`, state: "implemented", how: "Policy resolved from the tenant's workflow" },
-    { area: "Users", scope: `${tUsers.length} users`, state: "partial", how: "Users are tenant-scoped; login/RBAC enforcement planned" },
+    { area: "Users", scope: `${tUsers.length} users`, state: "implemented", how: "Sign-in with role-based access; client roles only see their own tenant" },
     { area: "Credentials", scope: "No client credentials stored", state: "planned", how: "Per-tenant secrets manager planned" },
     { area: "Branding", scope: tenant.brand.displayName, state: "implemented", how: "Customer view resolves brand from session tenant" },
     { area: "Retention", scope: r.evidenceMode === "live_only" ? "Live only" : `${r.evidenceRetentionDays} d evidence`, state: "partial", how: "Configured per tenant; automated deletion planned" },
     { area: "Integrations", scope: `${tIntegrations.length} configured`, state: "implemented", how: "Tool calls carry the session's tenantId" },
     { area: "Regional settings", scope: REGION_LABELS[tenant.region], state: "partial", how: "Recorded per tenant; POC runs as one deployment" },
-    { area: "Analytics access", scope: "Tenant-filtered metrics", state: "partial", how: "Queries are scoped; viewer-level access control planned" },
+    { area: "Analytics access", scope: "Tenant-filtered metrics", state: "implemented", how: "Management platform and audit export are scoped to the viewer's tenant" },
   ];
 
   return (
     <>
       <Link href="/platform/clients" className="mb-3 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
-        <ArrowLeft className="size-3" aria-hidden /> All clients
+        <ArrowLeft className="size-3" aria-hidden /> {scope.allClients ? "All clients" : "Clients"}
       </Link>
       <PageHeader
         title={

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
-import { getPolicy, tenantName, workflows } from "@/lib/config/catalog";
+import { platformScope } from "@/lib/server/platform-data";
+import { getPolicy, tenantName, workflows as allWorkflows } from "@/lib/config/catalog";
 import { validateWorkflow } from "@/lib/workflow/engine";
 import { computeMetrics } from "@/lib/analytics/metrics";
 import { formatDateTime, pct } from "@/lib/format";
@@ -12,8 +12,9 @@ import { SECTOR_LABELS } from "@/components/platform/config-data";
 export const metadata = { title: "Visual Workflows" };
 
 export default async function WorkflowsPage() {
-  const rt = await platformRuntime();
-  const states = rt.states();
+  const scope = await platformScope("platform.access", "/platform/workflows");
+  const states = scope.states();
+  const workflows = scope.filter(allWorkflows);
 
   const groups = new Map<string, typeof workflows>();
   for (const w of workflows) groups.set(w.key, [...(groups.get(w.key) ?? []), w]);

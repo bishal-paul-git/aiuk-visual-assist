@@ -1,7 +1,7 @@
 import type { ActorType, AuditEvent, DomainEventType, User } from "@/lib/domain/types";
 
 /**
- * Security audit trail: sign-in, sign-out and permission denials (docs/06 §2
+ * Security audit trail: sign-in, sign-out, permission denials and audit exports (docs/06 §2
  * "security logging"). These events have no session, so they live beside the
  * session audit trails and are merged into the audit explorer. In-memory and
  * capped in the POC; production ships them to the durable audit store / SIEM.
@@ -19,7 +19,7 @@ export function actorTypeFor(user: Pick<User, "role">): ActorType {
 }
 
 export function recordSecurityEvent(input: {
-  eventType: Extract<DomainEventType, `security.${string}`>;
+  eventType: Extract<DomainEventType, `security.${string}` | "audit.exported">;
   user?: Pick<User, "id" | "role" | "tenantId"> | null;
   tenantId?: string;
   payload: Record<string, unknown>;
