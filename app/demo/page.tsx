@@ -2,15 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Headset, Pause, Play, PlayCircle, RotateCcw, Smartphone } from "lucide-react";
+import { ArrowLeft, ChevronDown, ExternalLink, Headset, Pause, Play, PlayCircle, RotateCcw, Smartphone } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { buttonClass, cx } from "@/components/ui/primitives";
 import { useAgentId } from "@/components/console/agent-identity";
 import { SCENARIOS } from "@/lib/providers/mock/scenarios";
 import { BASE_PATH, getTransport, STATIC_DEMO, type Transport } from "@/lib/client/transport";
+import { DESKTOP_QUERY, useMediaQuery } from "@/lib/client/use-media-query";
 import { direct, reachedStages, STAGES, type DirectorDecision, type WalkthroughStage } from "@/lib/demo/walkthrough";
 
 type Run = { id: string; scenario: string; customer: string; console: string; autoplay: boolean };
+type Pane = "customer" | "agent";
 
 /** Featured stories on the intro screen; every other scenario is under "More". */
 const FEATURED: { key: string; title: string; body: string; outcome: "ai" | "human" }[] = [
@@ -20,6 +22,10 @@ const FEATURED: { key: string; title: string; body: string; outcome: "ai" | "hum
   { key: "glare_then_clear", title: "Unclear picture", body: "Glare hides the lights, so the AI won't guess. It asks for a closer view, then continues.", outcome: "human" },
 ];
 
+/** Which view a walkthrough stage mostly happens in (for the "view updated" hint on phones). */
+const AGENT_STAGES = new Set<WalkthroughStage>(["escalation", "human"]);
+const paneOf = (stage: WalkthroughStage): Pane | undefined => (stage === "ended" ? undefined : AGENT_STAGES.has(stage) ? "agent" : "customer");
+
 const withQuery = (path: string, q: string) => `${path}${path.includes("?") ? "&" : "?"}${q}`;
 
 /**
@@ -28,15 +34,41 @@ const withQuery = (path: string, q: string) => `${path}${path.includes("?") ? "&
  * anyone can watch the whole router loop without a camera; "Try it yourself"
  * leaves both sides to the viewer. /demo/?play=<scenario> starts a
  * walkthrough straight away (used by links on the home page).
+ *
+ * On phones and tablets (< lg) the two views share the screen: the customer
+ * view fills it edge to edge and a segmented switch flips to the agent
+ * console. Both iframes stay mounted so switching never reloads them.
  */
 export default function DemoStage() {
   const [scenario, setScenario] = useState("power_cycle_fix");
   const [run, setRun] = useState<Run>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [pane, setPane] = useState<"customer" | "agent">("customer");
+  const [pane, setPane] = useState<Pane>("customer");
+  const [hint, setHint] = useState<Pane>();
   const agentId = useAgentId();
   const walkthrough = useWalkthrough(run, agentId);
+  const desktop = useMediaQuery(DESKTOP_QUERY);
+
+  // Phones: when the story moves to the view that's not on screen, offer a
+  // one-tap hint to switch (derived during render, no effect needed).
+  const stage = walkthrough.decision?.stage;
+  const [lastStage, setLastStage] = useState<WalkthroughStage>();
+  if (stage !== lastStage) {
+    setLastStage(stage);
+    const target = stage && !walkthrough.decision?.done ? paneOf(stage) : undefined;
+    if (target && target !== pane && lastStage !== undefined) setHint(target);
+  }
+  useEffect(() => {
+    if (!hint) return;
+    const t = setTimeout(() => setHint(undefined), 7000);
+    return () => clearTimeout(t);
+  }, [hint]);
+
+  function choosePane(p: Pane) {
+    setPane(p);
+    if (hint === p) setHint(undefined);
+  }
 
   async function start(key: string, autoplay: boolean) {
     setBusy(true);
@@ -47,6 +79,7 @@ export default function DemoStage() {
     setBusy(false);
     if (!r.ok) return setError(r.error);
     setPane("customer");
+    setHint(undefined);
     setRun({
       id: r.id,
       scenario: key,
@@ -74,72 +107,114 @@ export default function DemoStage() {
   }
 
   const scenarioName = (key: string) => FEATURED.find((f) => f.key === key)?.title ?? SCENARIOS.find((s) => s.key === key)?.name ?? key;
+  const compact = Boolean(run) && !desktop;
+  const done = Boolean(walkthrough.decision?.done);
 
   return (
-    <div className="flex min-h-screen flex-col bg-navy text-white">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="rounded-md">
-            <Logo inverted />
-          </Link>
-          {run && (
-            <span className="hidden text-sm text-white/70 md:inline">
-              Router Visual Support · <span className="text-white">{scenarioName(run.scenario)}</span>
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {run && (
-            <button type="button" className={cx(buttonClass("ghost", "sm"), "text-white/80 hover:bg-white/10 hover:text-white")} onClick={() => setRun(undefined)}>
-              <ArrowLeft className="size-3.5" aria-hidden /> All scenarios
-            </button>
-          )}
-          <Link href="/platform/" className={cx(buttonClass("ghost", "sm"), "text-white/80 hover:bg-white/10 hover:text-white")}>
-            Platform
-          </Link>
-          <Link href="/console/" className={cx(buttonClass("ghost", "sm"), "text-white/80 hover:bg-white/10 hover:text-white")}>
-            Agent console
-          </Link>
-        </div>
-      </header>
+    <div className={cx("flex flex-col bg-navy text-white", run ? "h-[100dvh] overflow-hidden lg:h-auto lg:min-h-screen lg:overflow-visible" : "min-h-screen")}>
+      {compact && run ? (
+        <MobileBar
+          pane={pane}
+          hint={hint}
+          onPane={choosePane}
+          onBack={() => setRun(undefined)}
+          showPause={run.autoplay && !done}
+          paused={walkthrough.paused}
+          onToggle={walkthrough.toggle}
+        />
+      ) : (
+        <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3">
+          <div className="flex min-w-0 items-center gap-4">
+            <Link href="/" className="shrink-0 rounded-md">
+              <Logo inverted />
+            </Link>
+            {run && (
+              <span className="hidden truncate text-sm text-white/70 md:inline">
+                Router Visual Support · <span className="text-white">{scenarioName(run.scenario)}</span>
+              </span>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {run && (
+              <button type="button" className={cx(buttonClass("ghost", "sm"), "text-white/80 hover:bg-white/10 hover:text-white")} onClick={() => setRun(undefined)}>
+                <ArrowLeft className="size-3.5" aria-hidden /> All scenarios
+              </button>
+            )}
+            <Link href="/platform/" className={cx(buttonClass("ghost", "sm"), "h-11 text-white/80 hover:bg-white/10 hover:text-white max-sm:hidden lg:h-7")}>
+              Platform
+            </Link>
+            <Link href="/console/" className={cx(buttonClass("ghost", "sm"), "h-11 text-white/80 hover:bg-white/10 hover:text-white lg:h-7")}>
+              Agent console
+            </Link>
+          </div>
+        </header>
+      )}
       {error && <p className="bg-danger px-4 py-2 text-sm">{error}</p>}
 
       {!run ? (
         <Intro scenario={scenario} setScenario={setScenario} busy={busy} onStart={(key, autoplay) => void start(key, autoplay)} onReset={STATIC_DEMO ? () => void reset() : undefined} />
       ) : (
         <>
-          {run.autoplay && (
-            <Narration
-              decision={walkthrough.decision}
-              reached={walkthrough.reached}
-              paused={walkthrough.paused}
-              onToggle={walkthrough.toggle}
-              onReplay={() => void start(run.scenario, true)}
-              onBack={() => setRun(undefined)}
-              recordHref={run.console}
-            />
-          )}
-          <div className="flex gap-1 border-b border-white/10 px-3 pt-2 lg:hidden" role="tablist" aria-label="Choose view">
-            <PaneTab active={pane === "customer"} onClick={() => setPane("customer")} icon={<Smartphone className="size-3.5" aria-hidden />}>
-              Customer phone
-            </PaneTab>
-            <PaneTab active={pane === "agent"} onClick={() => setPane("agent")} icon={<Headset className="size-3.5" aria-hidden />}>
-              Agent console
-            </PaneTab>
-          </div>
-          <main className="flex flex-1 flex-col gap-4 p-3 lg:flex-row lg:p-4">
-            <section className={cx("shrink-0 flex-col items-center gap-2 lg:flex", pane === "customer" ? "flex" : "hidden")} aria-label="Customer phone">
+          {run.autoplay &&
+            (desktop ? (
+              <Narration
+                decision={walkthrough.decision}
+                reached={walkthrough.reached}
+                paused={walkthrough.paused}
+                onToggle={walkthrough.toggle}
+                onReplay={() => void start(run.scenario, true)}
+                onBack={() => setRun(undefined)}
+                recordHref={run.console}
+              />
+            ) : (
+              <MobileCaption
+                decision={walkthrough.decision}
+                reached={walkthrough.reached}
+                paused={walkthrough.paused}
+                onReplay={() => void start(run.scenario, true)}
+                onBack={() => setRun(undefined)}
+                recordHref={run.console}
+              />
+            ))}
+          {/* One set of iframes for every breakpoint: < lg they are stacked and the switch shows one; lg+ side by side. */}
+          <main className="relative min-h-0 flex-1 bg-black lg:flex lg:flex-row lg:gap-4 lg:bg-transparent lg:p-4">
+            <section
+              className={cx(
+                "absolute inset-x-0 top-0 bottom-[env(safe-area-inset-bottom)] flex flex-col lg:pointer-events-auto lg:visible lg:static lg:shrink-0 lg:items-center lg:gap-2",
+                pane !== "customer" && "pointer-events-none invisible",
+              )}
+              aria-label="Customer phone"
+              aria-hidden={compact && pane !== "customer" ? true : undefined}
+            >
               <span className="hidden text-xs font-semibold tracking-wide text-white/60 uppercase lg:block">Customer · phone</span>
-              <div className="h-[740px] max-h-[calc(100dvh-140px)] min-h-[600px] w-[360px] max-w-full overflow-hidden rounded-[30px] border-[7px] border-[#1f2a3d] bg-black shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]">
-                <iframe key={run.customer} src={run.customer} title="Customer view" className="h-full w-full border-0" allow="camera; microphone; autoplay" />
+              <div className="h-full w-full overflow-hidden bg-black lg:h-[740px] lg:max-h-[calc(100dvh-140px)] lg:min-h-[600px] lg:w-[360px] lg:max-w-full lg:rounded-[30px] lg:border-[7px] lg:border-[#1f2a3d] lg:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.6)]">
+                <iframe key={run.customer} src={run.customer} title="Customer view" className="block h-full w-full border-0" allow="camera; microphone; autoplay" />
               </div>
             </section>
-            <section className={cx("min-h-[740px] min-w-0 flex-1 flex-col gap-2 lg:flex", pane === "agent" ? "flex" : "hidden")} aria-label="Agent console">
+            <section
+              className={cx(
+                "absolute inset-x-0 top-0 bottom-[env(safe-area-inset-bottom)] flex flex-col bg-canvas lg:pointer-events-auto lg:visible lg:static lg:min-h-[740px] lg:min-w-0 lg:flex-1 lg:gap-2 lg:bg-transparent",
+                pane !== "agent" && "pointer-events-none invisible",
+              )}
+              aria-label="Agent console"
+              aria-hidden={compact && pane !== "agent" ? true : undefined}
+            >
               <span className="hidden text-xs font-semibold tracking-wide text-white/60 uppercase lg:block">Human Agent Console</span>
-              <div className="flex-1 overflow-hidden rounded-lg bg-white">
-                <iframe key={run.console} src={run.console} title="Agent console" className="h-full min-h-[700px] w-full border-0" />
+              <div className="min-h-0 flex-1 overflow-hidden bg-white lg:rounded-lg">
+                <iframe key={run.console} src={run.console} title="Agent console" className="block h-full w-full border-0 lg:min-h-[700px]" />
               </div>
             </section>
+            {compact && hint && hint !== pane && (
+              <button
+                type="button"
+                onClick={() => choosePane(hint)}
+                className="absolute top-2.5 left-1/2 z-10 flex h-11 -translate-x-1/2 items-center gap-2 rounded-full bg-navy/95 px-4 text-[13px] font-medium whitespace-nowrap text-white shadow-lg ring-1 ring-white/20 backdrop-blur"
+              >
+                {hint === "agent" ? <Headset className="size-4 text-[#9db8f5]" aria-hidden /> : <Smartphone className="size-4 text-[#9db8f5]" aria-hidden />}
+                {hint === "agent" ? "Agent view updated" : "Customer view updated"}
+                <span className="text-white/60">· tap to see</span>
+              </button>
+            )}
           </main>
         </>
       )}
@@ -163,70 +238,97 @@ function Intro({
   const more = SCENARIOS.filter((s) => !FEATURED.some((f) => f.key === s.key));
   const selected = SCENARIOS.find((s) => s.key === scenario);
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-10 sm:py-14">
+    <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-7 pb-10 sm:px-5 sm:py-14">
       <p className="text-xs font-semibold tracking-[0.12em] text-white/50 uppercase">Interactive demo</p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Router Visual Support, end to end</h1>
+      <h1 className="mt-2 text-[26px] leading-tight font-semibold tracking-tight sm:text-3xl">Router Visual Support, end to end</h1>
       <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-white/70">
-        Choose a scenario and press play. You&apos;ll see the customer&apos;s phone and the support agent&apos;s console side by side, with a caption
-        explaining what the product is doing at each step. A session takes about a minute.
+        Choose a scenario and press play. You&apos;ll see the customer&apos;s phone and the support agent&apos;s console
+        <span className="lg:hidden"> (switch between them at any time)</span>
+        <span className="hidden lg:inline"> side by side</span>, with a caption explaining what the product is doing at each step. A session takes about a
+        minute.
       </p>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-2">
-        {FEATURED.map((f) => {
-          const on = f.key === scenario;
-          return (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setScenario(f.key)}
-              aria-pressed={on}
-              className={cx(
-                "rounded-lg border p-4 text-left transition-colors",
-                on ? "border-brand bg-brand/15 ring-1 ring-brand" : "border-white/15 bg-white/[0.03] hover:border-white/30 hover:bg-white/[0.06]",
-              )}
-            >
-              <span className="flex items-center justify-between gap-2">
-                <span className="text-[15px] font-semibold">{f.title}</span>
-                <span className={cx("rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase", f.outcome === "ai" ? "bg-ok/20 text-[#7be3ae]" : "bg-violet/25 text-[#c9b8ff]")}>
-                  {f.outcome === "ai" ? "Resolved by AI" : "Human takeover"}
+      <fieldset className="mt-6 sm:mt-8">
+        <legend className="sr-only">Scenario</legend>
+        <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
+          {FEATURED.map((f) => {
+            const on = f.key === scenario;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setScenario(f.key)}
+                aria-pressed={on}
+                className={cx(
+                  "rounded-lg border p-4 text-left transition-colors",
+                  on ? "border-brand bg-brand/15 ring-1 ring-brand" : "border-white/15 bg-white/[0.03] hover:border-white/30 hover:bg-white/[0.06]",
+                )}
+              >
+                <span className="flex items-start justify-between gap-2">
+                  <span className="flex items-center gap-2 text-[15px] font-semibold">
+                    <span className={cx("flex size-4 shrink-0 items-center justify-center rounded-full border", on ? "border-brand bg-brand" : "border-white/35")} aria-hidden>
+                      {on && <span className="size-1.5 rounded-full bg-white" />}
+                    </span>
+                    {f.title}
+                  </span>
+                  <span className={cx("mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase", f.outcome === "ai" ? "bg-ok/20 text-[#7be3ae]" : "bg-violet/25 text-[#c9b8ff]")}>
+                    {f.outcome === "ai" ? "Resolved by AI" : "Human takeover"}
+                  </span>
                 </span>
-              </span>
-              <span className="mt-1.5 block text-[13px] leading-relaxed text-white/65">{f.body}</span>
-            </button>
-          );
-        })}
-      </div>
+                <span className="mt-1.5 block pl-6 text-[13px] leading-relaxed text-white/65">{f.body}</span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button type="button" className="inline-flex h-11 items-center gap-2 rounded-md bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-60" disabled={busy} onClick={() => onStart(scenario, true)}>
-          <PlayCircle className="size-4.5" aria-hidden /> Play the walkthrough
-        </button>
-        <button type="button" className="inline-flex h-11 items-center gap-2 rounded-md border border-white/25 px-5 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-60" disabled={busy} onClick={() => onStart(scenario, false)}>
-          <Play className="size-4" aria-hidden /> Try it yourself
-        </button>
-        <label className="ml-auto flex items-center gap-2 text-xs text-white/60">
-          More scenarios
-          <select
-            value={more.some((s) => s.key === scenario) ? scenario : ""}
-            onChange={(e) => e.target.value && setScenario(e.target.value)}
-            className="h-8 rounded-md border border-white/20 bg-navy-2 px-2 text-xs text-white"
-          >
-            <option value="">Choose…</option>
-            {more.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <label className="mt-4 flex flex-col gap-1.5 text-xs text-white/60 sm:flex-row sm:items-center sm:gap-2">
+        More scenarios
+        <select
+          value={more.some((s) => s.key === scenario) ? scenario : ""}
+          onChange={(e) => e.target.value && setScenario(e.target.value)}
+          className="h-11 w-full rounded-md border border-white/20 bg-navy-2 px-3 text-sm text-white sm:h-8 sm:w-auto sm:px-2 sm:text-xs"
+        >
+          <option value="">Choose…</option>
+          {more.map((s) => (
+            <option key={s.key} value={s.key}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
       {selected && !FEATURED.some((f) => f.key === selected.key) && (
         <p className="mt-3 text-[13px] text-white/65">
           <span className="font-semibold text-white">{selected.name}:</span> {selected.description} Expected outcome: {selected.expectedOutcome.toLowerCase()}.
         </p>
       )}
 
-      <div className="mt-10 grid gap-4 border-t border-white/10 pt-6 text-[13px] text-white/60 sm:grid-cols-3">
+      {/* Phones: the actions stay in reach at the bottom of the screen. */}
+      <div className="sticky bottom-0 z-10 -mx-4 mt-5 border-t border-white/10 bg-navy/95 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        <div className="grid grid-cols-[1fr_auto] gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+          <button
+            type="button"
+            aria-label="Play the walkthrough"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-3 text-[15px] font-semibold whitespace-nowrap text-white hover:bg-brand-ink disabled:opacity-60 sm:h-11 sm:px-5 sm:text-sm"
+            disabled={busy}
+            onClick={() => onStart(scenario, true)}
+          >
+            <PlayCircle className="size-4.5 shrink-0" aria-hidden />
+            <span className="min-[400px]:hidden">Play walkthrough</span>
+            <span className="hidden min-[400px]:inline">Play the walkthrough</span>
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-white/25 px-3 text-[15px] font-semibold whitespace-nowrap text-white hover:bg-white/10 disabled:opacity-60 sm:h-11 sm:px-5 sm:text-sm"
+            disabled={busy}
+            onClick={() => onStart(scenario, false)}
+          >
+            <Play className="size-4" aria-hidden /> Try it yourself
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-8 grid gap-4 border-t border-white/10 pt-6 text-[13px] leading-relaxed text-white/60 sm:mt-10 sm:grid-cols-3">
         <p>
           <span className="block font-semibold text-white/85">Try it yourself</span>
           You play both parts. On the phone, accept the notice, choose <em>Use demo camera</em> and describe the problem. In the console, join and take
@@ -243,7 +345,7 @@ function Intro({
           {onReset && (
             <>
               {" "}
-              <button type="button" onClick={onReset} className="inline-flex items-center gap-1 text-white/80 underline-offset-2 hover:underline">
+              <button type="button" onClick={onReset} className="inline-flex min-h-11 items-center gap-1 text-white/80 underline-offset-2 hover:underline sm:min-h-0">
                 <RotateCcw className="size-3" aria-hidden /> Reset demo data
               </button>
             </>
@@ -254,18 +356,141 @@ function Intro({
   );
 }
 
-function PaneTab({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+/** Phones: back, the Customer | Agent switch and pause, in one sticky bar. */
+function MobileBar({
+  pane,
+  hint,
+  onPane,
+  onBack,
+  showPause,
+  paused,
+  onToggle,
+}: {
+  pane: Pane;
+  hint?: Pane;
+  onPane: (p: Pane) => void;
+  onBack: () => void;
+  showPause: boolean;
+  paused: boolean;
+  onToggle: () => void;
+}) {
+  const tabs: [Pane, string, React.ReactNode][] = [
+    ["customer", "Customer", <Smartphone key="c" className="size-4" aria-hidden />],
+    ["agent", "Agent", <Headset key="a" className="size-4" aria-hidden />],
+  ];
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cx("flex items-center gap-1.5 rounded-t-md px-3 py-2 text-xs font-semibold", active ? "bg-white/10 text-white" : "text-white/60 hover:text-white")}
-    >
-      {icon}
-      {children}
-    </button>
+    <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-white/10 bg-navy px-2 pt-[env(safe-area-inset-top)]">
+      <button type="button" onClick={onBack} aria-label="All scenarios" className="flex size-11 shrink-0 items-center justify-center rounded-md text-white/80 hover:bg-white/10">
+        <ArrowLeft className="size-5" aria-hidden />
+      </button>
+      <div role="tablist" aria-label="Choose view" className="my-1.5 flex flex-1 rounded-[10px] bg-white/[0.08] p-0.5 ring-1 ring-white/10">
+        {tabs.map(([key, label, icon]) => {
+          const on = pane === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => onPane(key)}
+              className={cx(
+                "relative flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md text-[14px] font-semibold transition-colors",
+                on ? "bg-white text-navy shadow-sm" : "text-white/70 hover:text-white",
+              )}
+            >
+              {icon}
+              {label}
+              {hint === key && !on && <span className="size-2 rounded-full bg-[#5b8cf0] va-pulse" aria-label="updated" />}
+            </button>
+          );
+        })}
+      </div>
+      {showPause ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={paused ? "Resume walkthrough" : "Pause walkthrough"}
+          className="flex size-11 shrink-0 items-center justify-center rounded-md text-white/80 hover:bg-white/10"
+        >
+          {paused ? <Play className="size-5" aria-hidden /> : <Pause className="size-5" aria-hidden />}
+        </button>
+      ) : (
+        <span className="size-11 shrink-0" aria-hidden />
+      )}
+    </header>
+  );
+}
+
+function Progress({ decision, reached, className }: { decision?: DirectorDecision; reached: Set<WalkthroughStage>; className?: string }) {
+  return (
+    <ol className={cx("flex gap-1", className)} aria-label="Progress">
+      {STAGES.map((st) => {
+        const done = reached.has(st.key);
+        const now = decision?.stage === st.key && !decision.done;
+        return (
+          <li key={st.key} className="group relative flex-1" title={st.label}>
+            <span className={cx("block h-1 rounded-full", now ? "bg-brand va-pulse" : done ? "bg-ok" : "bg-white/15")} />
+            <span className="sr-only">
+              {st.label}: {done ? "done" : now ? "in progress" : "not reached"}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** Phones: a compact, collapsible caption card above the views. */
+function MobileCaption({
+  decision,
+  reached,
+  paused,
+  onReplay,
+  onBack,
+  recordHref,
+}: {
+  decision?: DirectorDecision;
+  reached: Set<WalkthroughStage>;
+  paused: boolean;
+  onReplay: () => void;
+  onBack: () => void;
+  recordHref: string;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const done = Boolean(decision?.done);
+  const open = done || !collapsed;
+  const index = STAGES.findIndex((s) => s.key === decision?.stage);
+  const current = STAGES[index];
+  const label = done ? "Walkthrough complete" : paused ? `Paused · ${current?.label ?? "Starting"}` : current?.label ?? "Starting";
+  return (
+    <section className="border-b border-white/10 bg-navy-2 px-4 pt-2.5 pb-2" aria-live="polite" aria-label="Walkthrough caption">
+      <Progress decision={decision} reached={reached} />
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        disabled={done}
+        aria-expanded={open}
+        className="flex min-h-11 w-full items-center gap-2 text-left disabled:cursor-default"
+      >
+        <span className="tabular shrink-0 text-[11px] font-semibold text-white/45">{done ? `${STAGES.length}/${STAGES.length}` : `${Math.max(index + 1, 1)}/${STAGES.length}`}</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold tracking-wide text-white/75 uppercase">{label}</span>
+        {!done && <ChevronDown className={cx("size-4 shrink-0 text-white/60 transition-transform", open && "rotate-180")} aria-label={open ? "Hide caption" : "Show caption"} />}
+      </button>
+      {open && <p className="pb-1 text-[14px] leading-snug text-white">{decision?.caption ?? "Starting the walkthrough…"}</p>}
+      {done && (
+        <div className="mt-2.5 grid grid-cols-2 gap-2 pb-1">
+          <a href={recordHref} target="_blank" rel="noreferrer" className="col-span-2 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-white text-[14px] font-semibold text-navy hover:bg-white/90">
+            <ExternalLink className="size-4" aria-hidden /> Open the session record
+          </a>
+          <button type="button" onClick={onReplay} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-white/25 text-[14px] font-semibold text-white hover:bg-white/10">
+            <RotateCcw className="size-4" aria-hidden /> Replay
+          </button>
+          <button type="button" onClick={onBack} className="inline-flex h-11 items-center justify-center rounded-md border border-white/25 text-[14px] font-semibold text-white hover:bg-white/10">
+            Try another scenario
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -316,20 +541,7 @@ function Narration({
           )}
         </div>
       </div>
-      <ol className="mt-3 flex gap-1" aria-label="Progress">
-        {STAGES.map((st) => {
-          const done = reached.has(st.key);
-          const now = decision?.stage === st.key && !decision.done;
-          return (
-            <li key={st.key} className="group relative flex-1" title={st.label}>
-              <span className={cx("block h-1 rounded-full", now ? "bg-brand va-pulse" : done ? "bg-ok" : "bg-white/15")} />
-              <span className="sr-only">
-                {st.label}: {done ? "done" : now ? "in progress" : "not reached"}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
+      <Progress decision={decision} reached={reached} className="mt-3" />
     </div>
   );
 }
