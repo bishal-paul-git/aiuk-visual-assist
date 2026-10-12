@@ -35,6 +35,8 @@ export function getRuntime(): SessionRuntime {
     if (store.durable && typeof process.on === "function") {
       // Writes are debounced; flush anything pending synchronously on the way out.
       process.once("exit", () => persistence.flushSync());
+      // Hosts stop containers with SIGTERM/SIGINT; save pending writes first.
+      for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => persistence.flushSync());
     }
     const r = rt;
     // Retention job (docs/06 §3): delete expired evidence and transcripts, once

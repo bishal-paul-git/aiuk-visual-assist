@@ -1,5 +1,5 @@
 import { AlertTriangle, BookOpen, CheckCircle2 } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { INCIDENTS, RUNBOOKS, type ServiceStatus } from "@/lib/config/operations";
 import { effectiveServices } from "@/lib/server/ops-status";
 import { latencyStats } from "@/lib/analytics/metrics";
@@ -25,14 +25,18 @@ const LAYERS: { key: ServiceStatus["layer"]; label: string }[] = [
 const SEVERITY_TONE = { P0: "danger", P1: "danger", P2: "warn", P3: "neutral" } as const;
 
 export default async function HealthPage() {
-  const rt = await platformRuntime();
+  const scope = await platformScope("platform.access", "/platform/health");
   const SERVICES = effectiveServices();
-  const recent = withinDays(rt.states(), 1);
-  const latency = latencyStats(recent);
-  const latency14 = latencyStats(withinDays(rt.states(), 14));
-  const live = rt.summaries().filter((s) => s.live && s.status !== "completed" && s.status !== "failed");
+  const live = scope.summaries().filter((s) => s.live && s.status !== "completed" && s.status !== "failed");
   const waiting = live.filter((s) => s.status === "escalated");
   const longestWait = waiting.reduce((mx, s) => Math.max(mx, secondsBetween(s.escalation!.requestedAt)), 0);
+
+  // Client admins get service status only: no internal incidents, runbooks, providers or platform-wide latency.
+  if (!scope.allClients) return <ClientHealthView services={SERVICES} label={scope.label} live={live.length} waiting={waiting.length} longestWait={longestWait} />;
+
+  const recent = withinDays(scope.states(), 1);
+  const latency = latencyStats(recent);
+  const latency14 = latencyStats(withinDays(scope.states(), 14));
   const open = INCIDENTS.filter((i) => i.status !== "resolved");
   const serviceName = (key: string) => SERVICES.find((s) => s.key === key)?.name ?? key;
   const runbookTitle = (key: string) => RUNBOOKS.find((r) => r.key === key)?.title ?? key;
@@ -177,6 +181,66 @@ export default async function HealthPage() {
           </ul>
         </Panel>
       </div>
+    </>
+  );
+}
+
+/** Reduced, non-sensitive view for client-scoped users: is the service up, and how is their own queue doing. */
+function ClientHealthView({ services, label, live, waiting, longestWait }: { services: ServiceStatus[]; label: string; live: number; waiting: number; longestWait: number }) {
+  const deployed = services.filter((s) => s.status !== "not_deployed");
+  const operational = deployed.filter((s) => s.status === "operational").length;
+  const affected = deployed.filter((s) => s.status === "degraded" || s.status === "outage").length;
+  return (
+    <>
+      <PageHeader
+        title="System Health"
+        description="Whether each part of the service is working. Your sessions are shown for your organisation only."
+        meta={
+          affected ? (
+            <Badge tone="warn" icon={<AlertTriangle className="size-3" aria-hidden />}>
+              {affected} service{affected === 1 ? "" : "s"} degraded
+            </Badge>
+          ) : (
+            <Badge tone="ok" icon={<CheckCircle2 className="size-3" aria-hidden />}>
+              All services operational
+            </Badge>
+          )
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Services operational" value={`${operational} / ${deployed.length}`} hint={affected ? `${affected} degraded` : "No issues"} />
+        <Stat label="Live sessions" value={live} hint={label} />
+        <Stat label="Waiting for a human" value={waiting} hint={label} />
+        <Stat label="Longest queue wait" value={waiting ? formatMinutes(longestWait) : "—"} tone={longestWait > 120 ? "warn" : undefined} />
+      </div>
+
+      <Panel title="Service status" className="mt-4" bodyClassName="p-0">
+        <Table>
+          <thead>
+            <tr>
+              <Th>Service</Th>
+              <Th>Area</Th>
+              <Th>Status</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {deployed.map((s) => (
+              <tr key={s.key}>
+                <Td className="font-medium text-ink">{s.name}</Td>
+                <Td className="text-xs">{LAYERS.find((l) => l.key === s.layer)?.label ?? s.layer}</Td>
+                <Td>
+                  <ServiceStatusBadge status={s.status} />
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </Panel>
+
+      <Note className="mt-4">
+        Incident details are handled by the Absolute Intelligence operations team. If a degraded service is affecting your customers, contact your account manager.
+      </Note>
     </>
   );
 }

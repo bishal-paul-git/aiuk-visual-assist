@@ -43,10 +43,24 @@ describe("permission matrix", () => {
       "settings.view",
       "settings.edit",
       "platform.access",
+      "qa.review",
+      "qa.evaluate",
     ],
-    qa_reviewer: ["session.view", "workflow.view", "policy.view", "audit.view", "settings.view", "platform.access"],
-    client_admin: ["session.view", "workflow.view", "workflow.edit", "workflow.publish", "policy.view", "policy.edit", "policy.publish", "audit.view", "settings.view", "settings.edit"],
-    supervisor: ["session.view", "session.create", "session.join", "session.take_over", "session.end", "action.run", "workflow.view", "policy.view", "audit.view"],
+    qa_reviewer: ["session.view", "workflow.view", "policy.view", "audit.view", "settings.view", "platform.access", "qa.review", "qa.evaluate"],
+    client_admin: [
+      "session.view",
+      "workflow.view",
+      "workflow.edit",
+      "workflow.publish",
+      "policy.view",
+      "policy.edit",
+      "policy.publish",
+      "audit.view",
+      "settings.view",
+      "settings.edit",
+      "platform.access",
+    ],
+    supervisor: ["session.view", "session.create", "session.join", "session.take_over", "session.end", "action.run", "workflow.view", "policy.view", "audit.view", "qa.review"],
     agent: ["session.view", "session.create", "session.join", "session.take_over", "session.end", "action.run"],
   };
 
@@ -80,6 +94,9 @@ describe("permission matrix", () => {
     expect(can(priya, "session.view", NORTHLINE)).toBe(true);
     expect(can(priya, "session.take_over", NORTHLINE)).toBe(false);
     expect(can(priya, "action.run", NORTHLINE)).toBe(false);
+    // The management platform, confined to their own client (lib/auth/scope.ts).
+    expect(can(priya, "platform.access")).toBe(true);
+    expect(can(tom, "platform.access")).toBe(false);
   });
 
   it("platform admins configure every tenant but do not operate live sessions (least privilege)", () => {
@@ -119,7 +136,7 @@ describe("permission matrix", () => {
 
   it("sends each role to a home it can open", () => {
     expect(homePathFor(sarah)).toBe("/console");
-    expect(homePathFor(priya)).toBe("/console");
+    expect(homePathFor(priya)).toBe("/platform");
     expect(homePathFor(james)).toBe("/platform");
     expect(homePathFor(nadia)).toBe("/platform");
   });

@@ -23,4 +23,11 @@ test.describe("demo identity and permissions", () => {
     await expect(page.getByRole("button", { name: "Take over" })).toBeHidden();
     await expect(page.getByText("Hi, it's Marcus", { exact: false }).first()).toBeVisible();
   });
+
+  test("the static demo shows the all-clients platform view without the server-only audit export", async ({ page }) => {
+    await page.goto("/platform/audit/");
+    await expect(page.getByTestId("platform-scope")).toHaveText(/All clients/);
+    await expect(page.getByRole("heading", { name: "Audit logs" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Export CSV/ })).toHaveCount(0);
+  });
 });

@@ -1,0 +1,22 @@
+# Local or single-VM deployment of the server edition.
+#   AUTH_SECRET=$(openssl rand -base64 32) docker compose up -d --build
+services:
+  visual-assist:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET to 32+ random characters}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+    volumes:
+      - va-data:/data
+    restart: unless-stopped
+volumes:
+  va-data:

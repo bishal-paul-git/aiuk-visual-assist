@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { Headset } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { cx } from "@/components/ui/primitives";
-import { NAV } from "./nav";
+import { visibleNav } from "./nav";
 
-export function Sidebar() {
+export function Sidebar({ allowed }: { allowed?: readonly string[] }) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/platform" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
   return (
@@ -18,7 +18,7 @@ export function Sidebar() {
         </Link>
       </div>
       <div className="flex-1 overflow-y-auto px-2 py-3">
-        {NAV.map((g) => (
+        {visibleNav(allowed).map((g) => (
           <div key={g.group} className="mb-4">
             <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/40">{g.group}</div>
             <ul>

@@ -19,6 +19,9 @@ const nextConfig: NextConfig = isStatic
       pageExtensions: ["tsx"],
       env: { NEXT_PUBLIC_STATIC_DEMO: "1" },
     }
-  : {};
+  : // STANDALONE=1 (Docker image): self-contained .next/standalone/server.js.
+    process.env.STANDALONE === "1"
+    ? { output: "standalone" }
+    : {};
 
 export default nextConfig;

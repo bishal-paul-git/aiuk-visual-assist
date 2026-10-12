@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { platformRuntime, STATIC_EXPORT } from "@/lib/server/platform-data";
+import { platformScope, STATIC_EXPORT } from "@/lib/server/platform-data";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { getPolicy, tenantName, workflows } from "@/lib/config/catalog";
 import { editorIdentity } from "@/lib/server/config-admin";
@@ -10,7 +10,9 @@ import { WorkflowEditor } from "@/components/platform/workflow-editor";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const wf = getWorkflowRegistry().get(id);
+  const scope = await platformScope("platform.access", `/platform/workflows/${id}/edit`);
+  const found = getWorkflowRegistry().get(id);
+  const wf = found && scope.includes(found.tenantId) ? found : undefined;
   return { title: wf ? `Edit ${wf.name} v${wf.version}` : "Edit workflow" };
 }
 
@@ -19,11 +21,11 @@ export async function generateStaticParams() {
 }
 
 export default async function EditWorkflowPage({ params }: { params: Promise<{ id: string }> }) {
-  await platformRuntime();
   const { id } = await params;
+  const scope = await platformScope("platform.access", `/platform/workflows/${id}/edit`);
   const reg = getWorkflowRegistry();
   const wf = reg.get(id);
-  if (!wf) notFound();
+  if (!wf || !scope.includes(wf.tenantId)) notFound();
   if (STATIC_EXPORT) {
     return (
       <PageHeader

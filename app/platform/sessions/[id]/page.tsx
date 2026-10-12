@@ -3,7 +3,7 @@ import Link from "next/link";
 import { consolePath } from "@/lib/paths";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, Headset, ImageOff, Info, User as UserIcon } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { getRuntime } from "@/lib/server/runtime";
 import { frameSrc } from "@/lib/media/frame-src";
 import { getAgent, getPolicy, getTenant, tenantName, users } from "@/lib/config/catalog";
@@ -26,9 +26,11 @@ import {
 import { ACTOR_LABELS, actorName, summarizePayload, versionContext } from "@/components/platform/audit-format";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const rt = await platformRuntime();
   const { id } = await params;
-  const ref = rt.get(id)?.state.session.reference;
+  const scope = await platformScope("platform.access", `/platform/sessions/${id}`);
+  const entry = scope.rt.get(id);
+  // Never reveal another client's session reference.
+  const ref = entry && scope.includes(entry.state.session.tenantId) ? entry.state.session.reference : undefined;
   return { title: ref ? `${ref} · Session Detail` : "Session not found" };
 }
 
@@ -93,10 +95,11 @@ export async function generateStaticParams() {
 }
 
 export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const rt = await platformRuntime();
   const { id } = await params;
-  const entry = rt.get(id);
-  if (!entry) notFound();
+  const scope = await platformScope("platform.access", `/platform/sessions/${id}`);
+  const entry = scope.rt.get(id);
+  // Another client's session is reported as not found, not forbidden, so its existence does not leak.
+  if (!entry || !scope.includes(entry.state.session.tenantId)) notFound();
 
   const { state, workflow } = entry;
   const s = state.session;

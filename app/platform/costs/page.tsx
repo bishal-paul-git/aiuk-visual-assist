@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Info } from "lucide-react";
-import { platformRuntime } from "@/lib/server/platform-data";
+import { platformScope } from "@/lib/server/platform-data";
 import { tenants } from "@/lib/config/catalog";
 import type { CostEvent } from "@/lib/domain/types";
 import { COST_RATES } from "@/lib/domain/pricing";
@@ -34,8 +34,8 @@ function rate(n: number): string {
 }
 
 export default async function CostsPage() {
-  const rt = await platformRuntime();
-  const states = withinDays(rt.states(), 14);
+  const scope = await platformScope("platform.access", "/platform/costs");
+  const states = withinDays(scope.states(), 14);
   const m = computeMetrics(states);
   const categories = costByCategory(states);
   const series = dailySeries(states, 14);
@@ -43,7 +43,7 @@ export default async function CostsPage() {
   const measuredEvents = states.flatMap((s) => s.costs.filter((c) => c.basis === "measured"));
   const measured = measuredEvents.reduce((n, c) => n + c.estimatedCost, 0);
   const measuredTokens = measuredEvents.reduce((n, c) => n + (c.usage ? c.usage.inputTokens + c.usage.outputTokens + c.usage.cacheCreationInputTokens + c.usage.cacheReadInputTokens : 0), 0);
-  const perClient = tenants.map((t) => {
+  const perClient = tenants.filter((t) => scope.includes(t.id)).map((t) => {
     const tm = computeMetrics(states.filter((s) => s.session.tenantId === t.id));
     return { tenant: t, m: tm };
   });
@@ -55,7 +55,7 @@ export default async function CostsPage() {
         description="Per-interaction cost attribution from metered session events: media minutes, speech turns, analysed frames, reasoning turns and integration calls."
         meta={
           <>
-            <Badge tone="neutral">Last 14 days · GBP</Badge>
+            <Badge tone="neutral">{scope.label} · last 14 days · GBP</Badge>
             {measured > 0 ? <Badge tone="brand">Partly measured</Badge> : <Badge tone="warn">Estimated</Badge>}
           </>
         }

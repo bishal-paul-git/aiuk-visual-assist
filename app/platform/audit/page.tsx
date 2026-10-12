@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Search } from "lucide-react";
-import { platformRuntime, staticSafeSearchParams } from "@/lib/server/platform-data";
+import { Download, Search } from "lucide-react";
+import { platformScope, staticSafeSearchParams, STATIC_EXPORT } from "@/lib/server/platform-data";
 import { tenants, tenantName } from "@/lib/config/catalog";
-import type { SessionState } from "@/lib/domain/session";
-import type { AuditEvent } from "@/lib/domain/types";
+import { collectAuditRecords, filterAuditRecords } from "@/lib/audit/export";
+import { BASE_PATH } from "@/lib/paths";
 import { formatDateTime, formatTimeSec } from "@/lib/format";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { getPolicyRegistry } from "@/lib/policy/registry";
@@ -14,6 +14,7 @@ import {
   ACTOR_TYPES,
   EVENT_CATEGORIES,
   EVENT_CATEGORY_LABELS,
+  type EventCategory,
   actorName,
   eventCategory,
   firstParam,
@@ -27,34 +28,29 @@ export const metadata = { title: "Audit Logs" };
 
 const PAGE_SIZE = 50;
 
-interface Row {
-  event: AuditEvent;
-  sessionId: string;
-  reference: string;
-  tenantId: string;
-}
-
-function flatten(states: SessionState[], configEvents: AuditEvent[], security: AuditEvent[] = []): Row[] {
-  // Configuration changes (workflow and policy versions) have no session; they link to the configuration item.
-  const rows: Row[] = configEvents.map((event) => ({ event, sessionId: "", reference: `${String(event.payload.key)} v${String(event.payload.version)}`, tenantId: event.tenantId }));
-  // Sign-in, sign-out and access denials (no session).
-  for (const event of security) rows.push({ event, sessionId: "", reference: "Access", tenantId: event.tenantId });
-  for (const st of states)
-    for (const event of st.audit)
-      rows.push({ event, sessionId: st.session.id, reference: st.session.reference, tenantId: event.tenantId || st.session.tenantId });
-  return rows.sort((a, b) => b.event.timestamp.localeCompare(a.event.timestamp) || b.event.id.localeCompare(a.event.id));
+/** Export link for the current client and category filters (server edition only). */
+function exportHref(format: "csv" | "json", tenantId: string | undefined, category: string | undefined): string {
+  const qs = new URLSearchParams({ format });
+  if (tenantId) qs.set("tenantId", tenantId);
+  if (category && (EVENT_CATEGORIES as readonly string[]).includes(category)) qs.set("category", category as EventCategory);
+  return `${BASE_PATH}/api/audit/export?${qs.toString()}`;
 }
 
 export default async function AuditLogsPage({ searchParams }: { searchParams: SearchParams }) {
-  const rt = await platformRuntime();
+  const scope = await platformScope("platform.access", "/platform/audit");
   const sp = await staticSafeSearchParams(searchParams);
   const filters = {
     type: firstParam(sp.type),
     actor: firstParam(sp.actor),
-    client: firstParam(sp.client),
+    // Client-scoped users are always confined to their own client.
+    client: scope.allClients ? firstParam(sp.client) : undefined,
     ref: firstParam(sp.ref),
   };
-  const all = flatten(rt.states(), [...getWorkflowRegistry().audit, ...getPolicyRegistry().audit], securityEvents());
+  // Session, configuration and security events, limited to what this user may see.
+  const all = filterAuditRecords(
+    collectAuditRecords({ states: scope.states(), configEvents: [...getWorkflowRegistry().audit, ...getPolicyRegistry().audit], securityEvents: securityEvents() }),
+    scope,
+  );
   const ref = filters.ref?.toLowerCase();
   // Category counts reflect every filter except the event type, so the chips show where events sit.
   const beforeType = all.filter(
@@ -79,7 +75,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Se
     <>
       <PageHeader
         title="Audit logs"
-        description="Append-only domain events across all sessions, newest first. Each event records the actor and the workflow, policy and model versions in force (docs/04 §3, docs/06 §7)."
+        description={`Append-only domain events across ${scope.allClients ? "all sessions" : `${scope.label} sessions`}, configuration and sign-in, newest first. Each event records the actor and the workflow, policy and model versions in force (docs/04 §3, docs/06 §7).`}
         meta={
           <>
             <Badge tone="neutral">
@@ -87,6 +83,23 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Se
             </Badge>
             <Badge tone="neutral">{sessionsCovered} sessions</Badge>
           </>
+        }
+        actions={
+          STATIC_EXPORT ? undefined : (
+            <div className="flex items-center gap-2">
+              <a
+                href={exportHref("csv", scope.tenantId ?? filters.client, filters.type)}
+                download
+                className={buttonClass("secondary", "sm")}
+                title="Download the events matching the client and category filters as CSV"
+              >
+                <Download className="size-3.5" aria-hidden /> Export CSV
+              </a>
+              <a href={exportHref("json", scope.tenantId ?? filters.client, filters.type)} download className={buttonClass("ghost", "sm")} title="Download as JSON">
+                JSON
+              </a>
+            </div>
+          )
         }
       />
 
@@ -141,17 +154,19 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Se
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-            Client
-            <select name="client" defaultValue={filters.client ?? ""} className={fieldClass}>
-              <option value="">All clients</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {scope.allClients && (
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+              Client
+              <select name="client" defaultValue={filters.client ?? ""} className={fieldClass}>
+                <option value="">All clients</option>
+                {tenants.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="flex items-center gap-2">
             <button type="submit" className={buttonClass("primary", "sm")}>
               Apply filters
@@ -195,10 +210,10 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Se
                       <div className="text-xs text-muted">{actorName(r.event.actorType, r.event.actorId)}</div>
                     </Td>
                     <Td className="whitespace-nowrap">
-                      {r.event.eventType.startsWith("security.") ? (
+                      {r.source === "security" ? (
                         <>
                           <span className="font-medium text-ink">{r.reference}</span>
-                          <div className="text-xs text-muted">Sign-in and permissions</div>
+                          <div className="text-xs text-muted">{r.event.eventType === "audit.exported" ? "Audit log export" : "Sign-in and permissions"}</div>
                         </>
                       ) : (
                         <>
@@ -231,6 +246,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Se
       </Panel>
       <p className="mt-3 text-xs text-muted">
         Payloads are summarised; open a session for its complete timeline. Model versions ending in “-sim” are simulated providers, not production models.
+        {!STATIC_EXPORT && " Exports include full payloads for the selected client and category, and are themselves recorded in this log."}
       </p>
     </>
   );
