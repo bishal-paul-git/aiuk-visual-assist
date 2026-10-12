@@ -27,6 +27,10 @@ Full reference: [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).
 
 **Build without `DATA_DIR` set.** Some pages are prerendered at build time.
 
+## The static demo on GitHub Pages
+
+`.github/workflows/deploy-pages.yml` publishes the static demo on every push to `main`. One-time setup: the repository must be public (or on a plan that allows Pages for private repos), **Settings → Pages → Source: GitHub Actions**, and `main` must be allowed to deploy. If the deploy job fails with "Branch main is not allowed to deploy to github-pages due to environment protection rules", open **Settings → Environments → github-pages** and add `main` under *Deployment branches and tags* (or allow all branches). Changing the default branch alone does not update that rule.
+
 ## Option 1 — Docker (any VM or container platform)
 
 ```bash
