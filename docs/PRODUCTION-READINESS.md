@@ -48,12 +48,26 @@ docker run -p 3000:3000 -e DATA_DIR=/data -v va-data:/data \
 | `METRICS_TOKEN` | unset | When set, `/api/metrics` requires `Authorization: Bearer <token>`. |
 | `LOG_LEVEL` | `info` | `debug` · `info` · `warn` · `error`. |
 | `LOG_FORMAT` | JSON | `pretty` for compact human-readable lines in development. |
-| `AUTH_SECRET` | — | Reserved for agent/admin sign-in (owned by the auth workstream). Set a long random value in every deployed environment. |
+| `AUTH_SECRET` | random per process | 32+ random characters. Signs the session cookie and encrypts the single sign-on transaction cookie. Without it sessions do not survive a restart. |
+| `OIDC_ISSUER` | unset → demo sign-in | Issuer URL of the organisation's identity provider; enables workforce single sign-on (§3.5). Must be HTTPS and match the `issuer` in its discovery document. Entra ID: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Okta: `https://<org>.okta.com/oauth2/default` (or your custom authorization server). |
+| `OIDC_CLIENT_ID` | — | Application (client) ID. Required with `OIDC_ISSUER`. |
+| `OIDC_CLIENT_SECRET` | unset | Client secret (confidential web app). Omit only for a public client; PKCE is always used. |
+| `OIDC_REDIRECT_URI` | `${PUBLIC_BASE_URL}/api/auth/callback` | Callback URL registered with the IdP. Falls back to the request origin when `PUBLIC_BASE_URL` is unset (development only). |
+| `OIDC_POST_LOGOUT_REDIRECT_URI` | `${PUBLIC_BASE_URL}/sign-in?signed_out=1` | Where the IdP returns the browser after sign-out. Register it with the IdP. |
+| `OIDC_SCOPES` | `openid profile email` | Space- or comma-separated; `openid` is always added. |
+| `OIDC_PROVIDER_NAME` | `SSO` | Button label: "Sign in with *Microsoft*". |
+| `OIDC_ROLE_CLAIM` | `roles` | ID token claim carrying role values: `roles` for Entra app roles, `groups` for Okta groups. Dot paths (`realm_access.roles`) and namespaced claims (`https://example.com/roles`) work. |
+| `OIDC_ROLE_MAP` | unset | JSON object, claim value → app role (`aiuk_admin`, `qa_reviewer`, `client_admin`, `supervisor`, `agent`). Unset: claim values must equal the role names. A user with several mapped roles gets the most privileged one. |
+| `OIDC_TENANT_CLAIM` | unset | Claim carrying the client organisation, e.g. Entra `tid` or an Okta group/profile claim. Unset: the tenant comes from the matched catalog user. |
+| `OIDC_TENANT_MAP` | unset | JSON object, claim value → tenant id (e.g. `{"<entra-tenant-id>":"tnt_northline"}`). Unset: claim values must equal tenant ids. |
+| `OIDC_REQUIRE_MFA` | off | `1` refuses an ID token whose `amr` claim has none of `OIDC_MFA_AMR_VALUES`. |
+| `OIDC_MFA_AMR_VALUES` | `mfa` | Comma-separated `amr` values that count as multi-factor. |
+| `ALLOW_DEMO_SIGNIN` | off | With `OIDC_ISSUER` set, `1` keeps the password-less demo sign-in available as well. Never in production. |
 | `NEXT_PUBLIC_BASE_PATH` | empty | Path prefix when served under a sub-path. Build-time. |
 | `INTEGRATIONS_CONFIG` | unset → every tool simulated | JSON array (or `{ "connectors": [...] }`) of business-action connectors: `tenantId`, `tool`, `mode` (`simulated` \| `http`), `endpoint` (HTTPS; `http://localhost` only outside production), `secretRef`, `timeoutMs` (500–30000, default 8000), optional `includeScenarioSessions`, `system`. Overrides entries stored under `connectors` in `<DATA_DIR>/config.json`. See `INTEGRATION-CONTRACT.md` §9. |
 | `INTEGRATION_SECRET_<TENANT>` | unset | Per-tenant HMAC-SHA256 signing secret (≥ 32 characters) for connector calls, e.g. `INTEGRATION_SECRET_NORTHLINE` for `tnt_northline`. Referenced by a connector's `secretRef`; never written to config, audit or logs. A missing secret makes that tenant's HTTP calls fail closed (`secret_missing`). |
 
-Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`, `INTEGRATION_SECRET_*`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
+Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`, `OIDC_CLIENT_SECRET`, `INTEGRATION_SECRET_*`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
 
 ---
 
@@ -104,6 +118,20 @@ Logs are one JSON object per line (`lib/server/log.ts`) with `ts`, `level`, `msg
 
 Suggested alerts: `va_store_error == 1`; `va_store_pending_writes > 100` for 5 min; `rate(va_provider_call_errors_total[5m]) / rate(va_provider_call_duration_seconds_count[5m]) > 0.1`; `va_queue_longest_wait_seconds > 120` (docs/07 queue target); `va_notifications_total{status="failed"}` increasing.
 
+### 3.5 Workforce sign-in (`lib/auth/oidc.ts`, `app/api/auth/*`)
+
+Agents, supervisors and administrators sign in through the organisation's identity provider with OpenID Connect (docs/06 §2: SSO, MFA, RBAC, tenant isolation). Any issuer with `/.well-known/openid-configuration` works: Microsoft Entra ID, Okta, Auth0. Setup steps per IdP are in [DEPLOYMENT.md](DEPLOYMENT.md#workforce-single-sign-on-oidc).
+
+- **Flow.** `GET /api/auth/sign-in?next=/console` → IdP → `GET /api/auth/callback`. Authorization Code with PKCE (S256), `state` and `nonce`. The attempt is kept for 10 minutes in an HttpOnly cookie encrypted and authenticated with a key derived from `AUTH_SECRET`, and is single use.
+- **ID token validation** (`jose`): signature against the issuer's JWKS (asymmetric algorithms only; `none` and HMAC are refused), `iss` (from discovery, which must match `OIDC_ISSUER`), `aud` = client ID, `azp` when present or when there are several audiences, `exp` / `iat` / `nbf` with 60 s skew, `nonce`; and `amr` when `OIDC_REQUIRE_MFA=1`.
+- **Who the user is.** Matched by email to a catalog user (unless the IdP marks the email unverified), otherwise provisioned just in time with a stable id derived from issuer + subject. Disabled or invited catalog users are refused.
+- **Role and tenant.** Role: the most privileged role mapped from `OIDC_ROLE_CLAIM`; otherwise the matched catalog user's role. Tenant: platform roles (`aiuk_admin`, `qa_reviewer`) work across clients; other roles need exactly one tenant mapped from `OIDC_TENANT_CLAIM`, otherwise the matched catalog user's tenant. A user who cannot be mapped is refused and the sign-in page says why (no role, no organisation, MFA required, account inactive).
+- **Session.** The usual signed `va_session` cookie (8 hours). Roles are re-read from the provider on every request, so a user disabled in the catalog loses access at once.
+- **Sign-out** clears the session and, when the issuer advertises `end_session_endpoint`, sends the browser to it (RP-initiated logout, with `id_token_hint` when the token fits in a cookie).
+- **Demo sign-in** is disabled while `OIDC_ISSUER` is set (unless `ALLOW_DEMO_SIGNIN=1`), and existing demo sessions stop working. An incomplete OIDC configuration (missing client ID, invalid JSON maps, unknown roles or tenants) stops the server answering authenticated requests rather than falling back to demo sign-in.
+- **Security log.** `security.signed_in` (provider, session id, `amr`, whether the role and tenant came from claims or the catalog), `security.sign_in_failed` (error code and reason), `security.signed_out` (whether IdP logout followed). Shown in the platform audit explorer.
+- **Limits.** Just-in-time users are held in memory: after a restart they sign in again (normally silently at the IdP), and multi-instance deployments need a shared user store. The static demo build ignores all of this and keeps its browser-only demo identities.
+
 ---
 
 ## 4. Path to a database
@@ -119,7 +147,15 @@ The store interface is shaped for a Postgres adapter (table definitions are in `
 - [ ] SMS/email credentials set and a test link received on a real handset; sender identity verified.
 - [ ] `/api/health` wired to the load balancer; `/api/metrics` scraped with `METRICS_TOKEN`.
 - [ ] Log shipping configured; `LOG_LEVEL=info`.
-- [ ] `AUTH_SECRET` set; platform and console behind sign-in (auth workstream).
+- [ ] `AUTH_SECRET` set (32+ random characters, from the secret store).
+- [ ] `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` set; the redirect URI (`…/api/auth/callback`) and post-logout URI (`…/sign-in?signed_out=1`) registered with the IdP exactly as `PUBLIC_BASE_URL` produces them.
+- [ ] Role mapping tested: one user per role signs in and lands on the right home page; a user with no assigned role is refused with the "no role" message.
+- [ ] Tenant mapping tested: client users land in their own organisation only (`OIDC_TENANT_CLAIM` + `OIDC_TENANT_MAP`, or catalog users).
+- [ ] MFA enforced at the IdP (conditional access / sign-on policy) and `OIDC_REQUIRE_MFA=1` set; a password-only sign-in is refused.
+- [ ] `ALLOW_DEMO_SIGNIN` unset; `/sign-in` shows only "Sign in with …".
+- [ ] Sign-out ends the IdP session (or the IdP's single-logout behaviour is understood and accepted).
+- [ ] `security.*` audit events reach the SIEM / audit store.
+- [ ] Client secret rotation scheduled (Entra secrets expire; Okta supports two active secrets).
 - [ ] Model and price table reviewed (`VISUAL_ASSIST_MODEL`, `MODEL_PRICES_USD`, `USD_TO_GBP`).
 - [ ] Retention/deletion schedule agreed (retention workstream) — the file store keeps sessions until deleted.
 - [ ] For each tenant going live on its own systems:

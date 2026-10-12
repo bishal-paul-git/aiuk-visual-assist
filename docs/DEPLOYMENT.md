@@ -15,6 +15,7 @@ long-lived Node 22 server (not serverless functions) with a persistent disk for
 | Setting | Required | Notes |
 |---|---|---|
 | `AUTH_SECRET` | Yes | 32+ random characters (`openssl rand -base64 32`). Signs sign-in cookies. |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Yes for real use | Workforce single sign-on (Entra ID, Okta, Auth0). See [below](#workforce-single-sign-on-oidc). Without them the server offers password-less demo sign-in. |
 | `DATA_DIR` | Yes for production | Persistent directory. The Docker image uses `/data` (mount a volume). |
 | `PUBLIC_BASE_URL` | Recommended | Public origin, e.g. `https://assist.example.com`, used in links sent by SMS/email. |
 | `ANTHROPIC_API_KEY` | For live AI | Enables the "Live AI" provider; otherwise sessions use the simulator. |
@@ -26,6 +27,108 @@ long-lived Node 22 server (not serverless functions) with a persistent disk for
 Full reference: [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).
 
 **Build without `DATA_DIR` set.** Some pages are prerendered at build time.
+
+## Workforce single sign-on (OIDC)
+
+Agents and administrators sign in with their organisation account through
+OpenID Connect. Customers never sign in; they use their session link. Set
+`PUBLIC_BASE_URL` first: the callback URL is derived from it.
+
+| URL to register with the IdP | Value |
+|---|---|
+| Redirect (callback) URI | `https://assist.example.com/api/auth/callback` |
+| Post-logout redirect URI | `https://assist.example.com/sign-in?signed_out=1` |
+
+### Microsoft Entra ID
+
+1. **Entra admin centre → App registrations → New registration.** Name
+   "Visual Assist"; *Accounts in this organizational directory only*; redirect
+   URI platform **Web**, value `https://assist.example.com/api/auth/callback`.
+2. **Authentication:** add `https://assist.example.com/sign-in?signed_out=1`
+   as a second Web redirect URI (Entra only returns to registered URLs after
+   sign-out). Leave implicit grant off.
+3. **Certificates & secrets → New client secret.** Put the value in the
+   secret store as `OIDC_CLIENT_SECRET`; note its expiry.
+4. **App roles → Create app role** (allowed member types: Users/Groups), one per
+   role you use, e.g. values `VisualAssist.Agent`, `VisualAssist.Supervisor`,
+   `VisualAssist.ClientAdmin`, `VisualAssist.QaReviewer`,
+   `VisualAssist.PlatformAdmin`.
+5. **Enterprise applications → Visual Assist → Properties:** *Assignment
+   required* = Yes. **Users and groups:** assign people or groups to the roles.
+6. **Token configuration → Add optional claim → ID → `email`.** Role values
+   arrive in the `roles` claim; the directory id arrives in `tid`.
+7. **MFA:** a Conditional Access policy requiring multi-factor authentication
+   for the app. Entra then puts `mfa` in the `amr` claim.
+8. Configure:
+
+```bash
+OIDC_ISSUER=https://login.microsoftonline.com/<directory-tenant-id>/v2.0
+OIDC_CLIENT_ID=<application-client-id>
+OIDC_CLIENT_SECRET=<secret value>
+OIDC_PROVIDER_NAME=Microsoft
+OIDC_ROLE_CLAIM=roles
+OIDC_ROLE_MAP='{"VisualAssist.Agent":"agent","VisualAssist.Supervisor":"supervisor","VisualAssist.ClientAdmin":"client_admin","VisualAssist.QaReviewer":"qa_reviewer","VisualAssist.PlatformAdmin":"aiuk_admin"}'
+OIDC_TENANT_CLAIM=tid
+OIDC_TENANT_MAP='{"<directory-tenant-id>":"tnt_northline"}'
+OIDC_REQUIRE_MFA=1
+```
+
+Use the tenant-specific issuer (not `common` or `organizations`): it must match
+the issuer in the ID token. Each client's Entra directory maps to one Visual
+Assist tenant through `tid`; staff with platform roles need no tenant mapping.
+Entra does not mark emails as verified, so matching existing catalog users by
+email relies on your directory's email hygiene; prefer app roles for access.
+
+### Okta
+
+1. **Admin console → Applications → Create App Integration:** *OIDC*, *Web
+   Application*, grant type *Authorization Code*. Sign-in redirect URI
+   `https://assist.example.com/api/auth/callback`; sign-out redirect URI
+   `https://assist.example.com/sign-in?signed_out=1`. Assign the groups that
+   may use the app.
+2. Create groups, e.g. `VisualAssist-Agents`, `VisualAssist-Supervisors`,
+   `VisualAssist-ClientAdmins`.
+3. **Security → API → Authorization Servers → default → Claims → Add claim:**
+   name `groups`, include in the *ID Token* (always), value type *Groups*,
+   filter *Starts with* `VisualAssist-`.
+4. For client users, add a claim that carries the organisation, e.g. `org`
+   from a user profile attribute.
+5. **MFA:** an authentication policy for the app that requires two factors.
+   Okta reports it in `amr` (e.g. `["pwd","mfa","otp"]`).
+6. Configure:
+
+```bash
+OIDC_ISSUER=https://<your-org>.okta.com/oauth2/default
+OIDC_CLIENT_ID=<client id>
+OIDC_CLIENT_SECRET=<client secret>
+OIDC_PROVIDER_NAME=Okta
+OIDC_ROLE_CLAIM=groups
+OIDC_ROLE_MAP='{"VisualAssist-Agents":"agent","VisualAssist-Supervisors":"supervisor","VisualAssist-ClientAdmins":"client_admin"}'
+OIDC_TENANT_CLAIM=org
+OIDC_TENANT_MAP='{"northline":"tnt_northline"}'
+OIDC_REQUIRE_MFA=1
+```
+
+Auth0 and other issuers work the same way: register the two URLs, put roles in
+an ID token claim (Auth0: a namespaced claim added by an Action, e.g.
+`OIDC_ROLE_CLAIM=https://assist.example.com/roles`) and set the variables.
+
+### Check it
+
+1. Open `/sign-in`: it shows **Sign in with Microsoft** (or your label) and no
+   demo users.
+2. Sign in as one user per role; each lands on their home page and sees only
+   their organisation.
+3. Sign in as a user with no role: the page says the account has no Visual
+   Assist role, and Platform → Audit shows `security.sign_in_failed` with code
+   `no_role`.
+4. Sign out: you pass through the IdP's logout and return to `/sign-in`.
+
+If the variables are incomplete (for example `OIDC_ROLE_MAP` is not valid JSON
+or names an unknown role), the server logs an `[auth]` error and refuses
+sign-in rather than falling back to demo sign-in. `ALLOW_DEMO_SIGNIN=1` keeps
+demo users available beside single sign-on for a pilot; never in production.
+Full variable reference: [PRODUCTION-READINESS.md §2 and §3.5](PRODUCTION-READINESS.md).
 
 ## The static demo on GitHub Pages
 
@@ -71,9 +174,9 @@ the variables above, and expose port 3000.
 
 ## After deploying
 
-1. Open `/sign-in` and sign in as a demo user (the demo identity provider lists
-   users by role). Replace it with your company's sign-in (Entra ID, Okta or
-   Auth0 via OpenID Connect) before real use: see `lib/auth/identity.ts`.
+1. Open `/sign-in`. With single sign-on configured, sign in with your
+   organisation account; otherwise sign in as a demo user (listed by role).
+   Configure [single sign-on](#workforce-single-sign-on-oidc) before real use.
 2. Start a test session from the console header and open the customer link on a
    phone.
 3. Point monitoring at `/api/health` and `/api/metrics`.
