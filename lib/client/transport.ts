@@ -55,8 +55,24 @@ export interface Transport {
   createSession(
     input: CreateSessionInput,
   ): Promise<{ ok: true; id: string; customerPath: string; consolePath: string; delivery?: LinkDelivery[] } | { ok: false; error: string }>;
-  capabilities(): Promise<{ liveReasoning: boolean; model: string | null; mode: "server" | "browser" }>;
+  capabilities(): Promise<Capabilities>;
+  /**
+   * Server speech-to-text for one customer turn. The server dispatches a
+   * non-empty transcript as the customer's utterance itself and returns it.
+   * Unavailable (ok: false) in the static demo.
+   */
+  transcribe(token: string, clip: { audio: Blob; durationMs: number }): Promise<TranscribeResult>;
 }
+
+export interface Capabilities {
+  liveReasoning: boolean;
+  model: string | null;
+  /** Server speech-to-text is configured (STT_PROVIDER). Always false in the static demo. */
+  speechToText: boolean;
+  mode: "server" | "browser";
+}
+
+export type TranscribeResult = { ok: true; text: string; confidence?: number } | { ok: false; status: number; error: string };
 
 export const syntheticFrameUrl = syntheticFrameSrc;
 
@@ -113,8 +129,24 @@ const serverTransport: Transport = {
     return { ok: true, id: d.id, customerPath: customerPath(d.token), consolePath: consolePath(d.id), delivery: d.delivery };
   },
   async capabilities() {
-    const r = await fetch("/api/capabilities").then((x) => x.json()).catch(() => ({ liveReasoning: false, model: null }));
-    return { ...r, mode: "server" as const };
+    const r = (await fetch("/api/capabilities")
+      .then((x) => x.json())
+      .catch(() => ({}))) as Partial<Capabilities>;
+    return { liveReasoning: r.liveReasoning === true, model: r.model ?? null, speechToText: r.speechToText === true, mode: "server" as const };
+  },
+  async transcribe(token, clip) {
+    try {
+      const res = await fetch(`/api/assist/${token}/stt?durationMs=${Math.round(clip.durationMs)}`, {
+        method: "POST",
+        headers: { "Content-Type": clip.audio.type || "audio/webm" },
+        body: clip.audio,
+      });
+      const data = (await res.json().catch(() => ({}))) as { text?: string; confidence?: number; error?: string };
+      if (!res.ok) return { ok: false, status: res.status, error: data.error ?? `Request failed (${res.status})` };
+      return { ok: true, text: data.text ?? "", confidence: data.confidence };
+    } catch {
+      return { ok: false, status: 0, error: "Network error" };
+    }
   },
 };
 

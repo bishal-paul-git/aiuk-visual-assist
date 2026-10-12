@@ -268,7 +268,10 @@ export function createBrowserTransport(): Transport {
       }
     },
     async capabilities() {
-      return { liveReasoning: false, model: null, mode: "browser" };
+      return { liveReasoning: false, model: null, speechToText: false, mode: "browser" };
+    },
+    async transcribe() {
+      return { ok: false, status: 404, error: "Speech-to-text needs the server edition" };
     },
   };
 }

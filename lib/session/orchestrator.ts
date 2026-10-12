@@ -22,7 +22,7 @@ import type {
 import type { EvidenceRequest, MediaState, SessionState, StepRecord } from "@/lib/domain/session";
 import { assessEvidence, getStep, selectNext, type StepFacts } from "@/lib/workflow/engine";
 import { canReturnToAi, checkTool, detectHumanRequest, findDuplicate, isMandatoryHuman } from "@/lib/policy/engine";
-import { COST_RATES, measuredModelCost } from "@/lib/domain/pricing";
+import { COST_RATES, measuredModelCost, speechToTextCost } from "@/lib/domain/pricing";
 import { redactPii } from "@/lib/privacy/redact";
 
 /**
@@ -70,7 +70,17 @@ export interface ObservationInput {
 
 export type Command =
   | { type: "customer.consent"; accepted: boolean; noticeVersion: string }
-  | { type: "customer.utterance"; text: string; confidence?: number }
+  | {
+      type: "customer.utterance";
+      text: string;
+      confidence?: number;
+      /**
+       * Set by the server speech-to-text route only (never accepted from a
+       * client command): which provider transcribed the turn and how much
+       * audio it billed, so the turn is costed from its duration.
+       */
+      speech?: { provider: string; audioSeconds: number };
+    }
   | { type: "customer.request_human" }
   | { type: "media.update"; media: Partial<MediaState> }
   | {
@@ -239,7 +249,8 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
     case "customer.utterance": {
       if (s.session.status === "awaiting_consent") return "Session not started";
       const t = ctx.addTranscript("customer", s.session.customerLabel, cmd.text, cmd.confidence ?? 1);
-      ctx.cost("speech_to_text", "browser-asr", 1, "turn");
+      if (cmd.speech) ctx.speechCost(cmd.speech.provider, cmd.speech.audioSeconds);
+      else ctx.cost("speech_to_text", "browser-asr", 1, "turn");
       if (detectHumanRequest(cmd.text)) {
         ctx.escalate("customer_requested", "Customer asked to speak to a person", "medium");
         return;
@@ -723,6 +734,25 @@ class Ctx {
       timestamp: this.now,
       basis: measured ? "measured" : "estimated",
       ...(usage ? { usage } : {}),
+    });
+  }
+
+  /** Server speech-to-text: one customer turn, priced from its audio duration. */
+  speechCost(provider: string, audioSeconds: number) {
+    const seconds = Math.max(0, Math.round(audioSeconds * 10) / 10);
+    const gbp = speechToTextCost(provider, seconds);
+    this.s.costs.push({
+      id: this.deps.id("cst"),
+      sessionId: this.s.session.id,
+      provider,
+      category: "speech_to_text",
+      quantity: 1,
+      unit: "turn",
+      estimatedCost: gbp === undefined ? COST_RATES.speech_to_text : round6(gbp),
+      currency: "GBP",
+      timestamp: this.now,
+      basis: "estimated",
+      audioSeconds: seconds,
     });
   }
 
