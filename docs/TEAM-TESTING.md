@@ -20,12 +20,12 @@ Try one on your phone as well.
 
 1. Open the **[Agent Console](https://bishal-paul-git.github.io/aiuk-visual-assist/console/)** and press **Start test session**.
 2. Open the customer link it gives you **in a new tab**. You are now the customer.
-3. Choose **Use demo camera** and follow the instructions. Press **Talk to a person** at any point.
-4. Go back to the Console tab, open the session, press **Join session** and then **Take over**. You are now the agent.
+3. Press **Agree and continue**, then **Use demo camera**, and follow the instructions. Press **Human help** at any point to ask for a person.
+4. Go back to the first tab and press **Open in agent console**. Press **Join** and then **Take over**. You are now the agent.
 
 ## 3. Look around (5 min)
 
-Open the **[Platform](https://bishal-paul-git.github.io/aiuk-visual-assist/platform/)** and click through the menu. Use **[Switch user](https://bishal-paul-git.github.io/aiuk-visual-assist/sign-in/)** to see it as an agent, a supervisor or a client admin.
+Open the **[Platform](https://bishal-paul-git.github.io/aiuk-visual-assist/platform/)** and click through the menu. Use **[Switch user](https://bishal-paul-git.github.io/aiuk-visual-assist/sign-in/)** to try other people. Each role only sees what it is allowed to: agents and supervisors work in the console, client admins and QA reviewers can't take over sessions.
 
 ---
 

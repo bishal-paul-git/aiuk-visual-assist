@@ -6,6 +6,8 @@ import { SCENARIOS } from "@/lib/providers/mock/scenarios";
 import { BASE_PATH, STATIC_DEMO, getTransport, type LinkDelivery } from "@/lib/client/transport";
 import { normaliseEmail, normalisePhone } from "@/lib/notifications/validate";
 import { buttonClass, cx } from "@/components/ui/primitives";
+import { useIdentity } from "@/lib/client/identity";
+import { can } from "@/lib/auth/rbac";
 
 interface Created {
   id: string;
@@ -29,6 +31,7 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
   const [live, setLive] = useState<{ liveReasoning: boolean; model: string | null }>();
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const id = useIdentity();
 
   useEffect(() => {
     if (!open || live) return;
@@ -69,6 +72,9 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
       setBusy(false);
     }
   }
+
+  // Only roles that may start sessions see the launcher (client admins and QA reviewers don't).
+  if (id.status === "signed_in" && !can({ ...id.user, status: "active" }, "session.create", { tenantId: "tnt_northline" })) return null;
 
   const link = created ? `${typeof window !== "undefined" ? window.location.origin : ""}${BASE_PATH}${created.customerPath}` : "";
 

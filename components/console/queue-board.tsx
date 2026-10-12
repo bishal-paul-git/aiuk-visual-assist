@@ -5,6 +5,10 @@ import { useNow } from "@/lib/client/use-now";
 import { Bot, Headset, Hourglass, Radio } from "lucide-react";
 import type { SessionSummaryView } from "@/lib/session/projections";
 import { useLiveSessions } from "@/lib/client/use-transport";
+import { useIdentity } from "@/lib/client/identity";
+import { tenantScope } from "@/lib/auth/rbac";
+import { tenants } from "@/lib/config/catalog";
+import { TestSessionLauncher } from "@/components/shared/test-session-launcher";
 import { consolePath } from "@/lib/client/transport";
 import { CUSTOMER_STATE_LABELS } from "@/lib/domain/labels";
 import { formatDuration, formatMinutes, formatRelative } from "@/lib/format";
@@ -14,8 +18,14 @@ import { EscalationReasonBadge, OutcomeBadge, SeverityBadge } from "@/components
 const SLA_SEC = 60;
 
 export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView[]; serverNow: number }) {
-  const { data: sessions, status } = useLiveSessions(initial);
+  const { data: all, status } = useLiveSessions(initial);
   const now = useNow(serverNow);
+  // Agents, supervisors and client admins only see their own organisation's queue
+  // (the server already filters; the static demo filters here).
+  const id = useIdentity();
+  const scope = id.status === "signed_in" ? tenantScope({ ...id.user, status: "active" }) : undefined;
+  const sessions = scope ? all.filter((s) => s.tenantId === scope) : all;
+  const orgName = scope ? (tenants.find((t) => t.id === scope)?.name ?? "Your organisation") : "All clients";
 
   const waiting = sessions.filter((s) => s.status === "escalated").sort((a, b) => a.escalation!.requestedAt.localeCompare(b.escalation!.requestedAt));
   const human = sessions.filter((s) => s.status === "human_active");
@@ -27,8 +37,11 @@ export function QueueBoard({ initial, serverNow }: { initial: SessionSummaryView
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ink">Live queue</h1>
-          <p className="mt-1 text-sm text-muted">Northline Broadband · Broadband Support L1 &amp; Network Specialists L2</p>
+          <p className="mt-1 text-sm text-muted">{orgName}</p>
         </div>
+        <span className="lg:hidden">
+          <TestSessionLauncher />
+        </span>
         <span className="flex items-center gap-1.5 text-xs text-muted" role="status">
           <Dot tone={status === "open" ? "ok" : "warn"} pulse={status !== "open"} /> {status === "open" ? "Live updates" : "Reconnecting…"}
         </span>

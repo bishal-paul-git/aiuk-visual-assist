@@ -23,7 +23,7 @@ export function WorkflowVersionActions({
   const [error, setError] = useState<string>();
 
   if (STATIC_DEMO) {
-    return <span className="text-[11px] text-muted">Versioning needs the server edition — read-only in this static demo</span>;
+    return <span className="text-[11px] text-muted" title="Workflow versioning needs the server edition">View only in this demo</span>;
   }
 
   if (status === "draft" || status === "in_review") {

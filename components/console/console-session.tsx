@@ -37,6 +37,7 @@ import { useAgentCommands } from "./use-agent-commands";
 import { useAgentId } from "./agent-identity";
 import { useNow } from "@/lib/client/use-now";
 import { useLiveCall } from "@/lib/client/live-call";
+import { OtherClientNotice, useConsoleAccess, ViewOnlyNotice, type ConsoleAccess } from "./console-access";
 import { callEligibility } from "@/lib/media/live-call";
 
 const CAPTURE_PRESETS = [
@@ -72,6 +73,9 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
   // Live video and audio with the customer, only for the agent the customer is with.
   const eligibility = callEligibility(s);
   const call = useLiveCall({ role: "agent", sessionId: id, keyId: id, transport, eligible: eligibility.eligible && !!agentId && eligibility.agentUserId === agentId });
+  const access = useConsoleAccess(s.session.tenantId);
+
+  if (access.known && !access.view) return <OtherClientNotice access={access} />;
 
   return (
     <div className={cx("mx-auto max-w-[1600px] px-3 py-3 sm:px-5", !ended && "pb-[calc(84px+env(safe-area-inset-bottom))] lg:pb-3")}>
@@ -106,19 +110,19 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
             </div>
           </div>
         </div>
-        {!ended && (
+        {!ended && access.operate && (
           <div className="hidden flex-wrap items-center gap-2 lg:flex">
-            {!me && (
+            {!me && access.join && (
               <button type="button" className={buttonClass(s.escalation && !humanOwner ? "primary" : "secondary")} disabled={!!cmd.pending} onClick={() => cmd.run({ type: "human.join" })}>
                 <LogIn className="size-4" aria-hidden /> Join session
               </button>
             )}
-            {!humanOwner && (
+            {!humanOwner && access.takeOver && (
               <button type="button" className={buttonClass(me ? "primary" : "secondary")} disabled={!!cmd.pending} onClick={() => cmd.run({ type: "human.take_over" })}>
                 <UserCheck className="size-4" aria-hidden /> Take over
               </button>
             )}
-            {humanOwner && (
+            {humanOwner && access.join && (
               <button
                 type="button"
                 className={buttonClass("secondary")}
@@ -129,13 +133,15 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
                 <RotateCcw className="size-4" aria-hidden /> Return to AI
               </button>
             )}
-            <EndMenu disabled={!!cmd.pending} onEnd={(outcome) => cmd.run({ type: "session.end", outcome })} />
+            {access.end && <EndMenu disabled={!!cmd.pending} onEnd={(outcome) => cmd.run({ type: "session.end", outcome })} />}
           </div>
         )}
       </div>
 
-      {!ended && (
+      {!ended && access.known && !access.operate && <ViewOnlyNotice access={access} />}
+      {!ended && access.operate && (
         <MobileActionBar
+          access={access}
           joined={Boolean(me)}
           humanOwner={humanOwner}
           escalated={Boolean(s.escalation)}
@@ -198,7 +204,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
                     Waiting for evidence: <strong>{s.evidenceRequest.checkpoint.replace(/_/g, " ")}</strong> (attempt {s.evidenceRequest.attempt}/{s.evidenceRequest.maxAttempts})
                   </div>
                 )}
-                <CaptureRequest disabled={ended || !humanOwner} onRequest={(prompt) => cmd.run({ type: "human.request_capture", prompt })} />
+                <CaptureRequest disabled={ended || !humanOwner || !access.join} onRequest={(prompt) => cmd.run({ type: "human.request_capture", prompt })} />
               </div>
             </div>
           </Fold>
@@ -272,7 +278,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
             {tab === "transcript" && <Transcript view={view} />}
             {tab === "handover" && <Handover view={view} />}
             {tab === "audit" && <AuditTrail view={view} />}
-            {tab === "transcript" && <Composer disabled={ended || !humanOwner} owned={iOwn} onSend={(text) => cmd.run({ type: "human.message", text })} />}
+            {tab === "transcript" && <Composer disabled={ended || !humanOwner || !access.join} owned={iOwn} onSend={(text) => cmd.run({ type: "human.message", text })} />}
             </div>
           </FoldShell>
         </div>
@@ -341,7 +347,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
               <Lightbulb className="size-4" aria-hidden /> Suggested next action
             </h2>
             <p className="mt-1 text-[13px] text-ink">{view.handover.recommendedNextStep}</p>
-            {!ended && !me && (
+            {!ended && !me && access.join && (
               <button type="button" className={cx(buttonClass("primary", "sm"), "mt-3")} onClick={() => cmd.run({ type: "human.join" })}>
                 Join session
               </button>
@@ -357,7 +363,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
           defaultOpen={false}
           badge={s.toolActions.length || undefined}
         >
-          <BusinessActions view={view} disabled={ended || !humanOwner} onRun={(tool) => cmd.run({ type: "human.run_action", tool, params: {} })} />
+          <BusinessActions view={view} disabled={ended || !humanOwner || !access.act} onRun={(tool) => cmd.run({ type: "human.run_action", tool, params: {} })} />
         </Fold>
         <Fold
           title={<span className="flex items-center gap-1.5"><StickyNote className="size-4" aria-hidden /> Agent notes</span>}
@@ -365,7 +371,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
           defaultOpen={false}
           badge={s.notes.length || undefined}
         >
-          <Notes view={view} onAdd={(text) => cmd.run({ type: "human.note", text })} />
+          <Notes view={view} canAdd={access.join && !ended} onAdd={(text) => cmd.run({ type: "human.note", text })} />
         </Fold>
       </div>
     </div>
@@ -721,7 +727,7 @@ function BusinessActions({ view, disabled, onRun }: { view: AgentView; disabled:
   );
 }
 
-function Notes({ view, onAdd }: { view: AgentView; onAdd: (t: string) => void }) {
+function Notes({ view, canAdd, onAdd }: { view: AgentView; canAdd: boolean; onAdd: (t: string) => void }) {
   const [text, setText] = useState("");
   return (
     <div>
@@ -736,6 +742,7 @@ function Notes({ view, onAdd }: { view: AgentView; onAdd: (t: string) => void })
           </li>
         ))}
       </ul>
+      {canAdd && (
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -753,6 +760,7 @@ function Notes({ view, onAdd }: { view: AgentView; onAdd: (t: string) => void })
           Add
         </button>
       </form>
+      )}
     </div>
   );
 }
@@ -817,6 +825,7 @@ function Fold({ bodyClassName, children, ...props }: Omit<React.ComponentProps<t
 
 /** Phones and tablets: the session's main controls stay at the bottom of the screen. */
 function MobileActionBar({
+  access,
   joined,
   humanOwner,
   escalated,
@@ -824,6 +833,7 @@ function MobileActionBar({
   returnAllowed,
   onRun,
 }: {
+  access: ConsoleAccess;
   joined: boolean;
   humanOwner: boolean;
   escalated: boolean;
@@ -836,22 +846,22 @@ function MobileActionBar({
       aria-label="Session actions"
       className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-line bg-surface/95 px-3 pt-2.5 pb-[max(10px,env(safe-area-inset-bottom))] shadow-[0_-6px_20px_-12px_rgba(11,27,51,0.35)] backdrop-blur lg:hidden"
     >
-      {!joined && (
+      {!joined && access.join && (
         <button type="button" className={cx(buttonClass(escalated && !humanOwner ? "primary" : "secondary"), "h-11 flex-1 px-2")} disabled={pending} onClick={() => onRun({ type: "human.join" })}>
           <LogIn className="size-4" aria-hidden /> Join
         </button>
       )}
-      {!humanOwner && (
+      {!humanOwner && access.takeOver && (
         <button type="button" className={cx(buttonClass(joined ? "primary" : "secondary"), "h-11 flex-1 px-2")} disabled={pending} onClick={() => onRun({ type: "human.take_over" })}>
           <UserCheck className="size-4" aria-hidden /> Take over
         </button>
       )}
-      {humanOwner && (
+      {humanOwner && access.join && (
         <button type="button" className={cx(buttonClass("secondary"), "h-11 flex-1 px-2")} disabled={pending || !returnAllowed} onClick={() => onRun({ type: "human.return_to_ai" })}>
           <RotateCcw className="size-4" aria-hidden /> Return to AI
         </button>
       )}
-      <EndMenu up className="flex-1" disabled={pending} onEnd={(outcome) => onRun({ type: "session.end", outcome })} />
+      {access.end && <EndMenu up className="flex-1" disabled={pending} onEnd={(outcome) => onRun({ type: "session.end", outcome })} />}
     </nav>
   );
 }

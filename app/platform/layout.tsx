@@ -9,6 +9,7 @@ import { can } from "@/lib/auth/rbac";
 import { scopeFor, scopeLabel } from "@/lib/auth/scope";
 import { currentUser } from "@/lib/server/auth";
 import { STATIC_EXPORT } from "@/lib/server/platform-data";
+import { StaticRoleGate } from "@/components/platform/static-role-gate";
 
 /**
  * Header and navigation for the management platform. Server edition: the
@@ -58,7 +59,9 @@ export default async function PlatformLayout({ children }: { children: ReactNode
           </div>
         </header>
         <MobileNav allowed={allowed} />
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          <StaticRoleGate>{children}</StaticRoleGate>
+        </main>
       </div>
     </div>
   );

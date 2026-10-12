@@ -23,6 +23,8 @@ const DEMO_KEY = "va.demo.identity";
 /** Earlier versions stored the console agent here. */
 const LEGACY_KEY = "va.console.agent";
 export const DEFAULT_DEMO_USER_ID = "usr_sarah";
+/** Until a tester picks someone, the platform is shown as its administrator. */
+const DEFAULT_PLATFORM_USER_ID = "usr_james";
 
 const listeners = new Set<() => void>();
 let state: IdentityState = { status: "loading" };
@@ -33,12 +35,25 @@ function emit(next: IdentityState) {
   listeners.forEach((l) => l());
 }
 
+/** True once the tester has picked a demo identity (or one is stored). */
+let chosen = false;
+
+/** The identity for someone who hasn't picked one: an agent in the console, the administrator in the platform. */
+function defaultDemoId(): string {
+  return typeof window !== "undefined" && window.location.pathname.includes("/platform") ? DEFAULT_PLATFORM_USER_ID : DEFAULT_DEMO_USER_ID;
+}
+
 function readDemoId(): string {
   try {
-    return window.localStorage.getItem(DEMO_KEY) ?? window.localStorage.getItem(LEGACY_KEY) ?? DEFAULT_DEMO_USER_ID;
+    const stored = window.localStorage.getItem(DEMO_KEY) ?? window.localStorage.getItem(LEGACY_KEY);
+    if (stored) {
+      chosen = true;
+      return stored;
+    }
   } catch {
-    return DEFAULT_DEMO_USER_ID;
+    /* storage unavailable */
   }
+  return defaultDemoId();
 }
 
 function demoState(id: string): IdentityState {
@@ -70,19 +85,30 @@ export function useIdentity(): IdentityState {
       start();
       return () => listeners.delete(cb);
     },
-    () => state,
+    snapshot,
     () => SERVER_SNAPSHOT,
   );
 }
 const SERVER_SNAPSHOT: IdentityState = { status: "loading" };
 
+function snapshot(): IdentityState {
+  // Static demo, no identity picked yet: follow the area being viewed.
+  if (STATIC_DEMO && !chosen && state.status === "signed_in") {
+    const want = defaultDemoId();
+    if (state.user.id !== want) state = demoState(want);
+  }
+  return state;
+}
+
 /** The current user id, or "" while unknown / signed out. */
 export function currentUserId(): string {
-  return state.status === "signed_in" ? state.user.id : "";
+  const s = snapshot();
+  return s.status === "signed_in" ? s.user.id : "";
 }
 
 /** Static demo only: switch to another demo identity. */
 export function setDemoIdentity(id: string) {
+  chosen = true;
   try {
     window.localStorage.setItem(DEMO_KEY, id);
   } catch {

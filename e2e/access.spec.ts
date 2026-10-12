@@ -14,14 +14,29 @@ test.describe("demo identity and permissions", () => {
     await page.goto("/console/sessions/ses_a12467/");
     const identity = page.getByLabel("Demo identity");
     await expect(identity).toHaveValue("usr_nadia");
-    await page.getByRole("button", { name: "Take over" }).click();
-    await expect(page.getByText("Your role (QA reviewer (read-only)) does not allow this", { exact: false })).toBeVisible();
+    // View-only roles are told so up front and never offered the controls.
+    await expect(page.getByText("Viewing only.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Take over" })).toHaveCount(0);
 
     await identity.selectOption("usr_marcus");
-    await page.getByRole("button", { name: "Dismiss" }).click();
+    await expect(page.getByText("Viewing only.", { exact: false })).toBeHidden();
     await page.getByRole("button", { name: "Take over" }).click();
     await expect(page.getByRole("button", { name: "Take over" })).toBeHidden();
     await expect(page.getByText("Hi, it's Marcus", { exact: false }).first()).toBeVisible();
+  });
+
+  test("roles without platform access are sent to the console; another client's session is refused", async ({ page }) => {
+    await page.goto("/sign-in/");
+    await page.getByRole("button", { name: /Sarah Jennings/ }).click();
+    await page.goto("/platform/");
+    await expect(page.getByRole("heading", { name: "The platform is for administrators" })).toBeVisible();
+    await page.getByRole("button", { name: "Switch to Platform administrator" }).click();
+    await expect(page.getByRole("heading", { name: "Operations dashboard" })).toBeVisible();
+
+    await page.goto("/sign-in/");
+    await page.getByRole("button", { name: /Owen Price/ }).click();
+    await page.goto("/console/sessions/ses_a12467/");
+    await expect(page.getByRole("heading", { name: "This session belongs to another client" })).toBeVisible();
   });
 
   test("the static demo shows the all-clients platform view without the server-only audit export", async ({ page }) => {
