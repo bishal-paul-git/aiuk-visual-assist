@@ -244,8 +244,8 @@ function Intro({
       <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-white/70">
         Choose a scenario and press play. You&apos;ll see the customer&apos;s phone and the support agent&apos;s console
         <span className="lg:hidden"> (switch between them at any time)</span>
-        <span className="hidden lg:inline"> side by side</span>, with a caption explaining what the product is doing at each step. A session takes about a
-        minute.
+        <span className="hidden lg:inline"> side by side</span>, with a caption explaining what the product is doing at each step. The assistant speaks
+        in a British voice, so turn your sound on. A session takes about two minutes.
       </p>
 
       <fieldset className="mt-6 sm:mt-8">
@@ -555,6 +555,20 @@ function useWalkthrough(run: Run | undefined, agentId: string) {
   const timer = useRef<{ key: string; handle: ReturnType<typeof setTimeout> } | null>(null);
   const pausedRef = useRef(paused);
   const latest = useRef<{ transport: Transport; decision: DirectorDecision; token: string } | null>(null);
+  // The customer page reports when the assistant is speaking (ElevenLabs
+  // voice); scripted moves wait for the end of the sentence.
+  const speech = useRef({ speaking: false, endedAt: 0 });
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin || e.data?.type !== "va-speaking") return;
+      const speaking = Boolean(e.data.speaking);
+      if (speech.current.speaking && !speaking) speech.current.endedAt = Date.now();
+      speech.current.speaking = speaking;
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -580,11 +594,21 @@ function useWalkthrough(run: Run | undefined, agentId: string) {
       }
       if (timer.current?.key === next.key) return;
       if (timer.current) clearTimeout(timer.current.handle);
+      const scheduledAt = Date.now();
       timer.current = {
         key: next.key,
-        handle: setTimeout(() => {
+        handle: setTimeout(function fire() {
+          if (pausedRef.current || sent.current.has(next.key)) {
+            timer.current = null;
+            return;
+          }
+          // Hold while the assistant is mid-sentence (and a beat after), up to 30 s.
+          const waitedLong = Date.now() - scheduledAt > next.delayMs + 30_000;
+          if (!waitedLong && (speech.current.speaking || Date.now() - speech.current.endedAt < 700)) {
+            if (timer.current) timer.current.handle = setTimeout(fire, 250);
+            return;
+          }
           timer.current = null;
-          if (pausedRef.current || sent.current.has(next.key)) return;
           sent.current.add(next.key);
           void (next.actor === "agent" ? l.transport.agentCommand(run.id, agentId, next.command) : l.transport.customerCommand(token, next.command));
         }, next.delayMs),

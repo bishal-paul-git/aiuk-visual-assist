@@ -66,7 +66,7 @@ export default function Home() {
               </p>
               <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
                 <Link href="/demo/?play=power_cycle_fix" className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-navy px-5 sm:h-11 text-sm font-semibold text-white hover:bg-navy-2">
-                  <PlayCircle className="size-4.5" aria-hidden /> Watch a 1-minute session
+                  <PlayCircle className="size-4.5" aria-hidden /> Watch a 2-minute session
                 </Link>
                 <Link href="/platform/" className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-line-strong bg-surface px-5 sm:h-11 text-sm font-semibold text-ink hover:bg-surface-2">
                   Explore the platform <ArrowRight className="size-4" aria-hidden />
@@ -161,7 +161,7 @@ export default function Home() {
         <section className="bg-navy">
           <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-5 px-5 py-12 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-xl font-semibold text-white">See the whole loop in about a minute</h2>
+              <h2 className="text-xl font-semibold text-white">See the whole loop in about two minutes</h2>
               <p className="mt-1 text-sm text-white/70">Pick a scenario. The demo plays the customer and the agent side by side, explaining each step.</p>
             </div>
             <Link href="/demo/" className="inline-flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-white px-5 sm:h-11 sm:w-auto text-sm font-semibold text-navy hover:bg-white/90">

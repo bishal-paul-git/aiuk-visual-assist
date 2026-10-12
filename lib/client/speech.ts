@@ -76,8 +76,16 @@ export function useSpeaker(enabled: boolean) {
       u.rate = 1.02;
       const voice = window.speechSynthesis.getVoices().find((v) => v.lang === "en-GB");
       if (voice) u.voice = voice;
-      u.onend = () => resolve();
-      u.onerror = () => resolve();
+      // Some browsers never fire onend (e.g. no voices installed); don't hang the queue.
+      const guard = setTimeout(resolve, 2000 + text.length * 90);
+      u.onend = () => {
+        clearTimeout(guard);
+        resolve();
+      };
+      u.onerror = () => {
+        clearTimeout(guard);
+        resolve();
+      };
       window.speechSynthesis.speak(u);
     });
   }, []);
@@ -86,11 +94,17 @@ export function useSpeaker(enabled: boolean) {
     return new Promise<boolean>((resolve) => {
       const audio = new Audio(url);
       current.current = audio;
-      const done = (ok: boolean) => {
+      let settled = false;
+      // A stalled clip must not block later lines: give up after 45 s.
+      const guard = setTimeout(() => done(false), 45_000);
+      function done(ok: boolean) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(guard);
         if (url.startsWith("blob:")) URL.revokeObjectURL(url);
         current.current = null;
         resolve(ok);
-      };
+      }
       audio.onended = () => done(true);
       audio.onerror = () => done(false);
       // Autoplay can be blocked until the user interacts; fall back to the browser voice.
