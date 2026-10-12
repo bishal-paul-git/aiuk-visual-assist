@@ -1,35 +1,13 @@
 name: Test feedback
-description: Report something you found while testing Visual Assist
+description: Tell us what you found while testing Visual Assist
 title: "[Test] "
 labels: ["test-feedback"]
 body:
-  - type: markdown
+  - type: textarea
+    id: what
     attributes:
-      value: |
-        Thanks for testing. One finding per issue, please. Don't include real customer details.
-        Test guide: docs/TEAM-TESTING.md
-  - type: dropdown
-    id: kind
-    attributes:
-      label: Type
-      options:
-        - Something's broken
-        - Suggestion
-        - Question
-    validations:
-      required: true
-  - type: dropdown
-    id: area
-    attributes:
-      label: Where
-      options:
-        - Guided demo
-        - Customer phone app
-        - Agent Console
-        - Platform
-        - Sign-in and roles
-        - Voice
-        - Other
+      label: What happened?
+      description: What you did, what you saw, and what you expected. Paste a screenshot if you can.
     validations:
       required: true
   - type: input
@@ -37,12 +15,3 @@ body:
     attributes:
       label: Device and browser
       placeholder: e.g. iPhone 15, Safari
-    validations:
-      required: true
-  - type: textarea
-    id: what
-    attributes:
-      label: What happened, and what you expected
-      description: Steps to reproduce help a lot. Paste a screenshot if you can.
-    validations:
-      required: true
