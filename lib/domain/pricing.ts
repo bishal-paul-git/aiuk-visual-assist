@@ -16,6 +16,25 @@ export const COST_RATES: Record<CostEvent["category"], number> = {
 };
 
 /**
+ * Server speech-to-text list prices, USD per audio minute, keyed by the
+ * provider id recorded on the cost event. A transcribed turn is priced from
+ * its audio duration; the cost stays "estimated" because the rate is a list
+ * price, not an invoice. Turns recognised in the browser use the flat
+ * `speech_to_text` unit rate above. Review when contracts or prices change.
+ */
+export const STT_PRICES_USD_PER_MINUTE: Record<string, number> = {
+  "elevenlabs-scribe": 0.4 / 60, // Scribe v1, $0.40 per audio hour
+  "deepgram-nova-3": 0.0043, // Nova-3 pre-recorded, pay as you go
+};
+
+/** Estimated GBP cost of one server-transcribed turn, or undefined for an unpriced provider. */
+export function speechToTextCost(provider: string, audioSeconds: number): number | undefined {
+  const rate = STT_PRICES_USD_PER_MINUTE[provider];
+  if (rate === undefined || !Number.isFinite(audioSeconds) || audioSeconds < 0) return undefined;
+  return (audioSeconds / 60) * rate * usdToGbp();
+}
+
+/**
  * Model list prices, USD per million tokens (Anthropic first-party API,
  * standard speed). Cache writes are priced for the default 5-minute TTL
  * (1.25x input). Costs computed from these prices and provider-reported token

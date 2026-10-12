@@ -23,7 +23,8 @@ import {
 import type { CustomerView } from "@/lib/session/projections";
 import { useCustomerStream } from "@/lib/client/use-transport";
 import { captureFrame, isSourceReady, MotionMeter, type FrameSource } from "@/lib/client/frame-capture";
-import { useListener, useSpeaker } from "@/lib/client/speech";
+import { readRecogniserEnv, useListener, useRecorderListener, useSpeaker, type RecorderPhase, type TranscribeFn } from "@/lib/client/speech";
+import { chooseRecogniser, type RecogniserKind } from "@/lib/client/voice-activity";
 import { formatDuration } from "@/lib/format";
 import { useNow } from "@/lib/client/use-now";
 import { cx } from "@/components/ui/primitives";
@@ -83,7 +84,33 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     },
     [send],
   );
-  const listener = useListener({ active: phase === "live" && !ended && cam.micOn && !speaker.speaking, onFinal });
+  // Which recogniser: browser Web Speech, or recorded turns transcribed on the
+  // server where it is configured and Web Speech is missing or unreliable
+  // (iOS, Safari) or fails. The scripted demo walkthrough keeps Web Speech.
+  const [serverStt, setServerStt] = useState<boolean>();
+  useEffect(() => {
+    if (!transport) return;
+    let live = true;
+    transport
+      .capabilities()
+      .then((c) => live && setServerStt(c.speechToText))
+      .catch(() => live && setServerStt(false));
+    return () => {
+      live = false;
+    };
+  }, [transport]);
+  const [webSpeechFailed, setWebSpeechFailed] = useState(false);
+  const autoplay = useAutoplay();
+  const recogniser: RecogniserKind | "pending" = serverStt === undefined ? "pending" : chooseRecogniser(readRecogniserEnv(serverStt && !autoplay, webSpeechFailed));
+  const canListen = phase === "live" && !ended && cam.micOn && !speaker.speaking;
+  const listener = useListener({ active: canListen && recogniser === "browser", onFinal });
+  if (listener.failed && !webSpeechFailed) setWebSpeechFailed(true);
+  const transcribe = useCallback<TranscribeFn>(
+    async (clip) => (transport ? transport.transcribe(token, clip) : { ok: false, status: 0, error: "Not connected" }),
+    [token, transport],
+  );
+  const recorder = useRecorderListener({ active: canListen && recogniser === "server", stream: cam.stream, transcribe });
+  const voiceInput = recogniser === "server" || (recogniser === "browser" && listener.supported);
 
   // --- Session start -------------------------------------------------------
   async function startWith(mode: "camera" | "demo" | "voice") {
@@ -104,7 +131,6 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
   // --- Demo walkthrough: accept the notice and use the demo camera ---------
   // The demo stage opens this page with ?autoplay=1. Everything after this
   // (the conversation, the agent) is driven through the normal commands.
-  const autoplay = useAutoplay();
   const startRef = useRef(startWith);
   startRef.current = startWith;
   useEffect(() => {
@@ -357,7 +383,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
           </div>
         )}
 
-        {(typing || !listener.supported) && (
+        {(typing || (!voiceInput && recogniser !== "pending")) && (
           <form
             className="mb-2 flex gap-2"
             onSubmit={(e) => {
@@ -375,7 +401,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
               id="say"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={listener.supported ? "Type a message" : "Type here — voice input isn't available in this browser"}
+              placeholder={voiceInput ? "Type a message" : "Type here — voice input isn't available in this browser"}
               className="h-11 min-w-0 flex-1 rounded-full border border-white/25 bg-black/50 px-4 text-[15px] text-white placeholder:text-white/50"
               autoComplete="off"
             />
@@ -385,15 +411,22 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
           </form>
         )}
 
-        <div className="mb-3 flex items-center justify-center gap-2 text-[12px] text-white/70">
-          {listener.supported && cam.micOn && !speaker.speaking && (
+        {recogniser === "server" && recorder.error && cam.micOn && (
+          <p role="status" className="mb-2 px-1 text-center text-[12px] text-white/80">
+            {recorder.error}
+          </p>
+        )}
+
+        <div className="mb-3 flex min-h-7 items-center justify-center gap-2 text-[12px] text-white/70" aria-live="polite">
+          {recogniser === "browser" && listener.supported && cam.micOn && !speaker.speaking && (
             <>
               <span className="size-2 rounded-full bg-[#3bd16f] va-pulse" aria-hidden /> Listening — just speak
             </>
           )}
+          {recogniser === "server" && cam.micOn && !speaker.speaking && <RecorderStatus phase={recorder.phase} handsFree={recorder.handsFree} onTalk={recorder.talk} />}
           {speaker.speaking && "Assistant is speaking…"}
           {!cam.micOn && "Microphone muted"}
-          {listener.supported && (
+          {voiceInput && (
             <button type="button" onClick={() => setTyping((v) => !v)} className="ml-2 inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-white/80">
               <Keyboard className="size-3.5" aria-hidden /> {typing ? "Hide keyboard" : "Type instead"}
             </button>
@@ -591,6 +624,38 @@ function QualityIndicator({ quality }: { quality: Quality }) {
       <span className="sr-only sm:not-sr-only">{label}</span>
     </span>
   );
+}
+
+/** Server speech-to-text state: listening, hearing a turn, or transcribing it. */
+function RecorderStatus({ phase, handsFree, onTalk }: { phase: RecorderPhase; handsFree: boolean; onTalk: () => void }) {
+  if (phase === "processing")
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span className="size-3 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden /> Processing…
+      </span>
+    );
+  if (phase === "hearing")
+    return (
+      <>
+        <span className="size-2 rounded-full bg-[#e5484d] va-pulse" aria-hidden /> {handsFree ? "Hearing you…" : "Recording…"}
+        <button type="button" onClick={onTalk} className="ml-1 inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-semibold text-ink">
+          <Send className="size-3.5" aria-hidden /> {handsFree ? "Done" : "Send"}
+        </button>
+      </>
+    );
+  if (phase === "listening" && !handsFree)
+    return (
+      <button type="button" onClick={onTalk} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 font-semibold text-ink">
+        <Mic className="size-3.5" aria-hidden /> Tap to talk
+      </button>
+    );
+  if (phase === "listening")
+    return (
+      <>
+        <span className="size-2 rounded-full bg-[#3bd16f] va-pulse" aria-hidden /> Listening — just speak
+      </>
+    );
+  return <span>Starting microphone…</span>;
 }
 
 function SpeakingBars() {

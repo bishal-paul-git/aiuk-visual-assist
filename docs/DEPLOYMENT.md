@@ -22,6 +22,7 @@ long-lived Node 22 server (not serverless functions) with a persistent disk for
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | For SMS | Customer link by text message. |
 | `RESEND_API_KEY`, `EMAIL_FROM` | For email | Customer link by email. |
 | `ELEVENLABS_API_KEY` | For live voice | British ElevenLabs voice for lines without a recorded clip. |
+| `STT_PROVIDER` + `ELEVENLABS_API_KEY` or `DEEPGRAM_API_KEY` | Recommended for iPhone customers | Server speech-to-text for the customer's voice: `STT_PROVIDER=elevenlabs` (Scribe) or `STT_PROVIDER=deepgram` (Nova-3). Used on iOS/Safari and wherever browser recognition is missing or fails. Unset: browser recognition only, and customers without it type. Audio is not stored. |
 | `METRICS_TOKEN` | Recommended | Protects `/api/metrics`. |
 
 Full reference: [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).

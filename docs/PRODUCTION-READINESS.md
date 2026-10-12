@@ -44,6 +44,8 @@ docker run -p 3000:3000 -e DATA_DIR=/data -v va-data:/data \
 | `RESEND_API_KEY`, `EMAIL_FROM` | unset | Both enable email link delivery through a Resend-style HTTP API (`POST /emails`). `EMAIL_FROM` must be a verified sender. |
 | `ELEVENLABS_API_KEY` | unset | Enables live British text-to-speech (`POST /api/tts`) for assistant and agent lines that have no pre-recorded clip. Without it, recorded clips in `public/voice` are used where available and the browser's en-GB voice otherwise. |
 | `ELEVENLABS_VOICE_ID`, `ELEVENLABS_AGENT_VOICE_ID`, `ELEVENLABS_AGENT_VOICE_ID_MALE`, `ELEVENLABS_MODEL` | British defaults | Override the assistant voice (Clarice), the female and male agent voices (Grace, James) and the model (`eleven_turbo_v2_5`). |
+| `STT_PROVIDER` | unset → off | Server speech-to-text for the customer's voice (`POST /api/assist/[token]/stt`): `elevenlabs` (Scribe `scribe_v1`, uses `ELEVENLABS_API_KEY`) or `deepgram` (Nova-3, `en-GB`, uses `DEEPGRAM_API_KEY`). Off unless the named provider also has its key; the TTS key alone does not turn it on. When on, the customer app uses it on iOS and Safari, wherever Web Speech is missing, and after Web Speech fails; other browsers keep free browser recognition. See §3.4. |
+| `DEEPGRAM_API_KEY` | unset | Deepgram key, used when `STT_PROVIDER=deepgram`. |
 | `PUBLIC_BASE_URL` | request origin | Origin used to build the customer link sent by SMS/email, e.g. `https://assist.example.com`. |
 | `METRICS_TOKEN` | unset | When set, `/api/metrics` requires `Authorization: Bearer <token>`. |
 | `LOG_LEVEL` | `info` | `debug` · `info` · `warn` · `error`. |
@@ -67,7 +69,7 @@ docker run -p 3000:3000 -e DATA_DIR=/data -v va-data:/data \
 | `INTEGRATIONS_CONFIG` | unset → every tool simulated | JSON array (or `{ "connectors": [...] }`) of business-action connectors: `tenantId`, `tool`, `mode` (`simulated` \| `http`), `endpoint` (HTTPS; `http://localhost` only outside production), `secretRef`, `timeoutMs` (500–30000, default 8000), optional `includeScenarioSessions`, `system`. Overrides entries stored under `connectors` in `<DATA_DIR>/config.json`. See `INTEGRATION-CONTRACT.md` §9. |
 | `INTEGRATION_SECRET_<TENANT>` | unset | Per-tenant HMAC-SHA256 signing secret (≥ 32 characters) for connector calls, e.g. `INTEGRATION_SECRET_NORTHLINE` for `tnt_northline`. Referenced by a connector's `secretRef`; never written to config, audit or logs. A missing secret makes that tenant's HTTP calls fail closed (`secret_missing`). |
 
-Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`, `OIDC_CLIENT_SECRET`, `INTEGRATION_SECRET_*`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
+Secrets (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `DEEPGRAM_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`, `OIDC_CLIENT_SECRET`, `INTEGRATION_SECRET_*`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
 
 ---
 
@@ -93,6 +95,7 @@ Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TO
 
 - Live Claude calls read `usage` (input, output, cache-write and cache-read tokens) from each response. When a server-side fallback ran, each model's share is priced at that model's rate.
 - Cost events carry `basis: "measured"` (token-priced) or `"estimated"` (unit rate). Simulated sessions and non-model costs (media, speech, tools) stay estimated. The Cost Centre and session detail label both.
+- Speech-to-text: a turn recognised in the browser is one `speech_to_text` turn at the flat unit rate (provider `browser-asr`). A turn transcribed on the server is priced from its audio length at `STT_PRICES_USD_PER_MINUTE` (provider `elevenlabs-scribe` or `deepgram-nova-3`), with `audioSeconds` on the cost event. Both stay *estimated* (list prices). Clips that produce no words are not costed.
 
 ### 3.4 Client integrations (`lib/integrations/`)
 
@@ -106,7 +109,15 @@ Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TO
 - The static demo build never reads `INTEGRATIONS_CONFIG` and always simulates.
 - `scripts/reference-client-api.mjs` is a reference implementation of the client side to hand to client developers.
 
-### 3.5 Observability
+### 3.5 Server speech-to-text (`lib/server/voice/`, `lib/client/speech.ts`)
+
+- `SpeechToTextProvider` (`stt.ts`) with ElevenLabs Scribe (`elevenlabs-stt.ts`) and Deepgram (`deepgram.ts`) adapters; `select-stt.ts` picks one from `STT_PROVIDER`. `GET /api/capabilities` reports `speechToText`.
+- Client: `useRecorderListener` records with MediaRecorder (webm/opus, or mp4/aac on iOS Safari), ends each turn by voice activity (AnalyserNode level, adaptive noise floor, 0.9 s pause, 25 s cap) and uploads it. If the browser keeps its AudioContext suspended, it falls back to tap-to-talk. It reuses the camera's microphone track. The customer sees *Listening*, *Hearing you* (with *Done*) and *Processing*.
+- `POST /api/assist/[token]/stt`: the customer token authorises it; same-origin only; 404 when not configured; 40 requests/min per IP and 20/min per session; clip ≤ 1 MB, 0.2–30 s by the declared `durationMs`, and the bytes must be a webm, ogg or mp4 container. The session must have started and not ended. Upstream calls time out after 15 s.
+- **Audio is never stored or logged.** It is held in memory for the provider call only. A non-empty transcript is dispatched as an ordinary `customer.utterance`, so PII redaction, the audit trail and the AI turn apply exactly as for typed or browser-recognised speech. Logs (`stt.transcribed`, `stt.failed`) carry provider, sizes, seconds and latency, never text.
+- The static demo has no server, so it always uses browser recognition. The scripted `/demo` walkthrough (`?autoplay=1`) also keeps browser recognition.
+
+### 3.6 Observability
 
 | Endpoint | Use |
 |---|---|
@@ -118,7 +129,7 @@ Logs are one JSON object per line (`lib/server/log.ts`) with `ts`, `level`, `msg
 
 Suggested alerts: `va_store_error == 1`; `va_store_pending_writes > 100` for 5 min; `rate(va_provider_call_errors_total[5m]) / rate(va_provider_call_duration_seconds_count[5m]) > 0.1`; `va_queue_longest_wait_seconds > 120` (docs/07 queue target); `va_notifications_total{status="failed"}` increasing.
 
-### 3.5 Workforce sign-in (`lib/auth/oidc.ts`, `app/api/auth/*`)
+### 3.7 Workforce sign-in (`lib/auth/oidc.ts`, `app/api/auth/*`)
 
 Agents, supervisors and administrators sign in through the organisation's identity provider with OpenID Connect (docs/06 §2: SSO, MFA, RBAC, tenant isolation). Any issuer with `/.well-known/openid-configuration` works: Microsoft Entra ID, Okta, Auth0. Setup steps per IdP are in [DEPLOYMENT.md](DEPLOYMENT.md#workforce-single-sign-on-oidc).
 
@@ -156,7 +167,8 @@ The store interface is shaped for a Postgres adapter (table definitions are in `
 - [ ] Sign-out ends the IdP session (or the IdP's single-logout behaviour is understood and accepted).
 - [ ] `security.*` audit events reach the SIEM / audit store.
 - [ ] Client secret rotation scheduled (Entra secrets expire; Okta supports two active secrets).
-- [ ] Model and price table reviewed (`VISUAL_ASSIST_MODEL`, `MODEL_PRICES_USD`, `USD_TO_GBP`).
+- [ ] Model and price table reviewed (`VISUAL_ASSIST_MODEL`, `MODEL_PRICES_USD`, `STT_PRICES_USD_PER_MINUTE`, `USD_TO_GBP`).
+- [ ] If `STT_PROVIDER` is set: a spoken turn tested on a real iPhone (Safari) and an Android phone; the provider's data-retention setting reviewed (audio is sent to it).
 - [ ] Retention/deletion schedule agreed (retention workstream) — the file store keeps sessions until deleted.
 - [ ] For each tenant going live on its own systems:
   - [ ] Client endpoints built to `INTEGRATION-CONTRACT.md`: signature check, idempotency, `{ status, result, externalRef }`.

@@ -460,6 +460,8 @@ export interface CostEvent {
   basis?: "estimated" | "measured";
   /** Provider-reported token usage behind a measured cost. */
   usage?: ModelUsage;
+  /** Seconds of customer audio behind a server speech-to-text cost. Audio itself is never stored. */
+  audioSeconds?: number;
 }
 
 /** Token usage for one model call, as reported by the provider (e.g. Anthropic `usage`). */
