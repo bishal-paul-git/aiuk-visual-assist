@@ -11,6 +11,7 @@ import type {
 import { buildHandover, buildSummary, isUncertain, latestObservations } from "./handover";
 import { demoSceneFor } from "@/lib/simulation/demo-scene";
 import type { RouterScene } from "@/lib/media/router-svg";
+import { callEligibility } from "@/lib/media/live-call";
 
 /**
  * Role-scoped read models. The customer projection deliberately excludes
@@ -32,6 +33,8 @@ export interface CustomerView {
   agentName: string;
   /** True while a human is (or is about to be) watching — the only time a low-rate preview is relayed. */
   previewRequested: boolean;
+  /** True while live video with the human agent may run (agent present, consent, camera on). */
+  liveVideo: boolean;
   evidenceMode: string;
   scenario?: string;
   /** Simulation only: what the demo camera should render. */
@@ -60,6 +63,7 @@ export function toCustomerView(state: SessionState, brand: { name: string; color
     humanName: human?.displayName,
     agentName: state.participants.find((p) => p.type === "ai")?.displayName ?? "Visual assistant",
     previewRequested: Boolean(human) || Boolean(state.escalation),
+    liveVideo: callEligibility(state).eligible,
     evidenceMode,
     scenario: state.session.scenario,
     demoScene: demoSceneFor(state),

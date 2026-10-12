@@ -36,6 +36,8 @@ import { Filmstrip, ObservationList } from "./evidence";
 import { useAgentCommands } from "./use-agent-commands";
 import { useAgentId } from "./agent-identity";
 import { useNow } from "@/lib/client/use-now";
+import { useLiveCall } from "@/lib/client/live-call";
+import { callEligibility } from "@/lib/media/live-call";
 
 const CAPTURE_PRESETS = [
   "Please show me the front of the router, nice and close.",
@@ -67,6 +69,9 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
   const step = s.workflow.currentStep ? view.workflow.steps.find((x) => x.key === s.workflow.currentStep) : undefined;
   const duration = s.session.startedAt ? secondsBetween(s.session.startedAt, s.session.endedAt ?? now) : 0;
   const previewActive = !ended && (Boolean(me) || Boolean(s.escalation));
+  // Live video and audio with the customer, only for the agent the customer is with.
+  const eligibility = callEligibility(s);
+  const call = useLiveCall({ role: "agent", sessionId: id, keyId: id, transport, eligible: eligibility.eligible && !!agentId && eligibility.agentUserId === agentId });
 
   return (
     <div className={cx("mx-auto max-w-[1600px] px-3 py-3 sm:px-5", !ended && "pb-[calc(84px+env(safe-area-inset-bottom))] lg:pb-3")}>
@@ -178,7 +183,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
             }
           >
             <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-              <LiveVideo sessionId={id} transport={transport} active={previewActive} latestFrame={frames.at(-1)} cameraOn={s.media.camera} frameSrc={frameSrc} />
+              <LiveVideo sessionId={id} transport={transport} active={previewActive} latestFrame={frames.at(-1)} cameraOn={s.media.camera} frameSrc={frameSrc} call={call} />
               <div className="flex flex-col gap-2">
                 <div className="rounded-md border border-line bg-surface-2 p-2.5">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted">Customer sees</div>

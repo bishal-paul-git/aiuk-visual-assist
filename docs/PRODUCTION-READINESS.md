@@ -50,8 +50,9 @@ docker run -p 3000:3000 -e DATA_DIR=/data -v va-data:/data \
 | `LOG_FORMAT` | JSON | `pretty` for compact human-readable lines in development. |
 | `AUTH_SECRET` | — | Reserved for agent/admin sign-in (owned by the auth workstream). Set a long random value in every deployed environment. |
 | `NEXT_PUBLIC_BASE_PATH` | empty | Path prefix when served under a sub-path. Build-time. |
+| `ICE_SERVERS` | public STUN (`stun:stun.l.google.com:19302`) | JSON array of [RTCIceServer](https://developer.mozilla.org/docs/Web/API/RTCIceServer) for live video, e.g. `[{"urls":"stun:stun.example.com:3478"},{"urls":["turn:turn.example.com:3478?transport=udp","turns:turn.example.com:443?transport=tcp"],"username":"…","credential":"…"}]`. Invalid entries (and TURN entries without credentials) are dropped. See §3.5. |
 
-Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
+Secrets (`ANTHROPIC_API_KEY`, `TWILIO_AUTH_TOKEN`, `RESEND_API_KEY`, `METRICS_TOKEN`, `AUTH_SECRET`, TURN credentials in `ICE_SERVERS`) belong in the platform's secret store, never in the repository or `.env` files that are committed.
 
 ---
 
@@ -90,6 +91,21 @@ Logs are one JSON object per line (`lib/server/log.ts`) with `ts`, `level`, `msg
 
 Suggested alerts: `va_store_error == 1`; `va_store_pending_writes > 100` for 5 min; `rate(va_provider_call_errors_total[5m]) / rate(va_provider_call_duration_seconds_count[5m]) > 0.1`; `va_queue_longest_wait_seconds > 120` (docs/07 queue target); `va_notifications_total{status="failed"}` increasing.
 
+### 3.5 Live video (`lib/media/live-call.ts`, `lib/client/live-call.ts`, `lib/server/signal-relay.ts`)
+
+While a human agent is with the customer, the customer's camera video and microphone go to the agent console over WebRTC, and the agent's microphone goes back to the customer. The call starts only when there is an active `human_agent` participant, the customer has consented and the camera is on; it stops when the agent leaves, the camera is turned off or the session ends. Video is not recorded or retained (docs/06 §3): media flows peer to peer (or through TURN, which relays encrypted packets it cannot read).
+
+- **Signalling.** Offers, answers and ICE candidates are relayed by `GET|POST /api/sessions/{id}/rtc` (agent, needs `session.join` and must be the agent the customer is with) and `GET|POST /api/assist/{token}/rtc` (customer). `GET` is an SSE stream of messages for that side. Messages are validated, rate limited, and held only while they are fanned out: they never enter the session audit, transcript or store. Like the session runtime, the relay is in-process; more than one instance needs sticky sessions or a shared pub/sub in its place.
+- **ICE servers.** `GET /api/sessions/{id}/rtc/ice` and `GET /api/assist/{token}/rtc/ice` serve `ICE_SERVERS` to authorised clients only, so TURN credentials never ship in the client bundle. The static demo uses public STUN only.
+- **TURN.** Without TURN, calls fail on symmetric NAT and strict corporate or mobile networks (often 10–20% of real calls). Use one of:
+  - *Twilio Network Traversal Service*: mint short-lived credentials with the Tokens API (`POST /2010-04-01/Accounts/{sid}/Tokens.json`) and put its `ice_servers` in `ICE_SERVERS`, rotating before the TTL (default 24 h).
+  - *Cloudflare Calls TURN*: create a TURN key in the dashboard and generate short-lived credentials with its API; it returns ready-made `iceServers` for `turn.cloudflare.com` (UDP/TCP 3478, TLS 5349 and 443).
+  - *Self-hosted coturn*: run it with `use-auth-secret` and a `static-auth-secret`, open UDP 3478, TCP/TLS 5349 (or 443) and the relay port range, and issue time-limited REST-API credentials.
+
+  Long-lived static credentials are acceptable for a pilot; for production, rotate them (a small job that rewrites `ICE_SERVERS` and restarts, or an extension of the `ice` endpoint that mints per-request credentials).
+- **Fallback.** If the browser has no WebRTC, or the connection fails three times (15 s connect timeout each), the console shows **Fallback: snapshots** and the low-rate preview relay (`/preview`, one JPEG a second, live only) carries on; the agent can press *Retry live video*. The relay pauses while the call is live.
+- **UI.** The console shows **Connecting**, **Live** or **Fallback: snapshots** on the video, with a microphone mute. The customer sees **Agent can see your camera** and can mute from that badge or the control bar.
+
 ---
 
 ## 4. Path to a database
@@ -106,5 +122,6 @@ The store interface is shaped for a Postgres adapter (table definitions are in `
 - [ ] `/api/health` wired to the load balancer; `/api/metrics` scraped with `METRICS_TOKEN`.
 - [ ] Log shipping configured; `LOG_LEVEL=info`.
 - [ ] `AUTH_SECRET` set; platform and console behind sign-in (auth workstream).
+- [ ] `ICE_SERVERS` includes a TURN service (with rotated credentials) and a live call tested from a phone on mobile data to a console on the corporate network.
 - [ ] Model and price table reviewed (`VISUAL_ASSIST_MODEL`, `MODEL_PRICES_USD`, `USD_TO_GBP`).
 - [ ] Retention/deletion schedule agreed (retention workstream) — the file store keeps sessions until deleted.
