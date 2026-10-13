@@ -129,4 +129,4 @@ Full reference: `docs/PRODUCTION-READINESS.md` §2. Every switch can be checked 
 
 ## What this still is not
 
-One server, saved to one disk, with turn-based voice. That's right for internal and pilot testing, but not for real customer volumes. Production needs a database, more than one server, streaming voice and the hardening in `docs/PRODUCTION-READINESS.md` §5.
+One server, saved to one disk, with turn-based voice. That's right for internal and pilot testing, but not for real customer volumes. Production needs a database, more than one server, streaming voice and the hardening in the checklist in `docs/PRODUCTION-READINESS.md` §6.
