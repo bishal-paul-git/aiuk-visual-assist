@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "build:static": "STATIC_EXPORT=1 next build",
     "test:e2e": "playwright test",
-    "check:deployment": "node scripts/check-deployment.mjs"
+    "check:deployment": "node scripts/check-deployment.mjs",
+    "test:e2e:server": "playwright test -c playwright.server.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
