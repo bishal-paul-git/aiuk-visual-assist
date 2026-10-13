@@ -73,6 +73,13 @@ export default function Home() {
                 </Link>
               </div>
               <p className="mt-4 text-xs text-muted">Interactive demo with sample data and simulated AI. Works in any modern browser, on a phone or a desktop.</p>
+              <p className="mt-2 text-xs text-muted">
+                Testing with the team?{" "}
+                <Link href="/test/" className="font-semibold text-brand hover:underline">
+                  Follow the 15-minute testing guide
+                </Link>
+                .
+              </p>
             </div>
             <figure className="overflow-hidden rounded-lg border border-line bg-navy shadow-[0_20px_50px_-24px_rgba(11,27,51,0.45)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}

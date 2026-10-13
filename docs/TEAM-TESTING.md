@@ -1,6 +1,6 @@
 # Test Visual Assist (15 minutes)
 
-**Open:** https://bishal-paul-git.github.io/aiuk-visual-assist/
+**Open:** https://bishal-paul-git.github.io/aiuk-visual-assist/test/ (this guide, as a page on the live site)
 **Report anything odd:** [Send feedback](https://github.com/bishal-paul-git/aiuk-visual-assist/issues/new?template=test-feedback.yml)
 
 Works on any phone or computer. Nothing to install, no login. The AI is simulated and all data is sample data.

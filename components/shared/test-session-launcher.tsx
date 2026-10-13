@@ -134,7 +134,9 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
                         ? "Checking availability…"
                         : live.liveReasoning
                           ? "Real multimodal reasoning on the frames the camera sends. Results depend on what you actually show."
-                          : "Not configured on this deployment — set ANTHROPIC_API_KEY on the server to enable."}
+                          : STATIC_DEMO
+                            ? "Available in the full version. This online demo uses the scenarios below."
+                            : "Not configured on this deployment — set ANTHROPIC_API_KEY on the server to enable."}
                     </span>
                   </span>
                 </label>
