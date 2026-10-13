@@ -70,8 +70,8 @@ export default async function HealthPage() {
       </div>
 
       <Note className="mt-4">
-        Vision latency is measured from observation audit events produced by the <span className="font-medium text-ink">simulated</span>{" "}reasoning provider, so it
-        reflects the simulation, not a production model. Speech latency is not measured — speech runs in the customer&apos;s browser.
+        Vision latency is measured from observation audit events. Sample and test sessions use the simulated reasoning provider, so these figures reflect
+        the simulation, not a production model. Service response times and incidents below are sample figures. Speech latency is not measured yet.
       </Note>
 
       <Panel title="Services" className="mt-4" bodyClassName="p-0">

@@ -2,6 +2,8 @@
 
 Enterprise Human + AI visual assistance platform by Absolute Intelligence UK. Customers open a secure browser session, talk to an AI and show the problem through their phone camera; the AI follows approved workflows, records confidence-rated observations, triggers controlled business actions and escalates to a human who joins the **same** interaction with full context.
 
+**Stage:** working product prototype (simulated AI). The real-AI proof of concept is built in code but not yet deployed or proven.
+
 **Live demo:** https://bishal-paul-git.github.io/aiuk-visual-assist/ (runs in the browser with simulated AI and sample data; works on phones; the assistant speaks with a British ElevenLabs voice). Start with **Watch a 2-minute session**, or open `/demo/` to pick a scenario.
 
 **Testing with the team:** follow [docs/TEAM-TESTING.md](docs/TEAM-TESTING.md) and report findings with the [test feedback form](https://github.com/bishal-paul-git/aiuk-visual-assist/issues/new?template=test-feedback.yml).
@@ -17,7 +19,7 @@ Enterprise Human + AI visual assistance platform by Absolute Intelligence UK. Cu
 |---|---|
 | `/assist/<token>` | Customer Visual Assistance (mobile-first) |
 | `/console` | Human Agent Console — live queue and session workspace |
-| `/platform` | AIUK Management Platform — 16 modules |
+| `/platform` | AIUK Management Platform — 15 modules |
 
 ## Run
 
@@ -37,7 +39,7 @@ npm run typecheck && npm run lint
 
 To publish the static demo: **Settings → Pages → Build and deployment → Source: GitHub Actions**, then merge to `main` (or run the "Deploy static demo to GitHub Pages" workflow). It is served at `https://<owner>.github.io/<repo>/`.
 
-This is a POC environment: reasoning and business actions use **simulated providers** (clearly labelled in the UI) behind production interfaces, and the session runtime is in-memory. See the implementation plan for what is real, what is simulated and what comes next.
+This is a POC environment: reasoning and business actions use **simulated providers** (clearly labelled in the UI) behind production interfaces, and the session runtime is in memory by default (or a file store when `DATA_DIR` is set). See the implementation plan for what is real, what is simulated and what comes next.
 
 ## Code map
 

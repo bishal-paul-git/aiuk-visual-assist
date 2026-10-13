@@ -15,8 +15,8 @@ export const metadata = { title: "Settings" };
 
 const ENVIRONMENTS: { name: string; state: ImplState; label: string; detail: string }[] = [
   { name: "Local", state: "implemented", label: "In use", detail: "Developer machines; simulated providers and seeded sessions" },
-  { name: "Development", state: "partial", label: "POC deployment", detail: "This POC; in-memory store, simulated AI providers" },
-  { name: "Test", state: "partial", label: "Automated tests only", detail: "Unit and runtime tests (Vitest) run locally; no CI pipeline or hosted test environment yet" },
+  { name: "Development", state: "partial", label: "Public demo", detail: "GitHub Pages demo: runs in the browser with simulated AI and sample data. The server edition is not deployed yet" },
+  { name: "Test", state: "partial", label: "CI only", detail: "Unit tests (Vitest), browser tests (Playwright) and a Docker build run in GitHub Actions on every push; no hosted test environment yet" },
   { name: "Staging", state: "planned", label: "Not provisioned", detail: "Production-like infrastructure for release verification" },
   { name: "Pilot", state: "planned", label: "Not provisioned", detail: "First client pilot (Phase 4)" },
   { name: "Production", state: "planned", label: "Not provisioned", detail: "Production pilot onwards (Phase 5)" },
@@ -25,14 +25,14 @@ const ENVIRONMENTS: { name: string; state: ImplState; label: string; detail: str
 /** docs/06 §2 — stated honestly against what the POC actually does. */
 const CONTROLS: { control: string; state: ImplState; label?: string; detail: string }[] = [
   { control: "Tenant isolation", state: "implemented", detail: "Tenant-scoped data model; agents, supervisors and client admins can only read or act on their own organisation's sessions and configuration (enforced on every API route). Hardened tenancy in Phase 5." },
-  { control: "Audit logs", state: "implemented", detail: "Every material state transition is an audit event with workflow, policy, model and prompt versions. In-memory; durable store planned." },
+  { control: "Audit logs", state: "implemented", detail: "Every material state transition is an audit event with workflow, policy, model and prompt versions. Held in memory, or in files on disk when DATA_DIR is set; a database is planned." },
   { control: "TLS in transit", state: "partial", label: "Deployment-dependent", detail: "Provided by the hosting edge; not enforced by the application." },
-  { control: "Encryption at rest", state: "planned", label: "Planned (Phase 4–6)", detail: "POC data is held in memory only." },
-  { control: "SSO", state: "partial", label: "Provider interface ready", detail: "Sign-in goes through an identity provider interface; the POC uses a demo provider (no passwords) with a signed, HttpOnly session cookie. Entra ID / Okta / Auth0 (OIDC) plug in behind the same interface." },
-  { control: "MFA", state: "planned", label: "Planned (Phase 4)", detail: "Delegated to the client's SSO provider once OIDC is connected." },
+  { control: "Encryption at rest", state: "planned", label: "Planned (Phase 4–6)", detail: "Data is held in memory, or in plain files on disk when DATA_DIR is set." },
+  { control: "SSO", state: "partial", label: "Built, not connected", detail: "Entra ID / Okta / Auth0 sign-in (OIDC with PKCE) is built and switched on by configuration, with a signed, HttpOnly session cookie. Not connected to a real identity provider yet; the demo uses password-less demo sign-in." },
+  { control: "MFA", state: "partial", label: "Via SSO", detail: "Enforced by the client's identity provider; OIDC_REQUIRE_MFA=1 checks it at sign-in. Not active until SSO is connected." },
   { control: "RBAC", state: "implemented", detail: "Five roles with a permission matrix (below). Enforced on API routes and console/platform pages; denials return 401/403 and are audited." },
   { control: "Least privilege", state: "partial", detail: "Platform admins configure but do not operate sessions; QA reviewers are read-only. Per-tenant service credentials planned (Phase 5)." },
-  { control: "Secrets management", state: "planned", label: "Planned (Phase 4)", detail: "No client credentials are stored in the POC." },
+  { control: "Secrets management", state: "planned", label: "Planned (Phase 4)", detail: "Provider keys and integration secrets are read from environment variables; no managed secrets store yet." },
   { control: "Key rotation", state: "planned", label: "Planned (Phase 5)", detail: "With managed keys and secrets store." },
   { control: "Security logging", state: "partial", detail: "Sign-in, sign-out and permission denials are audit events (Audit Logs › Security). SIEM / OpenTelemetry export not deployed." },
   { control: "Retention controls", state: "implemented", detail: "Retention job deletes expired evidence frames and transcripts per tenant policy and audits each purge (see Retention below)." },
@@ -48,7 +48,7 @@ const NOTIFICATIONS: { name: string; state: ImplState; label: string; detail: st
   { name: "Queue breach alerts", state: "planned", label: "Not configured", detail: "Alert when wait exceeds a team's target answer time (Phase 5)" },
   { name: "Incident paging", state: "planned", label: "Not configured", detail: "On-call paging for P0/P1 incidents" },
   { name: "Cost anomaly alerts", state: "planned", label: "Not configured", detail: "Daily cost deviation per tenant" },
-  { name: "Customer session links (SMS)", state: "partial", label: "Sandbox", detail: "Via the client's SMS gateway integration; sandbox only" },
+  { name: "Customer session links (SMS / email)", state: "partial", label: "Built, not configured", detail: "Twilio (SMS) and Resend (email) are built and switched on by configuration; until then links go to a simulated outbox" },
 ];
 
 export default async function SettingsPage() {

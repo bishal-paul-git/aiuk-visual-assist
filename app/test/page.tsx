@@ -20,11 +20,12 @@ export default function TestingGuide() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-8 pb-[max(40px,env(safe-area-inset-bottom))]">
-        <p className="text-xs font-semibold tracking-[0.12em] text-brand uppercase">Team testing · about 15 minutes</p>
+        <p className="text-xs font-semibold tracking-[0.12em] text-brand uppercase">Working product prototype · simulated AI · about 15 minutes</p>
         <h1 className="mt-2 text-[28px] leading-tight font-semibold tracking-tight text-ink sm:text-[34px]">Test Visual Assist</h1>
         <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-ink-2">
-          Works on any phone or computer. Nothing to install and no password. The AI is simulated and all data is sample data, so please don&apos;t enter real
-          customer details.
+          Works on any phone or computer. Nothing to install and no password. The AI&apos;s replies and what it &ldquo;sees&rdquo; are scripted for each test
+          scenario: it does not analyse your camera image yet. So this test checks the journey, the screens and the handover, not the AI&apos;s accuracy. All
+          data is sample data; please don&apos;t enter real customer details.
         </p>
 
         <ol className="mt-8 grid gap-4">
@@ -48,8 +49,8 @@ export default function TestingGuide() {
                 Press <b>Agree and continue</b>, then <b>Use demo camera</b>. Follow the instructions. Press <b>Human help</b> at any point.
               </li>
               <li>
-                Go back to the first tab and press <b>Open in agent console</b>. Press <b>Join</b>, then <b>Take over</b>: you are now the agent. Try a message,
-                an action and <b>End</b>.
+                In the first tab, press <b>Open in agent console</b> (it opens another tab). Press <b>Join session</b> (<b>Join</b> on a phone), then{" "}
+                <b>Take over</b>: you are now the agent. Try a message, an action and <b>End</b>.
               </li>
             </ol>
           </Step>
@@ -59,8 +60,8 @@ export default function TestingGuide() {
               Open the <Inline href="/platform/">Platform</Inline> and click through the menu: sessions, workflows, analytics, costs.
             </p>
             <p className="mt-2">
-              Use <Inline href="/sign-in/">Switch user</Inline>{" "}to try other people. Each role only sees what it&apos;s allowed to: agents work in the console,
-              administrators in the platform.
+              Use <Inline href="/sign-in/">Switch user</Inline>{" "}to see different roles: agents and supervisors work in the console, administrators and QA
+              reviewers in the platform. In this demo every role sees sample data from all clients; real per-client separation is in the full version.
             </p>
           </Step>
         </ol>
@@ -80,7 +81,7 @@ export default function TestingGuide() {
           >
             Send feedback <ArrowRight className="size-4" aria-hidden />
           </a>
-          <p className="mt-2 text-xs text-muted">Opens a short form on GitHub (a free GitHub account is needed).</p>
+          <p className="mt-2 text-xs text-muted">Opens a short form on GitHub (a free GitHub account is needed). No account? Email or message your feedback instead.</p>
         </section>
 
         <section className="mt-8">
@@ -89,6 +90,8 @@ export default function TestingGuide() {
           </h2>
           <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[14px] text-ink-2">
             <li>In this online version the customer and the agent are two tabs in the same browser. Phone-to-laptop, real AI, live video and SMS links come once the product runs on a server.</li>
+            <li>Platform reports show sample sessions and won&apos;t include the sessions you create. Only Live Sessions and the Agent Console show yours.</li>
+            <li>To start a test session, use an agent or the platform administrator. Client admins and QA reviewers don&apos;t see the Start test session button.</li>
             <li>Workflows and policies can be read but not edited online.</li>
             <li>Your test sessions are saved in your own browser only.</li>
           </ul>

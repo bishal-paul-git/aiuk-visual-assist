@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { Info, Lock, UserCheck } from "lucide-react";
 import { can, ROLE_NAMES, tenantScope } from "@/lib/auth/rbac";
 import { tenants } from "@/lib/config/catalog";
@@ -20,6 +21,7 @@ const PLATFORM_ADMIN_ID = "usr_james";
  */
 export function StaticRoleGate({ children }: { children: ReactNode }) {
   const id = useIdentity();
+  const path = usePathname() ?? "";
   if (!STATIC_DEMO || id.status !== "signed_in") return <>{children}</>;
   const user = { ...id.user, status: "active" as const };
 
@@ -43,15 +45,19 @@ export function StaticRoleGate({ children }: { children: ReactNode }) {
     );
   }
 
+  // Live Sessions follows the sessions running in this browser; every other page is a sample snapshot.
+  const live = /\/platform\/live\/?$/.test(path);
   const own = tenantScope(user);
-  if (!own) return <>{children}</>;
-  const name = tenants.find((t) => t.id === own)?.name ?? "their own organisation";
+  const name = own ? (tenants.find((t) => t.id === own)?.name ?? "their own organisation") : "";
   return (
     <>
       <div className="mb-4 flex items-start gap-2 rounded-lg border border-brand/30 bg-brand-soft px-3 py-2.5 text-[13px] text-ink">
         <Info className="mt-0.5 size-4 shrink-0 text-brand-ink" aria-hidden />
         <p className="min-w-0">
-          This online demo shows sample data from every client. In the full version {user.name} sees {name} only, and can edit and publish its workflows and policies.
+          {live
+            ? "Sessions you start in this browser appear here as they run."
+            : "Sample data: these reports show sample sessions and don't include sessions you create in this demo. Live Sessions and the Agent Console show yours."}
+          {own && ` This demo shows every client's data; in the full version ${user.name} sees ${name} only, and can edit and publish its workflows and policies.`}
         </p>
       </div>
       {children}

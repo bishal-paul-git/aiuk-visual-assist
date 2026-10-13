@@ -2,8 +2,26 @@
 ## Absolute Intelligence Visual Assist
 
 **Owner:** Engineering (handover from product definition)
-**Last updated:** 2026-10-11
+**Last updated:** 2026-10-13 (status update below; the tables in §2–§3 date from 2026-10-11)
 **Source of truth:** documents `00`–`12` in this folder. This plan maps them to code and tracks status. Where this plan and a spec disagree, the spec wins; conflicts are listed in §6.
+
+---
+
+## Status update — 2026-10-13
+
+**Stage:** working product prototype (simulated AI). Phase 1 is complete. Phase 2 (technical POC) is built in code but **not yet deployed or proven**: no server edition is running anywhere, and no real Anthropic, ElevenLabs, Deepgram, Twilio or identity-provider account has been used.
+
+Added since the tables below were written (all in the server edition, switched on by configuration, tested against mocks or local stand-ins only):
+
+| Area | What exists now | Still missing |
+|---|---|---|
+| Live video (Phase 2 item 3, part) | Peer-to-peer WebRTC from the customer to the human agent (customer video + audio, agent audio back), SSE signalling, STUN by default, TURN via `ICE_SERVERS`, fallback to the 1 fps preview relay (`lib/media/live-call.ts`, `lib/client/live-call.ts`, `lib/server/signal-relay.ts`) | SFU rooms with the AI as a participant, media gateway, managed TURN, multi-instance signalling |
+| Voice (Phase 2 item 2, part) | Server speech-to-text per turn via ElevenLabs Scribe or Deepgram (`/api/assist/[token]/stt`), ElevenLabs text-to-speech (`/api/tts`), 28 pre-recorded British clips for the demo | Streaming speech in/out, barge-in, measured latency; voice is turn-based |
+| Workforce sign-in (Phase 4) | OIDC for Entra ID / Okta / Auth0 with PKCE and optional MFA check (`lib/auth/oidc.ts`) | A connected identity provider; persistent user store (users are in memory) |
+| Business actions (Phase 4) | Signed HTTP connector per tenant and tool, contract and reference client (`lib/integrations/`, `docs/INTEGRATION-CONTRACT.md`) | Any real client system; no n8n integration exists |
+| Testing | 372 unit tests; 9 Playwright tests (public build only); CI runs lint, types, tests, both builds and a Docker build | Browser tests against the server edition, real devices, load |
+
+**Next milestone:** one real session, deployed — a phone opens an SMS link, talks to the AI, Claude reads a real router photo, the workflow advances, one action runs against a staging system, and a human on a laptop takes over with live video, with delay and cost measured (docs/12 §2).
 
 ---
 
