@@ -19,6 +19,14 @@ services:
         sync: false
       - key: ELEVENLABS_API_KEY
         sync: false
+      # Server speech-to-text for customers (iPhone included): elevenlabs or deepgram.
+      - key: STT_PROVIDER
+        value: elevenlabs
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      # Live video relay (TURN) for phones on mobile data, as a JSON array of RTCIceServer.
+      - key: ICE_SERVERS
+        sync: false
       - key: METRICS_TOKEN
         generateValue: true
       - key: TWILIO_ACCOUNT_SID

@@ -20,7 +20,7 @@ Try one on your phone as well.
 
 ## 2. Try it yourself (5 min)
 
-1. Open the **[Agent Console](https://bishal-paul-git.github.io/aiuk-visual-assist/console/)** press **Start test session**, then **Create session**.
+1. Open the **[Agent Console](https://bishal-paul-git.github.io/aiuk-visual-assist/console/)**, press **Start test session**, then **Create session**.
 2. Press **Open customer view**. It opens in a new tab: you are now the customer.
 3. Press **Agree and continue**, then **Use demo camera**, and follow the instructions. Press **Human help** at any point to ask for a person.
 4. In the first tab, press **Open in agent console** (it opens another tab). Press **Join session** (**Join** on a phone), then **Take over**. You are now the agent. Try a message, an action and **End**.
