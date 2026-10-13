@@ -4,7 +4,7 @@
 **Last updated:** 2026-10-12
 **Contract version:** `2026-10-01` (sent as `X-VA-Contract-Version`)
 **Audience:** the client's integration developers, and platform engineers configuring a tenant.
-**Related:** `02-SYSTEM-ARCHITECTURE.md` §4 (business automation outside the media loop), `05-AI-AND-WORKFLOW-SPEC.md` (business-action steps and tool results), `06-SECURITY-PRIVACY-COMPLIANCE.md` (secrets, audit, redaction), `PRODUCTION-READINESS.md` §2 and §5.
+**Related:** `02-SYSTEM-ARCHITECTURE.md` §4 (business automation outside the media loop), `05-AI-AND-WORKFLOW-SPEC.md` (business-action steps and tool results), `06-SECURITY-PRIVACY-COMPLIANCE.md` (secrets, audit, redaction), `PRODUCTION-READINESS.md` §2 and §6.
 
 The AI and human agents run business actions such as `line_test`, `create_ticket` and `book_engineer`. Each action is policy-checked first. Only after the policy allows it does the platform call the client's system through this contract. You build one small HTTPS endpoint per tool, usually as a thin adapter in front of a system you already run.
 
