@@ -235,7 +235,8 @@ export function syntheticFrame(ref: string): Frame | undefined {
   return scene ? { mime: "image/svg+xml", data: new TextEncoder().encode(renderRouterSvg(scene)) } : undefined;
 }
 
-function evaluationState(workflow: WorkflowDefinition, id: string, now: string): SessionState {
+/** A throwaway session the provider can read context from while a case is evaluated. */
+export function evaluationState(workflow: WorkflowDefinition, id: string, now: string): SessionState {
   const policy = getPolicy(workflow.policyId);
   const agent = agents.find((a) => a.workflowIds.includes(workflow.id)) ?? agents.find((a) => a.tenantId === workflow.tenantId);
   if (!policy || !agent) throw new Error(`Workflow ${workflow.id} has no policy or agent configured`);

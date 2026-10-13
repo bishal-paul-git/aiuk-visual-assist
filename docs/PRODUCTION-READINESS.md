@@ -1,7 +1,7 @@
 # Production Readiness — Server Edition
 ## Absolute Intelligence Visual Assist
 
-**Last updated:** 2026-10-12
+**Last updated:** 2026-10-13
 **Scope:** how to configure and run the server edition durably on a single instance, what each environment variable does, and what is observable. Related specs: `07-NON-FUNCTIONAL-REQUIREMENTS.md`, `10-OPERATIONS-AND-SUPPORT.md`, `IMPLEMENTATION-PLAN.md`, `INTEGRATION-CONTRACT.md`.
 
 The static demo edition (`npm run build:static`, GitHub Pages) runs entirely in the browser and ignores everything in this document.
@@ -172,7 +172,21 @@ The store interface is shaped for a Postgres adapter (table definitions are in `
 
 ---
 
-## 5. Pre-go-live checklist
+## 5. Measure accuracy on real router photos
+
+The QA evaluation page scores the model on 20 drawn router scenes. Before a pilot, also measure it on **real photos**: the lighting, glare, blur and router models customers actually have.
+
+- **Template and instructions:** [`eval/router-photos/README.md`](../eval/router-photos/README.md). It is written for a non-developer: which 30–50 photos to take (normal lights, internet off, internet red/amber, loose cable, glare, blurry, too far, wrong device, card in frame), how to label them in `labels.csv` from a spreadsheet, and how to read the report.
+- **Run:** `npm run eval:photos -- --dir <folder> --dry-run` checks the labels and photos without an API key. Without `--dry-run`, each photo is resized as the app resizes a camera frame (960 px, JPEG), sent to the real `ClaudeReasoningProvider` at its checkpoint, and passed through the workflow engine's `assessEvidence`. Options: `--checkpoint`, `--model`, `--effort`, `--limit`, `--out`.
+- **Report:** a Markdown report with a plain-English summary, plus a CSV with one row per photo and item. It covers per-item accuracy, how often the assistant asked for another photo or guessed, wrong readings it would have acted on, confidence calibration in the QA bands, value confusion, the privacy flag, latency, and measured cost from provider token usage (`lib/domain/pricing.ts`).
+- **Privacy:** the folder's `.gitignore` keeps photos and reports out of git. Store them in approved storage and delete them after the evaluation.
+- **Code:** `scripts/eval-photos.ts` (CLI), `lib/qa/photo-labels.ts` (label validation), `lib/qa/photo-eval.ts` (runner and metrics), `lib/qa/photo-report.ts` (report), tests in `tests/photo-eval.test.ts`.
+
+Re-run it with the same photos whenever the model, the prompts or the router workflow change.
+
+---
+
+## 6. Pre-go-live checklist
 
 - [ ] `DATA_DIR` on a persistent, backed-up volume (or Postgres adapter in place).
 - [ ] `PUBLIC_BASE_URL` set to the HTTPS origin customers will open.
@@ -189,6 +203,7 @@ The store interface is shaped for a Postgres adapter (table definitions are in `
 - [ ] `security.*` audit events reach the SIEM / audit store.
 - [ ] Client secret rotation scheduled (Entra secrets expire; Okta supports two active secrets).
 - [ ] Model and price table reviewed (`VISUAL_ASSIST_MODEL`, `MODEL_PRICES_USD`, `STT_PRICES_USD_PER_MINUTE`, `USD_TO_GBP`).
+- [ ] Real-photo evaluation run on 30–50 labelled photos of the routers in scope (§5), with the production model and effort. Every "carried on with a wrong reading" case reviewed, and the results signed off for the pilot.
 - [ ] If `STT_PROVIDER` is set: a spoken turn tested on a real iPhone (Safari) and an Android phone; the provider's data-retention setting reviewed (audio is sent to it).
 - [ ] `ICE_SERVERS` includes a TURN service (with rotated credentials) and a live call tested from a phone on mobile data to a console on the corporate network.
 - [ ] Retention/deletion schedule agreed (retention workstream) — the file store keeps sessions until deleted.

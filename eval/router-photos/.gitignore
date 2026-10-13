@@ -1,0 +1,8 @@
+# Photos of real routers can show people, rooms, screens, cards or addresses.
+# Keep them out of git and share the folder through approved storage instead.
+# Everything here is ignored except the template files below, so photos and
+# reports (reports/) are never committed by accident.
+*
+!.gitignore
+!README.md
+!labels.csv

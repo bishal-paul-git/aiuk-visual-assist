@@ -1,0 +1,3 @@
+file,checkpoint,device_identified,power_light,internet_light,wifi_light,broadband_cable,power_cable,expected_action,scenario,sensitive_content,notes
+example-lights-normal.jpg,router_lights,,on,on,on,,,proceed,normal,none,Example row - all three lights lit and sharp. Replace with your own photos.
+example-lights-glare.jpg,router_lights,,on,cannot_tell,cannot_tell,,,request_another_angle,glare,none,Example row - a ceiling light reflection hides the internet and Wi-Fi lights.
