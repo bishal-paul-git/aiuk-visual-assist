@@ -26,6 +26,12 @@ export interface ConnectorConfig {
   includeScenarioSessions?: boolean;
   /** Human label for the client system, e.g. "ServiceNow". */
   system?: string;
+  /**
+   * Also send the shared secret itself in an X-VA-Secret header, for receivers
+   * that can only compare a header value (an n8n webhook with Header Auth).
+   * The HMAC signature is still sent. HTTPS only; default false.
+   */
+  secretHeader?: boolean;
 }
 
 /** A connector entry that could not be used. Calls for its tenant/tool fail closed. */
@@ -101,7 +107,10 @@ export function parseConnector(raw: unknown, opts: { production: boolean }): Con
   if (mode === "http" && !endpoint) throw new ConnectorConfigError("endpoint is required for mode http");
 
   const system = typeof r.system === "string" ? r.system.slice(0, 80) : undefined;
-  return { tenantId, tool, mode, endpoint, secretRef, timeoutMs, includeScenarioSessions: r.includeScenarioSessions === true, system };
+  if (r.secretHeader !== undefined && typeof r.secretHeader !== "boolean") throw new ConnectorConfigError("secretHeader must be true or false");
+  const secretHeader = r.secretHeader === true;
+  if (secretHeader && endpoint && !endpoint.startsWith("https:")) throw new ConnectorConfigError("secretHeader requires an https endpoint");
+  return { tenantId, tool, mode, endpoint, secretRef, timeoutMs, includeScenarioSessions: r.includeScenarioSessions === true, system, ...(secretHeader ? { secretHeader } : {}) };
 }
 
 export interface ParsedConnectors {

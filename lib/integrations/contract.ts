@@ -17,6 +17,8 @@ export const HEADERS = {
   timestamp: "X-VA-Timestamp",
   signature: "X-VA-Signature",
   contractVersion: "X-VA-Contract-Version",
+  /** Sent only when a connector sets `secretHeader: true`, for receivers that cannot verify HMAC (e.g. an n8n webhook's Header Auth). */
+  secret: "X-VA-Secret",
 } as const;
 
 /** Body the platform POSTs to the client's endpoint for one tool call. */

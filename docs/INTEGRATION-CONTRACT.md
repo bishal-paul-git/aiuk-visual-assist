@@ -196,6 +196,7 @@ INTEGRATION_SECRET_NORTHLINE=<64 hex chars from your secret store>
 | `timeoutMs` | 500–30000 ms. Defaults to 8000 ms. |
 | `includeScenarioSessions` | Defaults to `false`. Sessions started with a simulation scenario use the sandbox unless this is `true`, which is useful for pointing test sessions at your sandbox endpoint. |
 | `system` | Optional label shown on the Integrations page. |
+| `secretHeader` | Optional, defaults to `false`. When `true`, the shared secret is also sent in an `X-VA-Secret` header, for receivers that can only compare a header value (for example an n8n webhook with Header Auth). The HMAC signature is still sent. Requires an `https://` endpoint. |
 
 - Connectors can also be stored in `<DATA_DIR>/config.json` under `connectors`. `INTEGRATIONS_CONFIG` overrides a stored entry for the same tenant and tool.
 - An invalid entry is never quietly simulated. Calls for that tenant and tool fail with `connector_invalid`, the error is logged at startup, and the Integrations page shows the connector as *Misconfigured*.
@@ -220,3 +221,34 @@ INTEGRATIONS_CONFIG='[{"tenantId":"tnt_northline","tool":"create_ticket","mode":
 Start a test session for Northline, take it over as an agent and run **Create ticket**. The action shows an `INC…` reference, and the audit records `integration.called`. Set `REFERENCE_LINE_TEST=no_fault` on the reference server to drive the other `line_test` branch. A `book_engineer` call with `priority: same_day` shows a business failure (`no_capacity`).
 
 `tests/integrations.test.ts` covers signing, the idempotency header, the timeout, the single retry, invalid responses, mode routing and HTTPS-only validation. It also runs end-to-end tests against the reference server.
+
+---
+
+## 11. Using n8n as the receiving system
+
+n8n is a quick way to give an action somewhere real to land before a client's own systems are connected: it can write a row to a sheet, post a message or call another API, then reply with the result.
+
+1. In n8n, create a workflow that starts with a **Webhook** node:
+   - HTTP method `POST`, path for example `va/line_test`.
+   - Authentication **Header Auth**, with header name `X-VA-Secret` and the same value as `INTEGRATION_SECRET_NORTHLINE`.
+   - Respond **Using 'Respond to Webhook' node**.
+2. Add the steps you want, for example *Google Sheets → Append row* with `{{$json.body.actionId}}`, `{{$json.body.tool}}` and `{{$json.body.sessionId}}`.
+3. End with **Respond to Webhook** → *Respond with JSON*, returning the contract shape from §3. For `line_test`:
+
+   ```json
+   { "status": "succeeded", "result": { "status": "no_fault", "detail": "Line test passed (n8n)", "testId": "{{$json.body.actionId}}" }, "externalRef": "{{$json.body.actionId}}" }
+   ```
+4. Activate the workflow and copy its **production** webhook URL (`https://<your-n8n>/webhook/va/line_test`).
+5. Configure the server:
+
+   ```bash
+   INTEGRATIONS_CONFIG='[{ "tenantId": "tnt_northline", "tool": "line_test", "mode": "http",
+     "endpoint": "https://<your-n8n>/webhook/va/line_test", "secretHeader": true,
+     "includeScenarioSessions": true, "system": "n8n" }]'
+   INTEGRATION_SECRET_NORTHLINE=<the same value as the Header Auth credential, 32+ characters>
+   ```
+
+   `includeScenarioSessions: true` sends scripted test sessions to n8n as well. Leave it out once real-AI sessions are being tested.
+
+Treat the n8n idempotency rule (§5) as your responsibility: the same `actionId` can arrive twice after a retry, so de-duplicate on it before doing anything that should happen only once. For stronger protection than a shared header, verify the `X-VA-Signature` HMAC in a Code node (§4).
+

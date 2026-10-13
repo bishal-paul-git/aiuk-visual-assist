@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "build:static": "STATIC_EXPORT=1 next build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check:deployment": "node scripts/check-deployment.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

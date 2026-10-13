@@ -85,7 +85,7 @@ export class HttpToolExecutor implements ToolExecutor {
     let last: Attempt = { kind: "network" };
     while (attempts < 2) {
       attempts += 1;
-      last = await this.attempt(url, body, secret, action.id, cfg.timeoutMs);
+      last = await this.attempt(url, body, secret, action.id, cfg.timeoutMs, cfg.secretHeader === true);
       const retryable = last.kind === "network" || (last.kind === "response" && last.status >= 500);
       if (!retryable || attempts >= 2) break;
       if (this.retryDelayMs > 0) await new Promise((r) => setTimeout(r, this.retryDelayMs));
@@ -113,7 +113,7 @@ export class HttpToolExecutor implements ToolExecutor {
     return { result: v.result, outcome: { ...done({ httpStatus, externalRef: v.externalRef }), status: "succeeded" } as ToolCallOutcome };
   }
 
-  private async attempt(url: URL, body: string, secret: string, actionId: string, timeoutMs: number): Promise<Attempt> {
+  private async attempt(url: URL, body: string, secret: string, actionId: string, timeoutMs: number, sendSecret: boolean): Promise<Attempt> {
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -131,6 +131,7 @@ export class HttpToolExecutor implements ToolExecutor {
           [HEADERS.timestamp]: String(timestamp),
           [HEADERS.signature]: signatureHeader(secret, timestamp, body),
           [HEADERS.contractVersion]: CONTRACT_VERSION,
+          ...(sendSecret ? { [HEADERS.secret]: secret } : {}),
         },
         body,
         signal: controller.signal,

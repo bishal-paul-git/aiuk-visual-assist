@@ -98,6 +98,20 @@ describe("HttpToolExecutor", () => {
     expect(JSON.stringify([init?.headers, body, outcome])).not.toContain(SECRET);
   });
 
+  it("adds the shared secret header only when the connector asks for it (n8n Header Auth)", async () => {
+    const plain = executor(async () => json(200, OK_LINE_TEST));
+    await plain.ex.executeWithOutcome(action(), CTX);
+    expect(header(plain.fetchMock.mock.calls[0][1], "X-VA-Secret")).toBeNull();
+
+    const withHeader = executor(async () => json(200, OK_LINE_TEST), { ...connector(), secretHeader: true });
+    const { outcome } = await withHeader.ex.executeWithOutcome(action(), CTX);
+    const init = withHeader.fetchMock.mock.calls[0][1];
+    expect(header(init, "X-VA-Secret")).toBe(SECRET);
+    expect(header(init, "X-VA-Signature")).toMatch(/^v1=/);
+    // Still never written to the audit outcome.
+    expect(JSON.stringify(outcome)).not.toContain(SECRET);
+  });
+
   it("sends the action id as the Idempotency-Key, unchanged on retry", async () => {
     let n = 0;
     const { ex, fetchMock } = executor(async () => (++n === 1 ? json(503, { error: "busy" }) : json(200, OK_LINE_TEST)));
@@ -205,6 +219,13 @@ describe("connector config", () => {
     expect(() => validateEndpoint("http://localhost:4010/tools/x", { production: true })).toThrow(/https/);
     expect(() => validateEndpoint("https://user:pw@crm.client.example", DEV)).toThrow(/credentials/);
     expect(() => validateEndpoint("not a url", DEV)).toThrow(/valid URL/);
+  });
+
+  it("accepts secretHeader only as a boolean on https endpoints", () => {
+    expect(parseConnector({ tenantId: "tnt_northline", tool: "create_ticket", mode: "http", endpoint: "https://x.example/t", secretHeader: true }, DEV).secretHeader).toBe(true);
+    expect(parseConnector({ tenantId: "tnt_northline", tool: "create_ticket", mode: "http", endpoint: "https://x.example/t" }, DEV).secretHeader).toBeUndefined();
+    expect(() => parseConnector({ tenantId: "tnt_northline", tool: "create_ticket", mode: "http", endpoint: "https://x.example/t", secretHeader: "yes" }, DEV)).toThrow(/true or false/);
+    expect(() => parseConnector({ tenantId: "tnt_northline", tool: "create_ticket", mode: "http", endpoint: "http://localhost:4010/t", secretHeader: true }, DEV)).toThrow(/https/);
   });
 
   it("validates entries and keeps secrets out of config", () => {

@@ -24,9 +24,15 @@ services:
         value: elevenlabs
       - key: DEEPGRAM_API_KEY
         sync: false
-      # Live video relay (TURN) for phones on mobile data, as a JSON array of RTCIceServer.
+      # Live video relay (TURN) for phones on mobile data. "twilio" mints fresh
+      # TURN credentials from the Twilio account below; or set ICE_SERVERS instead.
+      - key: TURN_PROVIDER
+        value: twilio
       - key: ICE_SERVERS
         sync: false
+      # Start empty so platform reports show only real test sessions (no generated sample history).
+      - key: SEED_SAMPLE_SESSIONS
+        value: "0"
       - key: METRICS_TOKEN
         generateValue: true
       - key: TWILIO_ACCOUNT_SID

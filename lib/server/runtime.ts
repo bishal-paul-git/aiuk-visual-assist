@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { liveSessionClient } from "./anthropic-client";
 import { MockReasoningProvider } from "@/lib/providers/mock/reasoning";
 import { MockToolExecutor } from "@/lib/providers/mock/tools";
 import type { ToolExecutor } from "@/lib/providers/types";
@@ -34,7 +34,9 @@ export function getRuntime(): SessionRuntime {
     const store = process.env.STATIC_EXPORT === "1" ? new MemorySessionStore() : createStoreFromEnv();
     // Workflow and policy versions first, so sessions pinned to them restore.
     if (store.durable && process.env.DATA_DIR) attachConfigStore(process.env.DATA_DIR);
-    const persistence = attachStore(rt, store, { seed: seedSessions, debounceMs: Number(process.env.PERSIST_DEBOUNCE_MS) || 250 });
+    // SEED_SAMPLE_SESSIONS=0 starts a real-testing server empty, so reports show only real sessions.
+    const seed = process.env.SEED_SAMPLE_SESSIONS === "0" && process.env.STATIC_EXPORT !== "1" ? undefined : seedSessions;
+    const persistence = attachStore(rt, store, { seed, debounceMs: Number(process.env.PERSIST_DEBOUNCE_MS) || 250 });
     g[PERSIST_KEY] = persistence;
     if (store.durable && typeof process.on === "function") {
       // Writes are debounced; flush anything pending synchronously on the way out.
@@ -105,7 +107,7 @@ function toolExecutor(): ToolExecutor {
 function liveProvider(): ClaudeReasoningProvider | undefined {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return undefined;
   const stats = getProviderStats();
-  return new ClaudeReasoningProvider(new Anthropic(), {
+  return new ClaudeReasoningProvider(liveSessionClient(), {
     model: process.env.VISUAL_ASSIST_MODEL || undefined,
     observe: (r) => {
       stats.record(r);
