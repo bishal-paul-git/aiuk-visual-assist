@@ -1,7 +1,7 @@
 # Production Readiness — Server Edition
 ## Absolute Intelligence Visual Assist
 
-**Last updated:** 2026-10-13
+**Last updated:** 2026-10-17
 **Scope:** how to configure and run the server edition durably on a single instance, what each environment variable does, and what is observable. Related specs: `07-NON-FUNCTIONAL-REQUIREMENTS.md`, `10-OPERATIONS-AND-SUPPORT.md`, `IMPLEMENTATION-PLAN.md`, `INTEGRATION-CONTRACT.md`.
 
 The static demo edition (`npm run build:static`, GitHub Pages) runs entirely in the browser and ignores everything in this document.
@@ -19,7 +19,12 @@ DATA_DIR=./data npm start          # http://localhost:3000
 - On first start the data directory is empty, so demo history is generated and written to it. On every later start the stored sessions are loaded instead, and nothing is re-seeded.
 - To start clean, stop the server and delete the data directory.
 - Back up by copying the directory while the server is stopped (or snapshot the volume). Every file is written to a temporary file and renamed into place, so a copy taken while running only ever contains whole files.
-- Run one instance per data directory. The file store is not shared-safe across processes; multi-instance needs the Postgres adapter (§4).
+- Run one instance per data directory. The file store is not shared-safe across processes.
+- To use Postgres (e.g. Supabase) instead of a directory, set `DATABASE_URL` (§4); it takes precedence over `DATA_DIR`:
+
+  ```bash
+  DATABASE_URL='postgresql://…' npm start   # tables are created on first start
+  ```
 - Behind a reverse proxy, set `PUBLIC_BASE_URL` so links sent by SMS/email point at the public host.
 
 Container sketch:
@@ -35,8 +40,12 @@ docker run -p 3000:3000 -e DATA_DIR=/data -v va-data:/data \
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DATA_DIR` | unset → in-memory | Directory for the file store. Unset keeps today's behaviour: nothing survives a restart. |
-| `PERSIST_DEBOUNCE_MS` | `250` | Longest a committed change waits before it is written. Pending writes are also flushed synchronously on process exit. |
+| `DATABASE_URL` | unset | Postgres connection string (e.g. Supabase's **Session pooler** string). When set, sessions, frames, workflow/policy configuration and QA records are saved to Postgres in the `visual_assist` schema, created on boot (`db/schema.sql`). Takes precedence over `DATA_DIR`. Never logged; `/api/health` shows only host, port and database. See §4. |
+| `DATABASE_SSL` | `no-verify` for `*.supabase.co` / `*.pooler.supabase.com`, `disable` for localhost, otherwise `require` | TLS for `DATABASE_URL`: `require` (encrypted, certificate verified; against `DATABASE_SSL_CA` when set), `no-verify` (encrypted, certificate not verified), `disable`. With `DATABASE_SSL_CA` (PEM text, e.g. Supabase's CA certificate) Supabase defaults to `require`. |
+| `DATABASE_POOL_MAX` | `5` | Connections in the pool (`application_name` is `visual-assist`). |
+| `SHUTDOWN_FLUSH_TIMEOUT_MS` | `8000` | With `DATABASE_URL`: how long SIGTERM/SIGINT waits for pending database writes before the process exits. |
+| `DATA_DIR` | unset → in-memory | Directory for the file store, used when `DATABASE_URL` is unset. Unset (both) keeps today's behaviour: nothing survives a restart. |
+| `PERSIST_DEBOUNCE_MS` | `250` | Longest a committed change waits before it is written. Pending writes are also flushed on SIGTERM/SIGINT and process exit (synchronously for the file store, asynchronously with a timeout for Postgres). |
 | `ANTHROPIC_API_KEY` | unset | Enables **Live AI** sessions on Claude. Without it every session uses the simulator. `ANTHROPIC_AUTH_TOKEN` also works. |
 | `VISUAL_ASSIST_MODEL` | `claude-opus-5-5` | Model for live sessions. Must appear in `MODEL_PRICES_USD` (`lib/domain/pricing.ts`) for costs to be *measured*; unknown models fall back to estimated unit rates. |
 | `USD_TO_GBP` | `0.79` | Conversion applied to measured model costs (list prices are USD). |
@@ -87,8 +96,9 @@ Secrets (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `DEEPGRAM_API_KEY`, `TWILIO_
 - `MemorySessionStore` (default) and `FileSessionStore` (`DATA_DIR`):
   - `sessions/<id>.json` — one snapshot per session (state, customer token, pinned workflow id, live flag).
   - `frames/<sessionId>/<frameId>.bin` + `.json` — selected-evidence frames only; read from disk on demand.
+- `PostgresSessionStore` (`DATABASE_URL`, `lib/server/store/postgres.ts`): the same data in `visual_assist.sessions` and `visual_assist.frames`, plus `visual_assist.config` and `visual_assist.qa`. See §4.
 - The runtime writes through on every commit (debounced per session); a newer sequence number always wins, so an out-of-order write can never roll a session back.
-- Workflow and policy versions (including those published from the platform) and their config audit are saved to `<DATA_DIR>/config.json` and loaded before sessions. A session whose workflow version is missing is skipped and logged as `store.sessions_skipped`. The live preview relay is intentionally never stored.
+- Workflow and policy versions (including those published from the platform) and their config audit are saved to `<DATA_DIR>/config.json` (or the `visual_assist.config` row) and loaded before sessions. A session whose workflow version is missing is skipped and logged as `store.sessions_skipped`. The live preview relay is intentionally never stored.
 
 ### 3.2 Link delivery (`lib/server/notifications/`)
 
@@ -166,9 +176,22 @@ While a human agent is with the customer, the customer's camera video and microp
 
 ---
 
-## 4. Path to a database
+## 4. Database: Postgres (Supabase)
 
-The store interface is shaped for a Postgres adapter (table definitions are in `lib/server/store/types.ts`): `va_sessions` (one row per session, `state jsonb`, upsert only when `seq` is newer) and `va_frames` (`bytea` or an object-storage key, cascade on session delete). `load()` may be async; `runtimeReady()` in `lib/server/runtime.ts` resolves once loading finishes and `/api/health` reports 503 until then. Moving beyond one instance also needs the SSE fan-out replaced by a shared event bus (docs/07 §3).
+Set `DATABASE_URL` and the server keeps everything in Postgres instead of files: sessions, selected-evidence frames, workflow and policy versions with their config audit and connectors, and QA reviews and runs. It takes precedence over `DATA_DIR`. The static demo (`STATIC_EXPORT=1`) never connects. Setup on Supabase: `docs/GO-LIVE.md` Step 1b.
+
+- **Schema.** `db/schema.sql`, applied on every boot with `create … if not exists` (idempotent; the same text is in `lib/server/store/pg/schema.ts`). Everything is in a dedicated `visual_assist` schema, not `public`, so Supabase's Data API does not expose it. Row level security is enabled on every table with no policies, and `anon` / `authenticated` have all privileges revoked (skipped on a plain Postgres without those roles). The server connects as the database owner, which RLS does not restrict.
+- **Tables.**
+  - `visual_assist.sessions`: one row per session. `state jsonb` holds the full session state; `tenant_id`, `seq`, `status`, `workflow_id`, `live`, `token`, `created_at`, `updated_at` are columns. The upsert applies only when the incoming `seq` is not older than the stored row's (the file store's rule), so an out-of-order or stale write never rolls a session back, even from another process.
+  - `visual_assist.frames`: frame bytes (`bytea`), foreign key to the session with `on delete cascade`. A frame captured before its session's first write waits for that write.
+  - `visual_assist.config`, `visual_assist.qa`: one `jsonb` row each.
+- **Loading and readiness.** `load()` is asynchronous: it migrates, loads configuration and QA records, then sessions and frames. `/api/health` returns 503 until it finishes. If the database cannot be reached, it keeps retrying (1 s doubling to 30 s) and `/api/health` shows the error in `store.lastError`.
+- **Frames are held in memory.** Postgres cannot be read synchronously and the frame reads are synchronous, so every stored frame is loaded at boot, as frames captured since boot already are. Retention bounds this. Move frame bytes to object storage (keeping a key in the row) before evidence volumes grow large.
+- **Shutdown.** Writes are debounced (`PERSIST_DEBOUNCE_MS`). On SIGTERM/SIGINT the pending writes are flushed asynchronously; the process exit is held until they finish or `SHUTDOWN_FLUSH_TIMEOUT_MS` passes.
+- **Connection.** `pg` pool, `max` 5 (`DATABASE_POOL_MAX`), `application_name` `visual-assist`, TLS per `DATABASE_SSL`. On Supabase use the **Session pooler** string (IPv4; port 5432). The transaction pooler (port 6543) also works, since no named prepared statements are used. The connection string is never logged; status and logs show `host:port/database` only, and error messages are scrubbed of the password.
+- **Reporting.** `/api/health` shows `store.kind: "postgres"`, `durable: true` and the redacted location. `npm run check:deployment` reports "saved to the database (postgres)".
+- **Tests.** `tests/postgres-store.test.ts` runs the store against PGlite (Postgres in WASM, in process). `tests/postgres-integration.test.ts` runs it through `pg` against a real server when `PG_INTEGRATION_URL` points at a throwaway database.
+- **Still single instance.** Each process keeps the authoritative session state in memory and writes through. Running more than one instance also needs the SSE fan-out replaced by a shared event bus, and sessions loaded on demand rather than at boot (docs/07 §3).
 
 ---
 
@@ -188,7 +211,7 @@ Re-run it with the same photos whenever the model, the prompts or the router wor
 
 ## 6. Pre-go-live checklist
 
-- [ ] `DATA_DIR` on a persistent, backed-up volume (or Postgres adapter in place).
+- [ ] `DATABASE_URL` set to a backed-up Postgres (Supabase: daily backups or PITR on the plan), or `DATA_DIR` on a persistent, backed-up volume. `/api/health` shows the expected `store.kind`.
 - [ ] `PUBLIC_BASE_URL` set to the HTTPS origin customers will open.
 - [ ] SMS/email credentials set and a test link received on a real handset; sender identity verified.
 - [ ] `/api/health` wired to the load balancer; `/api/metrics` scraped with `METRICS_TOKEN`.
@@ -206,7 +229,7 @@ Re-run it with the same photos whenever the model, the prompts or the router wor
 - [ ] Real-photo evaluation run on 30–50 labelled photos of the routers in scope (§5), with the production model and effort. Every "carried on with a wrong reading" case reviewed, and the results signed off for the pilot.
 - [ ] If `STT_PROVIDER` is set: a spoken turn tested on a real iPhone (Safari) and an Android phone; the provider's data-retention setting reviewed (audio is sent to it).
 - [ ] `ICE_SERVERS` includes a TURN service (with rotated credentials) and a live call tested from a phone on mobile data to a console on the corporate network.
-- [ ] Retention/deletion schedule agreed (retention workstream) — the file store keeps sessions until deleted.
+- [ ] Retention/deletion schedule agreed (retention workstream) — the file and Postgres stores keep sessions until deleted.
 - [ ] For each tenant going live on its own systems:
   - [ ] Client endpoints built to `INTEGRATION-CONTRACT.md`: signature check, idempotency, `{ status, result, externalRef }`.
   - [ ] Endpoints tested against the client's sandbox using `includeScenarioSessions`.

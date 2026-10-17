@@ -11,7 +11,7 @@ This is the step-by-step guide to turning the public prototype into a real, test
 
 1. Create an account at render.com and connect your GitHub account.
 2. **New → Blueprint**, pick the `aiuk-visual-assist` repository. Render reads `render.yaml`. It creates one web service (Docker) with a 1 GB disk at `/data` for saved sessions, and generates `AUTH_SECRET` and `METRICS_TOKEN` itself. It also starts without the generated sample sessions (`SEED_SAMPLE_SESSIONS=0`), so everything you see there is real.
-3. When Render asks for the values marked *sync: false*, you can leave them empty for now. Steps 2 to 6 fill them in.
+3. When Render asks for the values marked *sync: false*, you can leave them empty for now. Steps 1b to 6 fill them in.
 4. Wait for the first deploy, then open the service's address, for example `https://visual-assist.onrender.com`.
 5. In *Environment*, set `PUBLIC_BASE_URL` to that exact `https://` address and save; Render redeploys.
 
@@ -24,6 +24,19 @@ npm run check:deployment -- https://visual-assist.onrender.com
 It prints one line per area: OK, TODO (not switched on yet) or FAIL. After this step, Server, Health, Storage, Pages and Access control should be OK.
 
 > A company address such as `assist.absoluteintelligence.co.uk` is optional. Add it in Render → *Settings → Custom domains*, follow the DNS instructions, then change `PUBLIC_BASE_URL` to it.
+
+---
+
+## Step 1b — Database: Supabase (15 minutes)
+
+Saves sessions, photos, workflow changes and QA reviews to a managed database instead of the Render disk. Supabase is only the database; the app stays on Render.
+
+1. Create a project at supabase.com. **Region: London (`eu-west-2`)**, so the data stays in the UK. Choose a strong database password and keep it in your password manager.
+2. In the project, click **Connect** and copy the **Session pooler** connection string. Use this one: it works over IPv4, and Render has no IPv6 by default. Replace `[YOUR-PASSWORD]` in it with the database password (if the password contains characters such as `@`, `#`, `/` or `%`, URL-encode them, or pick a password of letters and digits).
+3. In Render → your service → *Environment*, add `DATABASE_URL` with that string and save. Render redeploys. The server creates its tables on first start, in a separate `visual_assist` schema that Supabase's public API cannot reach.
+4. **Check it:** open `https://<your address>/api/health`. It should show `"kind": "postgres"` and `"durable": true` under `store`, and the location shows only the host and database name, never the password. `npm run check:deployment -- <address>` reports Storage as "saved to the database (postgres)".
+
+With `DATABASE_URL` set, the Render disk (`DATA_DIR=/data`) is no longer used. `render.yaml` keeps the disk for now, so you can switch back by removing `DATABASE_URL`. Sessions already on the disk are not copied to the database.
 
 ---
 
@@ -118,6 +131,7 @@ Write down for each run: phone, network, whether each step worked, and how long 
 | Setting | From | Needed for |
 |---|---|---|
 | `PUBLIC_BASE_URL` | Your Render (or custom) address | Links in SMS |
+| `DATABASE_URL` | Supabase → Connect → Session pooler | Saving to the database (Step 1b) |
 | `ANTHROPIC_API_KEY` | Anthropic console | Real AI |
 | `ELEVENLABS_API_KEY` (+ `STT_PROVIDER=elevenlabs`) | ElevenLabs | Voice and iPhone speech |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` (+ `TURN_PROVIDER=twilio`) | Twilio | SMS links and live video on mobile data |
@@ -129,4 +143,4 @@ Full reference: `docs/PRODUCTION-READINESS.md` §2. Every switch can be checked 
 
 ## What this still is not
 
-One server, saved to one disk, with turn-based voice. That's right for internal and pilot testing, but not for real customer volumes. Production needs a database, more than one server, streaming voice and the hardening in the checklist in `docs/PRODUCTION-READINESS.md` §6.
+One server, saved to one disk or one database, with turn-based voice. That's right for internal and pilot testing, but not for real customer volumes. Production needs more than one server, streaming voice and the hardening in the checklist in `docs/PRODUCTION-READINESS.md` §6.

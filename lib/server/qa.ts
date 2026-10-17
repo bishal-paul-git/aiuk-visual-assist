@@ -12,8 +12,8 @@ import { getRuntime } from "./runtime";
 import { actorFor } from "./auth";
 
 /**
- * Server wiring for QA tooling: the QA store (file-backed when DATA_DIR is
- * set), the sampling configuration, audit events on the reviewed session, and
+ * Server wiring for QA tooling: the QA store (Postgres-backed when
+ * DATABASE_URL is set, file-backed when DATA_DIR is set), the sampling configuration, audit events on the reviewed session, and
  * the providers an evaluation can run against.
  */
 
@@ -24,7 +24,12 @@ export function qaStore(): QaStore {
   if (!g.__aiukQaAttached) {
     g.__aiukQaAttached = true;
     const dir = process.env.DATA_DIR?.trim();
-    if (dir && process.env.STATIC_EXPORT !== "1") attachQaStore(dir, store);
+    if (process.env.STATIC_EXPORT === "1") {
+      /* the static demo keeps QA records in memory */
+    } else if (process.env.DATABASE_URL?.trim()) {
+      // Postgres: the runtime loads QA records with the sessions (awaited by runtimeReady()).
+      getRuntime();
+    } else if (dir) attachQaStore(dir, store);
   }
   return store;
 }

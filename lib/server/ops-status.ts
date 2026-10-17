@@ -4,7 +4,7 @@ import { getNotifications } from "@/lib/server/notifications";
 
 /**
  * The catalogue in lib/config/operations.ts describes the POC baseline. In the
- * server edition some rows depend on configuration (DATA_DIR, provider keys),
+ * server edition some rows depend on configuration (DATABASE_URL, DATA_DIR, provider keys),
  * so System Health shows what this deployment actually runs.
  */
 export function effectiveServices(): ServiceStatus[] {
@@ -19,9 +19,13 @@ export function effectiveServices(): ServiceStatus[] {
         return store.durable
           ? {
               ...s,
-              provider: "File store (DATA_DIR)",
+              provider: store.kind === "postgres" ? "Postgres (DATABASE_URL)" : "File store (DATA_DIR)",
               status: store.lastError ? "degraded" : "operational",
-              note: store.lastError ? `Last write error: ${store.lastError}` : "Durable on one instance: JSON snapshots + frame files, atomic writes. Postgres adapter planned for multi-instance.",
+              note: store.lastError
+                ? `Last write error: ${store.lastError}`
+                : store.kind === "postgres"
+                  ? `Durable in ${store.location}: sessions, frames, configuration and QA records. Single instance until the SSE fan-out is shared.`
+                  : "Durable on one instance: JSON snapshots + frame files, atomic writes. Use DATABASE_URL (Postgres) for a managed database.",
             }
           : s;
       case "reasoning":

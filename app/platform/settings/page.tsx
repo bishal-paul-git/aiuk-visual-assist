@@ -25,9 +25,9 @@ const ENVIRONMENTS: { name: string; state: ImplState; label: string; detail: str
 /** docs/06 §2 — stated honestly against what the POC actually does. */
 const CONTROLS: { control: string; state: ImplState; label?: string; detail: string }[] = [
   { control: "Tenant isolation", state: "implemented", detail: "Tenant-scoped data model; agents, supervisors and client admins can only read or act on their own organisation's sessions and configuration (enforced on every API route). Hardened tenancy in Phase 5." },
-  { control: "Audit logs", state: "implemented", detail: "Every material state transition is an audit event with workflow, policy, model and prompt versions. Held in memory, or in files on disk when DATA_DIR is set; a database is planned." },
+  { control: "Audit logs", state: "implemented", detail: "Every material state transition is an audit event with workflow, policy, model and prompt versions. Held in memory, in files on disk when DATA_DIR is set, or in Postgres when DATABASE_URL is set." },
   { control: "TLS in transit", state: "partial", label: "Deployment-dependent", detail: "Provided by the hosting edge; not enforced by the application." },
-  { control: "Encryption at rest", state: "planned", label: "Planned (Phase 4–6)", detail: "Data is held in memory, or in plain files on disk when DATA_DIR is set." },
+  { control: "Encryption at rest", state: "planned", label: "Planned (Phase 4–6)", detail: "Data is held in memory, in plain files on disk when DATA_DIR is set, or in Postgres when DATABASE_URL is set (encryption at rest is then the database provider's, e.g. Supabase)." },
   { control: "SSO", state: "partial", label: "Built, not connected", detail: "Entra ID / Okta / Auth0 sign-in (OIDC with PKCE) is built and switched on by configuration, with a signed, HttpOnly session cookie. Not connected to a real identity provider yet; the demo uses password-less demo sign-in." },
   { control: "MFA", state: "partial", label: "Via SSO", detail: "Enforced by the client's identity provider; OIDC_REQUIRE_MFA=1 checks it at sign-in. Not active until SSO is connected." },
   { control: "RBAC", state: "implemented", detail: "Five roles with a permission matrix (below). Enforced on API routes and console/platform pages; denials return 401/403 and are audited." },

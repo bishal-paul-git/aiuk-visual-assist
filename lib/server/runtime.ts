@@ -9,8 +9,11 @@ import { RoutingReasoningProvider } from "@/lib/providers/routing";
 import { ClaudeReasoningProvider } from "@/lib/providers/claude/reasoning";
 import { SessionRuntime } from "@/lib/runtime/session-runtime";
 import { seedSessions } from "@/lib/runtime/seed";
-import { attachStore, createStoreFromEnv, MemorySessionStore, type Persistence } from "@/lib/server/store";
-import { attachConfigStore } from "@/lib/server/store/config";
+import { attachStore, createStoreFromEnv, MemorySessionStore, PostgresSessionStore, type Persistence } from "@/lib/server/store";
+import { attachConfigStore, attachPostgresConfigStore } from "@/lib/server/store/config";
+import { attachPostgresQaStore } from "@/lib/server/store/qa";
+import { getQaStore } from "@/lib/qa/store";
+import { holdExitUntil } from "@/lib/server/shutdown";
 import { getProviderStats } from "@/lib/server/telemetry";
 import { log } from "@/lib/server/log";
 
@@ -30,10 +33,19 @@ export function getRuntime(): SessionRuntime {
   if (!rt) {
     rt = new SessionRuntime(new RoutingReasoningProvider(new MockReasoningProvider(), liveProvider()), toolExecutor());
     g[BOOT_KEY] = Date.now();
-    // The static demo build prerenders from a fresh seeded runtime; it never touches DATA_DIR.
-    const store = process.env.STATIC_EXPORT === "1" ? new MemorySessionStore() : createStoreFromEnv();
+    // The static demo build prerenders from a fresh seeded runtime; it never touches DATA_DIR or DATABASE_URL.
+    // Neither does `next build` of the server edition, so prerendering cannot seed a real store.
+    const building = process.env.NEXT_PHASE === "phase-production-build";
+    const store = process.env.STATIC_EXPORT === "1" || building ? new MemorySessionStore() : createStoreFromEnv();
     // Workflow and policy versions first, so sessions pinned to them restore.
-    if (store.durable && process.env.DATA_DIR) attachConfigStore(process.env.DATA_DIR);
+    // DATABASE_URL takes precedence: config and QA records then live in Postgres too.
+    if (store instanceof PostgresSessionStore) {
+      const db = store.db;
+      store.beforeLoad = async () => {
+        await attachPostgresConfigStore(db);
+        await attachPostgresQaStore(db, getQaStore());
+      };
+    } else if (store.durable && process.env.DATA_DIR) attachConfigStore(process.env.DATA_DIR);
     // SEED_SAMPLE_SESSIONS=0 starts a real-testing server empty, so reports show only real sessions.
     const seed = process.env.SEED_SAMPLE_SESSIONS === "0" && process.env.STATIC_EXPORT !== "1" ? undefined : seedSessions;
     const persistence = attachStore(rt, store, { seed, debounceMs: Number(process.env.PERSIST_DEBOUNCE_MS) || 250 });
@@ -42,12 +54,23 @@ export function getRuntime(): SessionRuntime {
       // Writes are debounced; flush anything pending synchronously on the way out.
       process.once("exit", () => persistence.flushSync());
       // Hosts stop containers with SIGTERM/SIGINT; save pending writes first.
-      for (const signal of ["SIGTERM", "SIGINT"] as const) process.once(signal, () => persistence.flushSync());
+      for (const signal of ["SIGTERM", "SIGINT"] as const)
+        process.once(signal, () => {
+          if (store.saveSessionSync) return persistence.flushSync();
+          // Postgres: flush asynchronously and hold the exit until done (or the timeout).
+          const db = store instanceof PostgresSessionStore ? store.db : undefined;
+          const work = persistence.flush().then(() => db?.idle());
+          holdExitUntil(work, { signal, timeoutMs: Number(process.env.SHUTDOWN_FLUSH_TIMEOUT_MS) || 8000 });
+        });
     }
     const r = rt;
     // Retention job (docs/06 §3): delete expired evidence and transcripts, once
     // persisted sessions are loaded, then every RETENTION_INTERVAL_MS.
-    void persistence.ready.then(() => r.runRetention());
+    // A failed load is already logged and shown on /api/health (store.lastError, 503).
+    persistence.ready.then(
+      () => r.runRetention(),
+      () => {},
+    );
     const timer = setInterval(() => {
       r.tick();
       const last = r.retentionStatus ? Date.parse(r.retentionStatus.lastRunAt) : 0;

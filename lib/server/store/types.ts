@@ -7,34 +7,12 @@ import type { SessionSnapshot, StoredFrame } from "@/lib/runtime/session-runtime
  * SessionStore on every commit. Implementations:
  *   - MemorySessionStore — default; nothing survives a restart.
  *   - FileSessionStore   — JSON snapshots + frame files under DATA_DIR.
+ *   - PostgresSessionStore — DATABASE_URL (e.g. Supabase); tables
+ *     visual_assist.sessions / visual_assist.frames, see db/schema.sql.
  *
- * Intended Postgres adapter (not built yet — "no database for now"). The
- * interface maps onto two tables; `load()` may return a Promise, which the
- * server runtime awaits via `runtimeReady()` before serving traffic:
- *
- *   create table va_sessions (
- *     id          text primary key,
- *     tenant_id   text not null,
- *     token       text not null unique,      -- or a hash, if links are re-issued
- *     workflow_id text not null,
- *     live        boolean not null,
- *     seq         bigint not null,           -- optimistic ordering: upsert only when excluded.seq > seq
- *     status      text not null,
- *     created_at  timestamptz not null,
- *     updated_at  timestamptz not null default now(),
- *     state       jsonb not null             -- SessionState as written by the orchestrator
- *   );
- *   create index on va_sessions (tenant_id, created_at desc);
- *
- *   create table va_frames (
- *     id          text primary key,          -- "mem_…" frame id (referenced as "mem:<id>")
- *     session_id  text not null references va_sessions(id) on delete cascade,
- *     mime        text not null,
- *     data        bytea not null,            -- or an object-storage key in production
- *     created_at  timestamptz not null
- *   );
- *
- * `deleteSession` cascades to frames; retention jobs call it.
+ * `load()` may return a Promise, which the server runtime awaits via
+ * `runtimeReady()` before serving traffic (/api/health is 503 until then).
+ * `deleteSession` removes the session's frames too; retention jobs call it.
  */
 
 export interface PersistedFrame extends StoredFrame {

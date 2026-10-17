@@ -44,8 +44,9 @@ try {
   else if (h.status === "degraded") add("warn", "Health", `Degraded: ${h.store?.lastError ?? "store write error"}.`);
   else add("fail", "Health", `Not ready (HTTP ${health.status}, status ${h.status ?? "unknown"}).`);
 
-  if (h.store?.durable) add("ok", "Storage", `Sessions are saved to disk (${h.store.kind}); they survive a restart.`);
-  else add("warn", "Storage", "Sessions are kept in memory only and are lost on restart. Set DATA_DIR to a persistent disk.");
+  if (h.store?.kind === "postgres") add("ok", "Storage", `Sessions are saved to the database (postgres)${h.store.location ? ` at ${h.store.location}` : ""}; they survive a restart.`);
+  else if (h.store?.durable) add("ok", "Storage", `Sessions are saved to disk (${h.store.kind}); they survive a restart.`);
+  else add("warn", "Storage", "Sessions are kept in memory only and are lost on restart. Set DATABASE_URL (Supabase) or DATA_DIR (a persistent disk).");
 
   const caps = (await get("/api/capabilities")).body ?? {};
   if (caps.liveReasoning) add("ok", "AI (Claude)", `Real AI is on (${caps.model}). Start test sessions with "Live AI" to use it.`);
