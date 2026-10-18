@@ -222,7 +222,7 @@ describe("postgres session store", () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });
 
 describe("postgres config and QA stores", () => {

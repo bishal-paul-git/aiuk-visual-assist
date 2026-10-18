@@ -88,19 +88,14 @@ One Twilio account covers both.
 
 ---
 
-## Step 5 — One real business action: n8n (1 hour)
+## Step 5 — Business actions: n8n (5 minutes, already built)
 
-1. In n8n (cloud or self-hosted), build the webhook workflow described in `docs/INTEGRATION-CONTRACT.md` §11. It receives the action, does something visible such as adding a row to a sheet, and replies with the result.
-2. Make a long random secret (at least 32 characters, e.g. `openssl rand -hex 32`). Use it as the webhook's Header Auth value (`X-VA-Secret`).
-3. In Render:
-   - `INTEGRATION_SECRET_NORTHLINE` = that secret
-   - `INTEGRATIONS_CONFIG` = for example
+The n8n workflow **Visual Assist · Business Actions (Northline)** is built and published in your n8n (`n8n.automationworkflows.io`). It answers `line_test`, `update_case`, `create_ticket`, `book_engineer`, `order_replacement_router` and `issue_account_credit`, rejects a wrong secret and other tenants, and de-duplicates retries. Details: `integrations/n8n/README.md`.
 
-     ```json
-     [{"tenantId":"tnt_northline","tool":"line_test","mode":"http","endpoint":"https://<your-n8n>/webhook/va/line_test","secretHeader":true,"includeScenarioSessions":true,"system":"n8n"}]
-     ```
+1. In Render, add `INTEGRATION_SECRET_NORTHLINE`. Its value is in the secret file you were given; the n8n workflow stores only that secret's hash.
+2. In Render, add `INTEGRATIONS_CONFIG` with the one-line value in `integrations/n8n/README.md`.
 
-**Check it:** the check lists `line_test (tnt_northline)` under Business actions. Run a session to the line-test step and the row should appear in n8n's sheet. **Platform → Integrations** shows the last call's result and timing.
+**Check it:** `/api/capabilities` lists six connectors, and **Platform → Integrations** shows them as n8n. Run a Live AI session to the line-test step: the console shows the result with an `LT-…` reference, and the call appears under the workflow's *Executions* in n8n.
 
 ---
 
