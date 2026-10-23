@@ -680,9 +680,10 @@ function BusinessActions({ view, disabled, onRun }: { view: AgentView; disabled:
                 <span className="font-medium text-ink">{a.toolName.replace(/_/g, " ")}</span>{" "}
                 <span className="text-muted">by {a.requestedBy === "ai" ? "AI" : "agent"}</span>
                 <span className="block text-[12px] text-ink-2">{a.status === "completed" ? actionSummary(a.toolName, a.result) : a.error ?? "In progress…"}</span>
-                {a.outcome?.mode === "http" && (
+                {a.outcome && (
                   <span className="block text-[11px] text-muted">
-                    Client system · {a.outcome.latencyMs.toLocaleString("en-GB")} ms{a.outcome.externalRef ? ` · ref ${a.outcome.externalRef}` : ""}
+                    {a.outcome.mode === "http" ? "Client system" : a.outcome.mode === "builtin" ? "Built-in record" : "Sandbox result (not a real system)"} ·{" "}
+                    {a.outcome.latencyMs.toLocaleString("en-GB")} ms{a.outcome.externalRef ? ` · ref ${a.outcome.externalRef}` : ""}
                   </span>
                 )}
                 <span className="block truncate font-mono text-[10px] text-muted" title={a.idempotencyKey}>

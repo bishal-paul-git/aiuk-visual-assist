@@ -24,6 +24,7 @@ import {
 } from "@/components/platform/config-ui";
 import { ConnectorTable } from "@/components/platform/connector-status";
 import { getConnectorRegistry } from "@/lib/integrations/config";
+import { lookupSecret } from "@/lib/integrations/secret-vault";
 import { connectorStatuses } from "@/lib/integrations/status";
 
 type Props = { params: Promise<{ id: string }> };
@@ -59,7 +60,7 @@ export default async function ClientDetailPage({ params }: Props) {
   const tTeams = teams.filter((t) => t.tenantId === tenant.id);
   const tIntegrations = integrations.filter((i) => i.tenantId === tenant.id);
   const r = tenant.retention;
-  const connectors = connectorStatuses(tenant.id, getConnectorRegistry(), allStates);
+  const connectors = connectorStatuses(tenant.id, getConnectorRegistry(), allStates, lookupSecret);
   const httpConnectors = connectors.filter((c) => c.mode === "http");
 
   const boundary: { area: string; scope: ReactNode; state: ImplState; how: string }[] = [
@@ -71,7 +72,7 @@ export default async function ClientDetailPage({ params }: Props) {
       area: "Credentials",
       scope: httpConnectors.length ? `Signing secret ${httpConnectors[0].secretRef}` : "No client credentials stored",
       state: "partial",
-      how: "Per-tenant HMAC secret read from the environment by reference; secrets manager planned",
+      how: "Per-tenant HMAC secret from the server environment, or entered on Platform → Integrations and stored AES-256-GCM encrypted",
     },
     { area: "Branding", scope: tenant.brand.displayName, state: "implemented", how: "Customer view resolves brand from session tenant" },
     { area: "Retention", scope: r.evidenceMode === "live_only" ? "Live only" : `${r.evidenceRetentionDays} d evidence`, state: "partial", how: "Configured per tenant; automated deletion planned" },

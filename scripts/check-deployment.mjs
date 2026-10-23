@@ -66,8 +66,8 @@ try {
   else add("warn", "SMS links", "SMS is simulated; links appear on Platform → Integrations instead of being texted. Set the TWILIO_* settings.");
 
   const connectors = Array.isArray(caps.connectors) ? caps.connectors : [];
-  if (connectors.length) add("ok", "Business actions", `Connected to real systems: ${connectors.map((c) => `${c.tool} (${c.tenantId})`).join(", ")}.`);
-  else add("warn", "Business actions", "All business actions are simulated. Set INTEGRATIONS_CONFIG (see docs/INTEGRATION-CONTRACT.md §11 for n8n).");
+  if (connectors.length) add("ok", "Business actions", `Real: ${connectors.map((c) => `${c.tool} (${c.tenantId}${c.mode === "builtin" ? ", built-in" : ""})`).join(", ")}.`);
+  else add("warn", "Business actions", "All business actions are simulated. Switch them on at Platform → Integrations (built-in, n8n or a client API).");
 
   const signIn = await get("/sign-in", { json: false }).catch(() => ({ status: 0 }));
   if (signIn.status === 200) add("ok", "Pages", "Sign-in page loads.");

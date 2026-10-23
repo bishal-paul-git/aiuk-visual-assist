@@ -380,9 +380,9 @@ export interface ToolAction {
  * Never holds secrets, request bodies or raw responses.
  */
 export interface ToolCallOutcome {
-  /** Executor that ran the call, e.g. "sandbox-tools" or "http". */
+  /** Executor that ran the call, e.g. "sandbox-tools", "visual-assist" (built-in) or "http". */
   provider: string;
-  mode: "simulated" | "http";
+  mode: "simulated" | "builtin" | "http";
   status: "succeeded" | "failed";
   latencyMs: number;
   /** HTTP attempts made (1, or 2 after a retry). Simulated calls report 1. */
@@ -572,6 +572,7 @@ export type DomainEventType =
   | "security.signed_out"
   | "security.sign_in_failed"
   | "security.permission_denied"
+  | "security.connector_changed"
   | "privacy.redacted"
   | "privacy.retention_purged"
   | "audit.exported"

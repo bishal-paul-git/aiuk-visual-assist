@@ -21,7 +21,18 @@
 
 The file in this repository has the placeholder `__SECRET_SHA256__` where the live node holds the real hash, which is `sha256(INTEGRATION_SECRET_NORTHLINE)`. `tests/n8n-business-actions.test.ts` runs the node against the server's real HTTP connector, so a contract change that breaks n8n fails CI.
 
-## Server settings (Render → Environment)
+## Connecting it
+
+The easy way is **Platform → Integrations**:
+
+1. Select the tools.
+2. Choose *Client API or n8n*.
+3. Paste the webhook URL and the secret, and tick *Send the secret as X-VA-Secret*.
+4. Press **Save**, then **Test**.
+
+The secret is stored encrypted. Nothing has to be added in Render.
+
+The alternative is server settings (Render → Environment). They override the page:
 
 ```
 INTEGRATION_SECRET_NORTHLINE = <the secret whose SHA-256 is in the n8n Code node>

@@ -2,6 +2,7 @@ import type { SessionState } from "@/lib/domain/session";
 import type { ToolCallOutcome } from "@/lib/domain/types";
 import { integrations, policies } from "@/lib/config/catalog";
 import { MIN_SECRET_LENGTH, type ConnectorRegistry } from "./config";
+import { isBuiltinTool } from "./builtin";
 
 /**
  * Read-only connector status for the Integrations and client pages: how each
@@ -24,14 +25,21 @@ export interface ConnectorStatus {
   tenantId: string;
   tool: string;
   /** "invalid" means the entry could not be parsed; calls fail closed. */
-  mode: "simulated" | "http" | "invalid";
+  mode: "simulated" | "builtin" | "http" | "invalid";
+  /** Whether this tool can run as a built-in action. */
+  builtinAvailable: boolean;
   source: "default" | "env" | "store";
   system?: string;
   endpointHost?: string;
   timeoutMs?: number;
   secretRef?: string;
   secretState?: "set" | "missing";
+  /** Where the secret comes from: the environment, or entered on the Integrations page. */
+  secretSource?: "env" | "stored";
+  /** Full endpoint URL, for the editor (only built for users who may edit connectors). */
+  endpoint?: string;
   includeScenarioSessions?: boolean;
+  secretHeader?: boolean;
   error?: string;
   lastCall?: ConnectorLastCall;
 }
@@ -72,15 +80,21 @@ export function connectorStatuses(
   tenantId: string,
   registry: ConnectorRegistry,
   states: readonly SessionState[],
-  env: Record<string, string | undefined> = process.env,
+  /** An env-like map, or a lookup that also reads the secret vault (lookupSecret). */
+  secrets: Record<string, string | undefined> | ((ref: string) => { value?: string; source?: "env" | "stored" }) = process.env,
+  opts: { includeEndpoint?: boolean } = {},
 ): ConnectorStatus[] {
+  const secretFor =
+    typeof secrets === "function"
+      ? secrets
+      : (ref: string): { value?: string; source?: "env" | "stored" } => (secrets[ref] ? { value: secrets[ref], source: "env" } : {});
   return tenantTools(tenantId, registry).map((tool) => {
     const r = registry.resolve(tenantId, tool);
-    const base = { tenantId, tool, lastCall: lastCall(states, tenantId, tool) };
+    const base = { tenantId, tool, builtinAvailable: isBuiltinTool(tool), lastCall: lastCall(states, tenantId, tool) };
     if (r.kind === "default") return { ...base, mode: "simulated", source: "default" };
     if (r.kind === "invalid") return { ...base, mode: "invalid", source: r.source, error: r.error };
     const c = r.config;
-    const secret = env[c.secretRef];
+    const secret = c.mode === "http" ? secretFor(c.secretRef) : {};
     return {
       ...base,
       mode: c.mode,
@@ -89,7 +103,10 @@ export function connectorStatuses(
       endpointHost: c.endpoint ? new URL(c.endpoint).host : undefined,
       timeoutMs: c.timeoutMs,
       secretRef: c.mode === "http" ? c.secretRef : undefined,
-      secretState: c.mode === "http" ? (secret && secret.length >= MIN_SECRET_LENGTH ? "set" : "missing") : undefined,
+      secretState: c.mode === "http" ? (secret.value && secret.value.length >= MIN_SECRET_LENGTH ? "set" : "missing") : undefined,
+      secretSource: c.mode === "http" && secret.value ? secret.source : undefined,
+      endpoint: opts.includeEndpoint ? c.endpoint : undefined,
+      secretHeader: c.secretHeader === true,
       includeScenarioSessions: c.includeScenarioSessions,
     };
   });

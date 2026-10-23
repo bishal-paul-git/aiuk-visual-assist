@@ -100,9 +100,10 @@ export function bootedAt(): number {
 }
 
 /**
- * Business actions: per tenant and tool, either the simulated sandbox (the
- * default) or the client's own HTTPS endpoint (INTEGRATIONS_CONFIG / config
- * store; docs/INTEGRATION-CONTRACT.md). The static demo always simulates.
+ * Business actions: per tenant and tool, the simulated sandbox (the default),
+ * the platform's built-in records, or the client's own HTTPS endpoint
+ * (INTEGRATIONS_CONFIG / config store, edited on Platform → Integrations;
+ * docs/INTEGRATION-CONTRACT.md). The static demo always simulates.
  */
 function toolExecutor(): ToolExecutor {
   const sandbox = new MockToolExecutor();
@@ -115,7 +116,7 @@ function toolExecutor(): ToolExecutor {
   });
   return new RoutingToolExecutor(registry, sandbox, http, {
     observe: (o, info) => {
-      if (o.mode !== "http") return;
+      if (o.mode === "simulated") return;
       const fields = { ...info, provider: o.provider, status: o.status, latencyMs: o.latencyMs, attempts: o.attempts, endpointHost: o.endpointHost, httpStatus: o.httpStatus, errorCode: o.errorCode };
       if (o.status === "failed") log.warn("integration.call_failed", fields);
       else log.info("integration.called", fields);

@@ -10,6 +10,7 @@ import { scopeFor, scopeLabel } from "@/lib/auth/scope";
 import { currentUser } from "@/lib/server/auth";
 import { STATIC_EXPORT } from "@/lib/server/platform-data";
 import { StaticRoleGate } from "@/components/platform/static-role-gate";
+import { environmentInfo } from "@/lib/server/environment";
 
 /**
  * Header and navigation for the management platform. Server edition: the
@@ -23,6 +24,7 @@ export default async function PlatformLayout({ children }: { children: ReactNode
   const clientScoped = scope.tenantId !== undefined;
   const allowed = user ? NAV.flatMap((g) => g.items).filter((i) => can(user, "platform.access") && can(user, i.permission)).map((i) => i.href) : undefined;
   const canLaunch = !user || can(user, "session.create");
+  const envInfo = environmentInfo();
 
   return (
     <div className="flex min-h-screen">
@@ -48,9 +50,9 @@ export default async function PlatformLayout({ children }: { children: ReactNode
             </span>
             <span
               className="hidden items-center gap-1 rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink-2 md:inline-flex"
-              title={process.env.NEXT_PUBLIC_STATIC_DEMO === "1" ? "Reports show sample data. New demo sessions run in your browser and appear in the console." : "AI responses are simulated unless Live AI is enabled."}
+              title={envInfo.title}
             >
-              <FlaskConical className="size-3" aria-hidden /> Demo environment · sample data
+              <FlaskConical className="size-3" aria-hidden /> {envInfo.label}
             </span>
           </div>
           <div className="flex items-center gap-3">

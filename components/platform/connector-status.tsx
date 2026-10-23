@@ -1,4 +1,4 @@
-import { CheckCircle2, FlaskConical, KeyRound, Plug, TriangleAlert, XCircle } from "lucide-react";
+import { CheckCircle2, Database, FlaskConical, KeyRound, Plug, TriangleAlert, XCircle } from "lucide-react";
 import type { ConnectorStatus } from "@/lib/integrations/status";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { Badge, Table, Td, Th } from "@/components/ui/primitives";
@@ -11,6 +11,12 @@ export function ConnectorModeBadge({ mode }: { mode: ConnectorStatus["mode"] }) 
     return (
       <Badge tone="ok" icon={<Plug className={I} aria-hidden />}>
         Client API
+      </Badge>
+    );
+  if (mode === "builtin")
+    return (
+      <Badge tone="violet" icon={<Database className={I} aria-hidden />}>
+        Built-in
       </Badge>
     );
   if (mode === "invalid")
@@ -28,7 +34,7 @@ export function ConnectorModeBadge({ mode }: { mode: ConnectorStatus["mode"] }) 
 
 function SourceLabel({ c }: { c: ConnectorStatus }) {
   if (c.source === "default") return <span className="text-muted">Default sandbox</span>;
-  return <span className="text-muted">{c.source === "env" ? "INTEGRATIONS_CONFIG" : "Config store"}</span>;
+  return <span className="text-muted">{c.source === "env" ? "INTEGRATIONS_CONFIG" : "Set on Integrations page"}</span>;
 }
 
 function Secret({ c }: { c: ConnectorStatus }) {
@@ -39,6 +45,7 @@ function Secret({ c }: { c: ConnectorStatus }) {
         {c.secretState === "set" ? "Set" : "Missing"}
       </Badge>
       <span className="font-mono text-[11px] text-muted">{c.secretRef}</span>
+      {c.secretSource === "stored" && <span className="text-[11px] text-muted">Entered on this page (encrypted)</span>}
     </span>
   );
 }
@@ -55,7 +62,7 @@ export function LastCall({ c }: { c: ConnectorStatus }) {
         {l.latencyMs !== undefined && <span className="text-ink-2">· {l.latencyMs.toLocaleString("en-GB")} ms</span>}
       </span>
       <span className="text-[11px] text-muted" title={formatDateTime(l.at)}>
-        {formatRelative(l.at)} · {l.mode === "http" ? l.provider : "sandbox"}
+        {formatRelative(l.at)} · {l.mode === "http" ? l.provider : l.mode === "builtin" ? "built-in" : "sandbox"}
         {l.externalRef ? (
           <>
             {" "}
@@ -103,7 +110,7 @@ export function ConnectorTable({ connectors }: { connectors: ConnectorStatus[] }
                   {c.system && <div className="text-[11px] text-muted">{c.system}</div>}
                 </>
               ) : (
-                <span className="text-muted">Sandbox executor</span>
+                <span className="text-muted">{c.mode === "builtin" ? "Visual Assist records" : "Sandbox executor"}</span>
               )}
             </Td>
             <Td>

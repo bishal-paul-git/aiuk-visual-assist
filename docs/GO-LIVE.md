@@ -88,14 +88,21 @@ One Twilio account covers both.
 
 ---
 
-## Step 5 — Business actions: n8n (5 minutes, already built)
+## Step 5 — Business actions (5 minutes, in the platform)
 
-The n8n workflow **Visual Assist · Business Actions (Northline)** is built and published in your n8n (`n8n.automationworkflows.io`). It answers `line_test`, `update_case`, `create_ticket`, `book_engineer`, `order_replacement_router` and `issue_account_credit`, rejects a wrong secret and other tenants, and de-duplicates retries. Details: `integrations/n8n/README.md`.
+No Render settings are needed. Sign in as a platform administrator (James Carter) or the client's administrator (Priya Shah for Northline), open **Platform → Integrations** and choose one option for each tool:
 
-1. In Render, add `INTEGRATION_SECRET_NORTHLINE`. Its value is in the secret file you were given; the n8n workflow stores only that secret's hash.
-2. In Render, add `INTEGRATIONS_CONFIG` with the one-line value in `integrations/n8n/README.md`.
+- **Built-in.** Recommended to start with. Visual Assist keeps the record itself and creates a real reference: ticket `TK-…`, case `CS-…`, engineer job `JOB-…` and so on. Nothing outside the platform is needed. Select the tools, choose *Built-in* and press **Save**.
+- **Client API or n8n.** The action goes to an HTTPS endpoint. Paste the URL and the shared secret once, tick *Send the secret as X-VA-Secret* for n8n, and press **Save**. The n8n workflow for Northline already exists: URL `https://n8n.automationworkflows.io/webhook/visual-assist/actions`, with its secret in the settings file you were given (see `integrations/n8n/README.md`).
+- **Sandbox.** Pretend results, for demos.
 
-**Check it:** `/api/capabilities` lists six connectors, and **Platform → Integrations** shows them as n8n. Run a Live AI session to the line-test step: the console shows the result with an `LT-…` reference, and the call appears under the workflow's *Executions* in n8n.
+Then press **Test** on each tool, or **Test all**. Each test makes one real call and shows the result, the time it took and the reference, or a plain-English reason if it fails.
+
+`line_test` has no built-in option, because it needs the client's network diagnostics. Until a client API or n8n is connected, it stays on the sandbox and the console labels its result accordingly.
+
+**Check it:** `/api/capabilities` lists the connected tools with their mode. After a Live AI session, **Platform → Integrations → Recent real business actions** shows each record with its reference and a link to the session.
+
+`INTEGRATIONS_CONFIG` still works and overrides the page. Tools set that way appear as locked.
 
 ---
 
@@ -130,7 +137,7 @@ Write down for each run: phone, network, whether each step worked, and how long 
 | `ANTHROPIC_API_KEY` | Anthropic console | Real AI |
 | `ELEVENLABS_API_KEY` (+ `STT_PROVIDER=elevenlabs`) | ElevenLabs | Voice and iPhone speech |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` (+ `TURN_PROVIDER=twilio`) | Twilio | SMS links and live video on mobile data |
-| `INTEGRATIONS_CONFIG`, `INTEGRATION_SECRET_NORTHLINE` | n8n (or a client test system) | One real business action |
+| *(none: Platform → Integrations)* | Built-in, n8n or a client API | Real business actions (`INTEGRATIONS_CONFIG` is optional and overrides the page) |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Resend | Email links (optional) |
 | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Microsoft Entra ID / Okta | Company sign-in (before a client pilot) |
 

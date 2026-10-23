@@ -6,6 +6,7 @@ import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { getPolicyRegistry } from "@/lib/policy/registry";
 import type { AuditEvent, Policy, WorkflowDefinition } from "@/lib/domain/types";
 import { getConnectorRegistry } from "@/lib/integrations/config";
+import { getSecretVault } from "@/lib/integrations/secret-vault";
 import { log } from "@/lib/server/log";
 import type { PgDatabase } from "./pg/db";
 import { LatestWriter } from "./pg/writer";
@@ -30,6 +31,8 @@ interface ConfigFile {
   policyAudit: AuditEvent[];
   /** Integration connectors (no secrets: only secretRef names). INTEGRATIONS_CONFIG overrides per tenant/tool. */
   connectors?: unknown[];
+  /** Connector secrets entered on Platform → Integrations, AES-256-GCM sealed (lib/integrations/secret-vault.ts). */
+  secrets?: Record<string, string>;
 }
 
 /** Put saved configuration into the registries. Returns false when the body is not a usable config. */
@@ -43,6 +46,7 @@ function applyConfig(saved: ConfigFile | undefined): boolean {
   wfReg.audit.splice(0, wfReg.audit.length, ...(saved.workflowAudit ?? []));
   polReg.audit.splice(0, polReg.audit.length, ...(saved.policyAudit ?? []));
   if (saved.connectors) getConnectorRegistry().setStored(saved.connectors);
+  if (saved.secrets) getSecretVault().load(saved.secrets);
   return true;
 }
 
@@ -55,6 +59,7 @@ function currentConfig(): ConfigFile {
     workflowAudit: getWorkflowRegistry().audit,
     policyAudit: getPolicyRegistry().audit,
     connectors: getConnectorRegistry().storedEntries(),
+    secrets: getSecretVault().entries(),
   };
 }
 
@@ -62,6 +67,7 @@ function onAnyChange(save: () => void) {
   getWorkflowRegistry().onChange = save;
   getPolicyRegistry().onChange = save;
   getConnectorRegistry().onChange = save;
+  getSecretVault().onChange = save;
 }
 
 export function attachConfigStore(dir: string): { restored: boolean } {

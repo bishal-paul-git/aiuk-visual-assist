@@ -181,7 +181,11 @@ export default function Home() {
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between pb-[max(24px,env(safe-area-inset-bottom))] sm:pb-6">
           <span>© {new Date().getFullYear()} Absolute Intelligence UK. Visual Assist.</span>
-          <span>Demo environment: sample data and simulated AI. No real customer data.</span>
+          <span>
+            {process.env.NEXT_PUBLIC_STATIC_DEMO === "1"
+              ? "Demo environment: sample data and simulated AI. No real customer data."
+              : "Server edition. Use test customers only until the pilot is approved."}
+          </span>
         </div>
       </footer>
     </div>

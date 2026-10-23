@@ -16,7 +16,10 @@ export async function GET() {
   const stt = sttProviderName();
   const ice = parseIceServers(process.env.ICE_SERVERS);
   const turnRelay = twilioTurnConfigured() || ice.some((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => /^turns?:/.test(u)));
-  const connectors = getConnectorRegistry().list().filter((c) => c.config.mode === "http").map((c) => ({ tenantId: c.config.tenantId, tool: c.config.tool }));
+  const connectors = getConnectorRegistry()
+    .list()
+    .filter((c) => c.config.mode !== "simulated")
+    .map((c) => ({ tenantId: c.config.tenantId, tool: c.config.tool, mode: c.config.mode }));
   const delivery = getNotifications().status();
   return Response.json({
     liveReasoning: live.available,

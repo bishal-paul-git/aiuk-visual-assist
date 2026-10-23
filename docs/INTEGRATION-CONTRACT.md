@@ -198,12 +198,20 @@ INTEGRATION_SECRET_NORTHLINE=<64 hex chars from your secret store>
 | `system` | Optional label shown on the Integrations page. |
 | `secretHeader` | Optional, defaults to `false`. When `true`, the shared secret is also sent in an `X-VA-Secret` header, for receivers that can only compare a header value (for example an n8n webhook with Header Auth). The HMAC signature is still sent. Requires an `https://` endpoint. |
 
-- Connectors can also be stored in `<DATA_DIR>/config.json` under `connectors`. `INTEGRATIONS_CONFIG` overrides a stored entry for the same tenant and tool.
+- `mode` can also be `builtin`. With it the platform is the system of record: it creates the reference itself (`TK-…`, `CS-…`, `JOB-…`, `ORD-…`, `CR-…`, `CLM-…`) and stores it with the session. No client system is called. It is available for `create_ticket`, `update_case`, `book_engineer`, `order_replacement_router`, `issue_account_credit` and `attach_claim_evidence`. It is not available for `line_test`, which needs the client's network diagnostics, or for `send_sms_summary`, because the customer's number is not kept. Scripted scenario sessions stay on the sandbox unless `includeScenarioSessions` is `true`.
+- Connectors are normally set on **Platform → Integrations** (permission `settings.edit`, so client admins can set only their own client). They are saved with the configuration, in `<DATA_DIR>/config.json` or the Postgres config row, under `connectors`. `INTEGRATIONS_CONFIG` overrides a stored entry for the same tenant and tool, and the page then shows that tool as locked.
+- A shared secret entered on that page is sealed with AES-256-GCM, using a key derived from `AUTH_SECRET`, and saved with the configuration under `secrets`. An `INTEGRATION_SECRET_*` environment variable of the same name wins over it. If `AUTH_SECRET` changes, stored secrets can no longer be read; they count as missing and must be entered again. Secret values are never sent to a browser, logged or audited. Each change is recorded as a `security.connector_changed` event (tools, mode, endpoint host, and whether the secret changed).
 - An invalid entry is never quietly simulated. Calls for that tenant and tool fail with `connector_invalid`, the error is logged at startup, and the Integrations page shows the connector as *Misconfigured*.
 - If the referenced secret is missing or shorter than 32 characters, calls fail with `secret_missing` and nothing is sent.
 - The static demo edition (GitHub Pages) ignores all of this and always uses the sandbox.
 
-**Platform → Integrations** and **Platform → Clients → <client>** show each tool's mode, endpoint host, whether its secret is set, its timeout, and its last call (outcome, latency and external reference). The display is read-only.
+**Platform → Integrations** shows each tool's mode, endpoint host, whether its secret is set and where it comes from, and its last call (outcome, latency and external reference). From that page you can:
+
+- set a mode for one or more tools at once: *Built-in*, *Client API or n8n*, or *Sandbox*;
+- enter the endpoint and secret once for all of them;
+- press **Test** to send one real call through the same routing that sessions use. The call uses action id `act_test…` and session id `ses_connection_test`, so receivers can recognise it as a test.
+
+The page explains the common failures in plain words: a missing secret, a refused secret (401/403), an endpoint that isn't found (404, for example an n8n workflow that isn't published), a timeout, or a response in the wrong shape. **Platform → Clients → <client>** shows the same status read-only.
 
 ---
 

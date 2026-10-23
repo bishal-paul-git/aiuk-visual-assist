@@ -7,11 +7,17 @@
  *   2. the INTEGRATIONS_CONFIG environment variable (JSON).
  * Anything without a connector stays on the simulated sandbox executor.
  *
- * Secrets are never part of the config: `secretRef` names an environment
- * variable (INTEGRATION_SECRET_<TENANT>) that holds the HMAC signing secret.
+ * Modes: "simulated" (sandbox), "builtin" (the platform is the system of
+ * record, ./builtin.ts) and "http" (the client's own HTTPS endpoint).
+ *
+ * Secrets are never part of the config: `secretRef` names the signing secret,
+ * read from the environment variable of that name or, when entered on
+ * Platform → Integrations, from the encrypted vault (./secret-vault.ts).
  */
 
-export type ConnectorMode = "simulated" | "http";
+import { isBuiltinTool } from "./builtin";
+
+export type ConnectorMode = "simulated" | "builtin" | "http";
 
 export interface ConnectorConfig {
   tenantId: string;
@@ -86,7 +92,8 @@ export function parseConnector(raw: unknown, opts: { production: boolean }): Con
   if (typeof tenantId !== "string" || !ID.test(tenantId)) throw new ConnectorConfigError("tenantId is required");
   if (typeof tool !== "string" || !ID.test(tool)) throw new ConnectorConfigError("tool is required");
   const mode = r.mode ?? "simulated";
-  if (mode !== "simulated" && mode !== "http") throw new ConnectorConfigError('mode must be "simulated" or "http"');
+  if (mode !== "simulated" && mode !== "builtin" && mode !== "http") throw new ConnectorConfigError('mode must be "simulated", "builtin" or "http"');
+  if (mode === "builtin" && !isBuiltinTool(tool)) throw new ConnectorConfigError(`${tool} cannot run built-in; use the sandbox or a client API`);
   if ("secret" in r || "secretValue" in r) throw new ConnectorConfigError("secrets must not be placed in connector config; use secretRef");
 
   const secretRef = r.secretRef === undefined ? defaultSecretRef(tenantId) : r.secretRef;
@@ -160,6 +167,10 @@ export type ResolvedConnector =
   | { kind: "default" };
 
 const key = (tenantId: string, tool: string) => `${tenantId}|${tool}`;
+const sameKey = (raw: unknown, tenantId: string, tool: string) => {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return r.tenantId === tenantId && r.tool === tool;
+};
 
 /**
  * Process-wide connector registry. Env entries override stored entries for the
@@ -183,6 +194,30 @@ export class ConnectorRegistry {
     this.storedRaw = Array.isArray(list) ? list : [];
     this.stored = parseConnectors(list ?? [], "store", this.opts);
     if (persist) this.onChange?.();
+  }
+
+  /** Add or replace the stored entry for one tenant/tool (an admin edit). Throws ConnectorConfigError when it is invalid. */
+  upsertStored(entry: Record<string, unknown>) {
+    const parsed = parseConnector(entry, this.opts);
+    const rest = this.storedRaw.filter((r) => !sameKey(r, parsed.tenantId, parsed.tool));
+    this.setStored([...rest, entry], { persist: true });
+    return parsed;
+  }
+
+  /** Remove the stored entry for one tenant/tool, returning it to the sandbox (unless INTEGRATIONS_CONFIG sets it). */
+  removeStored(tenantId: string, tool: string): boolean {
+    const rest = this.storedRaw.filter((r) => !sameKey(r, tenantId, tool));
+    if (rest.length === this.storedRaw.length) return false;
+    this.setStored(rest, { persist: true });
+    return true;
+  }
+
+  /** Where the entry for one tenant/tool comes from, if anywhere. */
+  sourceOf(tenantId: string, tool: string): ConnectorSource | undefined {
+    for (const [source, set] of [["env", this.env], ["store", this.stored]] as const) {
+      if (set.invalid.some((i) => i.tenantId === tenantId && i.tool === tool) || set.connectors.some((c) => c.tenantId === tenantId && c.tool === tool)) return source;
+    }
+    return undefined;
   }
 
   /**

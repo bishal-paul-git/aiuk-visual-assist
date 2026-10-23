@@ -491,7 +491,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
                     {a.error && <div className="mt-1 max-w-[200px] text-xs text-danger">{a.error}</div>}
                     {a.outcome && (
                       <div className="mt-1 text-[11px] text-muted">
-                        {a.outcome.mode === "http" ? `Client API ${a.outcome.endpointHost ?? ""}` : "Sandbox"} · {a.outcome.latencyMs.toLocaleString("en-GB")} ms
+                        {a.outcome.mode === "http" ? `Client API ${a.outcome.endpointHost ?? ""}` : a.outcome.mode === "builtin" ? "Built-in record" : "Sandbox"} · {a.outcome.latencyMs.toLocaleString("en-GB")} ms
                         {a.outcome.attempts > 1 ? ` · ${a.outcome.attempts} attempts` : ""}
                         {a.outcome.externalRef && (
                           <div>

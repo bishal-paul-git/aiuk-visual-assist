@@ -3,6 +3,7 @@ import type { ToolExecutionContext, ToolExecutor } from "@/lib/providers/types";
 import { CONTRACT_VERSION, HEADERS, ToolCallError, validateToolResponse, type ToolCallRequest } from "./contract";
 import { MIN_SECRET_LENGTH, type ConnectorConfig } from "./config";
 import { signatureHeader } from "./signing";
+import { lookupSecret } from "./secret-vault";
 
 /**
  * Calls a tenant's own HTTPS endpoint for a business action
@@ -11,7 +12,8 @@ import { signatureHeader } from "./signing";
  * - POST JSON { tool, params, sessionId, actionId, tenantId, requestedBy }.
  * - Idempotency-Key: the tool action id (unchanged on retry).
  * - X-VA-Timestamp / X-VA-Signature: HMAC-SHA256 over "<timestamp>.<body>"
- *   with the tenant's secret, read from the env var the connector names.
+ *   with the tenant's secret: the env var the connector names, else the
+ *   value entered on Platform → Integrations (./secret-vault.ts).
  * - Per-attempt timeout; one retry after a network error or HTTP 5xx only.
  *   Timeouts and 4xx are not retried.
  * - The response is validated; only the tool's declared result fields are kept.
@@ -22,7 +24,7 @@ import { signatureHeader } from "./signing";
 
 export interface HttpToolExecutorOptions {
   fetch?: typeof fetch;
-  /** Where secrets are read from (by reference). Defaults to process.env. */
+  /** Where secrets are read from (by reference). Defaults to process.env, then the secret vault. */
   env?: Record<string, string | undefined>;
   now?: () => number;
   /** Pause before the single retry. */
@@ -39,7 +41,7 @@ type Attempt =
 export class HttpToolExecutor implements ToolExecutor {
   readonly id = "http";
   private readonly fetchImpl: typeof fetch;
-  private readonly env: Record<string, string | undefined>;
+  private readonly secretFor: (ref: string) => string | undefined;
   private readonly now: () => number;
   private readonly retryDelayMs: number;
 
@@ -48,7 +50,8 @@ export class HttpToolExecutor implements ToolExecutor {
     opts: HttpToolExecutorOptions = {},
   ) {
     this.fetchImpl = opts.fetch ?? ((...args) => globalThis.fetch(...args));
-    this.env = opts.env ?? process.env;
+    const env = opts.env;
+    this.secretFor = env ? (ref) => env[ref] : (ref) => lookupSecret(ref).value;
     this.now = opts.now ?? Date.now;
     this.retryDelayMs = opts.retryDelayMs ?? 250;
   }
@@ -68,7 +71,7 @@ export class HttpToolExecutor implements ToolExecutor {
     if (!cfg || cfg.mode !== "http" || !cfg.endpoint) return fail(`No HTTP connector is configured for ${action.toolName}`, "not_configured");
     const url = new URL(cfg.endpoint);
     const endpointHost = url.host;
-    const secret = this.env[cfg.secretRef];
+    const secret = this.secretFor(cfg.secretRef);
     if (!secret || secret.length < MIN_SECRET_LENGTH) return fail(`Integration signing secret ${cfg.secretRef} is not set`, "secret_missing", { endpointHost });
 
     const request: ToolCallRequest = {

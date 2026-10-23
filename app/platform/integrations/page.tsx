@@ -11,7 +11,12 @@ import { getNotifications } from "@/lib/server/notifications";
 import { STATIC_EXPORT } from "@/lib/server/platform-data";
 import { getConnectorRegistry } from "@/lib/integrations/config";
 import { connectorStatuses } from "@/lib/integrations/status";
-import { ConnectorTable } from "@/components/platform/connector-status";
+import { ConnectorModeBadge, ConnectorTable } from "@/components/platform/connector-status";
+import { ConnectorEditor } from "@/components/platform/connector-editor";
+import { lookupSecret } from "@/lib/integrations/secret-vault";
+import { secretState } from "@/lib/server/connector-admin";
+import { can } from "@/lib/auth/rbac";
+import Link from "next/link";
 
 export const metadata = { title: "Integrations" };
 
@@ -55,12 +60,17 @@ export default async function IntegrationsPage() {
 
   const registry = getConnectorRegistry();
   const scopedStates = scope.states();
+  const canEdit = (tenantId: string) => !STATIC_EXPORT && Boolean(scope.user && can(scope.user, "settings.edit", { tenantId }));
   const connectorTenants = tenants
     .filter((t) => scope.includes(t.id))
-    .map((t) => ({ tenant: t, connectors: connectorStatuses(t.id, registry, scopedStates) }))
+    .map((t) => ({ tenant: t, editable: canEdit(t.id), connectors: connectorStatuses(t.id, registry, scopedStates, lookupSecret, { includeEndpoint: canEdit(t.id) }) }))
     .filter((x) => x.connectors.length > 0);
+  const recentActions = scopedStates
+    .flatMap((s) => s.toolActions.filter((a) => a.outcome && a.outcome.mode !== "simulated").map((a) => ({ a, s })))
+    .sort((x, y) => (y.a.completedAt ?? y.a.startedAt).localeCompare(x.a.completedAt ?? x.a.startedAt))
+    .slice(0, 25);
   const allConnectors = connectorTenants.flatMap((x) => x.connectors);
-  const liveConnectors = allConnectors.filter((c) => c.mode === "http").length;
+  const liveConnectors = allConnectors.filter((c) => c.mode === "http" || c.mode === "builtin").length;
   const invalidConnectors = allConnectors.filter((c) => c.mode === "invalid").length;
 
   return (
@@ -73,7 +83,7 @@ export default async function IntegrationsPage() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat
-          label="Client API connectors"
+          label="Real connectors"
           value={liveConnectors}
           tone={invalidConnectors ? "danger" : undefined}
           hint={invalidConnectors ? `${invalidConnectors} misconfigured` : `${allConnectors.length - liveConnectors} tools on the sandbox`}
@@ -179,26 +189,71 @@ export default async function IntegrationsPage() {
               Business action connectors
             </h2>
             <p className="mt-0.5 text-xs text-muted">
-              How each tool reaches the client&apos;s system: the simulated sandbox (default) or the client&apos;s HTTPS endpoint, signed per tenant. Contract:
-              docs/INTEGRATION-CONTRACT.md.
+              How each tool runs: the sandbox (default, pretend results), built-in (Visual Assist keeps the record) or the client&apos;s HTTPS endpoint such as
+              n8n, signed with a shared secret. Contract: docs/INTEGRATION-CONTRACT.md.
             </p>
           </div>
-          <Badge tone="neutral">{STATIC_EXPORT ? "Static demo · always simulated" : "Read-only · set by INTEGRATIONS_CONFIG"}</Badge>
+          <Badge tone="neutral">{STATIC_EXPORT ? "Static demo · always simulated" : "Edit here, or set INTEGRATIONS_CONFIG on the server"}</Badge>
         </div>
         <div className="space-y-4">
-          {connectorTenants.map(({ tenant, connectors }) => (
+          {connectorTenants.map(({ tenant, connectors, editable }) => (
             <Panel key={tenant.id} title={tenant.name} description={`${connectors.length} tools`} bodyClassName="p-0">
-              <ConnectorTable connectors={connectors} />
+              {editable ? <ConnectorEditor tenantId={tenant.id} connectors={connectors} secret={secretState(tenant.id)} /> : <ConnectorTable connectors={connectors} />}
             </Panel>
           ))}
         </div>
       </section>
 
+      {!STATIC_EXPORT && (
+        <Panel className="mt-4" title="Recent real business actions" description="Built-in records and client API calls from sessions (sandbox calls are not listed)" bodyClassName="p-0">
+          {recentActions.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-muted">None yet. Switch a tool to Built-in or a client API above, then run a Live AI session.</p>
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>When</Th>
+                  <Th>Client</Th>
+                  <Th>Action</Th>
+                  <Th>Result</Th>
+                  <Th>Reference</Th>
+                  <Th>Session</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentActions.map(({ a, s }) => (
+                  <tr key={a.id}>
+                    <Td className="whitespace-nowrap text-xs">{formatRelative(a.completedAt ?? a.startedAt)}</Td>
+                    <Td className="text-xs">{tenantName(s.session.tenantId)}</Td>
+                    <Td>
+                      <div className="font-medium text-ink">{humanize(a.toolName)}</div>
+                      <div className="text-[11px] text-muted">by {a.requestedBy === "ai" ? "AI" : "agent"}</div>
+                    </Td>
+                    <Td>
+                      <ConnectorModeBadge mode={a.outcome!.mode} />
+                      <div className={a.outcome!.status === "succeeded" ? "mt-0.5 text-[11px] text-ok" : "mt-0.5 text-[11px] text-danger"}>
+                        {a.outcome!.status === "succeeded" ? "Succeeded" : `Failed${a.outcome!.errorCode ? ` · ${a.outcome!.errorCode}` : ""}`} · {a.outcome!.latencyMs.toLocaleString("en-GB")} ms
+                      </div>
+                    </Td>
+                    <Td className="font-mono text-xs">{a.outcome!.externalRef ?? "—"}</Td>
+                    <Td className="text-xs">
+                      <Link href={`/platform/sessions/${s.session.id}`} className="text-brand hover:underline">
+                        {s.session.reference}
+                      </Link>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Panel>
+      )}
+
       <LinkDeliveryPanel states={scope.states()} notifications={getNotifications()} staticDemo={STATIC_EXPORT} />
 
       <Note className="mt-4" icon={<Info className="size-3.5" />}>
         p95 latency, error rate and last sync in the integrations table are catalogue values for sandbox connections, not live monitoring. Connector status and last
-        calls come from session records. Signing secrets are referenced by environment variable name only and are never shown, stored in configuration or audited.
+        calls come from session records. Secrets are never shown or audited: they come from the server environment or, when entered here, are stored encrypted with the configuration.
       </Note>
     </>
   );
