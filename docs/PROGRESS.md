@@ -3,7 +3,7 @@
 
 This is the single place for build status. Update it with every change that alters what works, and add a dated entry to the log at the bottom. The newest entry goes first.
 
-**Last updated:** 2026-10-23
+**Last updated:** 2026-10-24
 
 ---
 
@@ -20,7 +20,7 @@ This is the single place for build status. Update it with every change that alte
 
 ## 2. What is switched on in the real-testing server
 
-The table comes from `/api/capabilities`, as last reported by the owner on 2026-10-23.
+The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and from the Render service settings and logs (read by Claude through the Render connector, 2026-10-24).
 
 | Capability | State | Provider |
 |---|---|---|
@@ -30,7 +30,8 @@ The table comes from `/api/capabilities`, as last reported by the owner on 2026-
 | SMS customer links | On | Twilio |
 | Live video relay (4G/5G) | On | Twilio TURN |
 | Database | On | Supabase Postgres |
-| Business actions | Off. Switch them on at Platform → Integrations after this release deploys | Built-in, n8n or a client API |
+| Business actions (Northline) | On for 5 tools: create_ticket, update_case, book_engineer, order_replacement_router, issue_account_credit, all Built-in (set by `INTEGRATIONS_CONFIG` on Render, so locked on the Integrations page) | Built-in |
+| Line test | Sandbox, until the n8n secret is entered on Platform → Integrations (Client API or n8n) | n8n (ready) |
 | Email links | Off (optional) | Resend |
 | Company sign-in (SSO) | Built, not connected | Entra ID or Okta |
 
@@ -85,10 +86,10 @@ The table comes from `/api/capabilities`, as last reported by the owner on 2026-
 
 | # | Item | Owner | Blocked on |
 |---|---|---|---|
-| 1 | Deploy this release, then switch business actions on at Platform → Integrations (Built-in, or n8n with the URL and secret) and press Test all | Owner | Render auto-deploy from `main` |
+| 1 | Line test to n8n: on Platform → Integrations select line_test, choose Client API or n8n, paste the URL and secret, then Save and Test | Owner | The secret file (Claude cannot copy secrets) |
 | 2 | Full real-device session, then fill in the device results | Owner + Claude | A phone and a laptop |
 | 3 | 30–50 router photos plus `labels.csv`, then run the photo accuracy report | Owner (photos), Claude (report) | Photos |
-| 4 | Allow `onrender.com` in this environment's network settings, so Claude can run `npm run check:deployment` | Owner | Settings |
+| 4 | Render logs, deploys and settings are readable by Claude (Render connector). A direct HTTP check still needs `onrender.com` allowed in this environment's network settings | Owner | Optional |
 | 5 | One-page results report for Keith | Claude | Items 2 and 3 |
 | 6 | Real line-test API from a client, or decide that n8n stays as the stand-in | Owner | Client |
 | 7 | Streaming voice with barge-in | Claude | After the device tests |
@@ -105,6 +106,11 @@ The table comes from `/api/capabilities`, as last reported by the owner on 2026-
 ---
 
 ## Log
+
+### 2026-10-24 — Business actions switched on in the real server
+
+- Through the Render connector: set `INTEGRATIONS_CONFIG` so Northline's create_ticket, update_case, book_engineer, order_replacement_router and issue_account_credit run as Built-in. The deploy went live, the Postgres store is ready, and there were no errors or warnings at start.
+- Line test stays on the sandbox until the n8n secret is entered on the Integrations page.
 
 ### 2026-10-23 — Direct integrations, built in
 
