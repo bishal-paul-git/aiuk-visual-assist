@@ -3,7 +3,7 @@
 
 This is the single place for build status. Update it with every change that alters what works, and add a dated entry to the log at the bottom. The newest entry goes first.
 
-**Last updated:** 2026-10-24
+**Last updated:** 2026-10-26
 
 ---
 
@@ -57,7 +57,8 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 - **Customer (phone browser, no app):** consent, camera, voice or text, the AI guides them through the approved router workflow, photos are read by Claude with confidence gating, and a Human help button.
 - **Agent console:** live queue, join, take over, live video, messages, notes, business actions under policy, return to AI, and end.
-- **Management platform:**
+- **Client portal (`/client`):** a simpler portal for clients to try the product and see results for their own organisation only.
+- **Management platform (admin portal, `/platform`):**
   - Clients, AI agents and visual workflows, with versioning and four-eyes publish.
   - Policies.
   - Teams.
@@ -106,6 +107,19 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 ---
 
 ## Log
+
+### 2026-10-26 — Client portal
+
+- New: a separate portal for clients at `/client`, with its own sign-in (`/client/sign-in`, client staff only). The admin portal at `/platform` is unchanged.
+- Pages:
+  - Home: a four-step guide, what is switched on in plain words, what the signed-in role can do, and the client's latest sessions.
+  - Sessions and session detail: conversation, what the AI saw, business actions with references.
+  - Results: live AI compared with scripted scenarios, as measured.
+  - Systems: how each business action runs.
+- Each client sees only its own data. Another client's session is reported as not found. Absolute Intelligence staff can preview any client with `?org=`.
+- After sign-in, client staff now land in the client portal and platform staff in the admin portal.
+- Brightwater and Harbour have no published workflow yet (in review, draft), so only Northline can start sessions.
+- Tests: 9 unit tests, 4 server browser tests and 3 static browser tests added.
 
 ### 2026-10-24 — Business actions switched on in the real server
 

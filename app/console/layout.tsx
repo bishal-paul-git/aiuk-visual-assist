@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { LayoutGrid } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { AgentPicker } from "@/components/console/agent-identity";
+import { PortalLink } from "@/components/console/portal-link";
 import { TestSessionLauncher } from "@/components/shared/test-session-launcher";
 
 export const metadata = { title: { default: "Agent Console", template: "%s · Agent Console" } };
@@ -19,9 +19,7 @@ export default function ConsoleLayout({ children }: { children: ReactNode }) {
             <Link href="/console" className="rounded-md px-2.5 py-1.5 font-medium whitespace-nowrap text-white hover:bg-white/10">
               Live queue
             </Link>
-            <Link href="/platform" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-white/70 hover:bg-white/10 hover:text-white">
-              <LayoutGrid className="size-3.5" aria-hidden /> Platform
-            </Link>
+            <PortalLink />
           </nav>
         </div>
         <div className="flex items-center gap-3">

@@ -74,6 +74,13 @@ export default function Home() {
               </div>
               <p className="mt-4 text-xs text-muted">Interactive demo with sample data and simulated AI. Works in any modern browser, on a phone or a desktop.</p>
               <p className="mt-2 text-xs text-muted">
+                A client trying the product?{" "}
+                <Link href="/client/" className="font-semibold text-brand hover:underline">
+                  Open the client portal
+                </Link>
+                .
+              </p>
+              <p className="mt-2 text-xs text-muted">
                 Testing with the team?{" "}
                 <Link href="/test/" className="font-semibold text-brand hover:underline">
                   Follow the 15-minute testing guide

@@ -27,6 +27,13 @@ export default function TestingGuide() {
           scenario: it does not analyse your camera image yet. So this test checks the journey, the screens and the handover, not the AI&apos;s accuracy. All
           data is sample data; please don&apos;t enter real customer details.
         </p>
+        <p className="mt-3 max-w-2xl text-[14px] text-ink-2">
+          Trying it as a client rather than a team tester?{" "}
+          <Link href="/client/" className="font-semibold text-brand hover:underline">
+            Open the client portal
+          </Link>
+          .
+        </p>
 
         <ol className="mt-8 grid gap-4">
           <Step n={1} icon={<PlayCircle className="size-4" />} title="Watch it" time="5 min">

@@ -20,9 +20,23 @@ interface Created {
  * Creates a real session on the runtime and hands out the secure customer
  * link. The scenario only drives the simulated vision provider.
  */
-export function TestSessionLauncher({ variant = "primary" }: { variant?: "primary" | "navy" }) {
+export function TestSessionLauncher({
+  variant = "primary",
+  tenantId = "tnt_northline",
+  workflowKey = "router-troubleshooting",
+  workflowName = "Northline · Router Troubleshooting",
+  liveOnly = false,
+}: {
+  variant?: "primary" | "navy";
+  /** Client the session is created for (the client portal passes its own). */
+  tenantId?: string;
+  workflowKey?: string;
+  workflowName?: string;
+  /** Workflows without simulation scenarios (every client except Northline's router workflow) can only run on live AI. */
+  liveOnly?: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  const [scenario, setScenario] = useState(SCENARIOS[0].key);
+  const [scenario, setScenario] = useState(liveOnly ? "live" : SCENARIOS[0].key);
   const [channel, setChannel] = useState("secure_link");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -58,8 +72,8 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
     try {
       const t = await getTransport();
       const r = await t.createSession({
-        workflowKey: "router-troubleshooting",
-        tenantId: "tnt_northline",
+        workflowKey,
+        tenantId,
         scenario,
         channel,
         ...(deliverTo.sms || deliverTo.email ? { deliverTo } : {}),
@@ -74,7 +88,7 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
   }
 
   // Only roles that may start sessions see the launcher (client admins and QA reviewers don't).
-  if (id.status === "signed_in" && !can({ ...id.user, status: "active" }, "session.create", { tenantId: "tnt_northline" })) return null;
+  if (id.status === "signed_in" && !can({ ...id.user, status: "active" }, "session.create", { tenantId })) return null;
 
   const link = created ? `${typeof window !== "undefined" ? window.location.origin : ""}${BASE_PATH}${created.customerPath}` : "";
 
@@ -88,7 +102,7 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
           <div className="w-full max-w-lg rounded-xl bg-surface shadow-2xl">
             <div className="flex items-center justify-between border-b border-line px-5 py-3">
               <h2 id="launcher-title" className="text-sm font-semibold text-ink">
-                Start a Router Visual Support session
+                {liveOnly ? `Start a ${workflowName} session` : "Start a Router Visual Support session"}
               </h2>
               <button
                 type="button"
@@ -105,9 +119,10 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
             {!created ? (
               <div className="space-y-4 p-5">
                 <p className="text-xs text-muted">
-                  Creates a live session on <strong>Northline · Router Troubleshooting</strong> (current published version) and issues a secure
-                  customer link. Choose live AI, or a <strong>simulation</strong> scenario that decides what the vision model “sees” so every
-                  branch can be tested.
+                  Creates a live session on <strong>{workflowName}</strong> (current published version) and issues a secure customer link.{" "}
+                  {liveOnly
+                    ? "This workflow runs on live AI: what the AI sees is what you show the camera."
+                    : "Choose live AI, or a simulation scenario that decides what the vision model “sees” so every branch can be tested."}
                 </p>
                 <label
                   className={cx(
@@ -140,6 +155,7 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
                     </span>
                   </span>
                 </label>
+                {!liveOnly && (
                 <fieldset>
                   <legend className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-ink-2">
                     <FlaskConical className="size-3.5" aria-hidden /> Simulation scenario
@@ -163,6 +179,7 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
                     ))}
                   </div>
                 </fieldset>
+                )}
                 <label className="block">
                   <span className="mb-1 block text-xs font-semibold text-ink-2">Entry channel</span>
                   <select value={channel} onChange={(e) => setChannel(e.target.value)} className="h-9 w-full rounded-md border border-line-strong bg-surface px-2 text-sm">
@@ -211,7 +228,7 @@ export function TestSessionLauncher({ variant = "primary" }: { variant?: "primar
                 )}
                 {error && <p className="text-xs text-danger">{error}</p>}
                 <div className="flex justify-end">
-                  <button type="button" className={buttonClass("primary")} disabled={busy} onClick={create}>
+                  <button type="button" className={buttonClass("primary")} disabled={busy || (liveOnly && live !== undefined && !live.liveReasoning)} onClick={create}>
                     {busy ? "Creating…" : "Create session"}
                   </button>
                 </div>

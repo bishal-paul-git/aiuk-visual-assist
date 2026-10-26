@@ -135,8 +135,8 @@ describe("permission matrix", () => {
   });
 
   it("sends each role to a home it can open", () => {
-    expect(homePathFor(sarah)).toBe("/console");
-    expect(homePathFor(priya)).toBe("/platform");
+    expect(homePathFor(sarah)).toBe("/client");
+    expect(homePathFor(priya)).toBe("/client");
     expect(homePathFor(james)).toBe("/platform");
     expect(homePathFor(nadia)).toBe("/platform");
   });

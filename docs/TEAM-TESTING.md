@@ -43,3 +43,18 @@ Anything that is **broken**, **confusing** or **slow**, plus any ideas. Say whic
 - Editing workflows and policies is switched off in this online version.
 - Feedback needs a free GitHub account. No account? Email or message your feedback instead.
 - Your test sessions are saved in your browser only.
+
+
+---
+
+## Trying it as a client (client portal)
+
+Clients use their own portal, separate from the admin portal Absolute Intelligence staff use.
+
+1. Open `/client` on the live server and choose a person from your organisation. For Northline, **Tom Hughes (Supervisor)** can run the whole trial.
+2. On **Home**, press **Start test session**, type your mobile number and press **Create session**.
+3. Open the link on your phone, agree, turn on the camera and show the problem.
+4. Press **Open the live queue**, then **Join session** and **Take over**.
+5. Afterwards open **Sessions** for the conversation, what the AI saw and the business actions it ran, and **Results** for the numbers.
+
+Only Northline has a published workflow today, so only Northline can start sessions. Other clients see their portal but are told there is nothing to try yet.

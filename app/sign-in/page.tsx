@@ -85,6 +85,13 @@ function SignIn() {
         </div>
 
         <h1 className="mt-8 text-xl font-semibold tracking-tight text-ink">Sign in to Visual Assist</h1>
+        <p className="mt-1 text-xs text-muted">
+          Working for a client organisation?{" "}
+          <Link href="/client/sign-in" className="font-medium text-brand hover:underline">
+            Use the client portal
+          </Link>
+          .
+        </p>
         <p className="mt-1 text-sm text-muted">
           {sso
             ? "Use your organisation account. What you can see and do depends on the role and organisation your administrator assigns."

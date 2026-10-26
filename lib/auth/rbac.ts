@@ -156,9 +156,12 @@ export function commandPermission(commandType: string): Permission | null {
   }
 }
 
-/** Where a user lands after signing in. */
+/**
+ * Where a user lands after signing in: platform staff (Absolute Intelligence)
+ * go to the admin portal, client staff to the client portal.
+ */
 export function homePathFor(user: Pick<User, "role">): string {
-  return ROLE_PERMISSIONS[user.role].includes("platform.access") ? "/platform" : "/console";
+  return isPlatformRole(user.role) ? "/platform" : "/client";
 }
 
 /** Plain-English refusal shown to the user. */

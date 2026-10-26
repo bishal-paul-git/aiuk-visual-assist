@@ -116,14 +116,14 @@ export function safeNextPath(value: unknown): string | undefined {
  * Guard for server-rendered pages. Redirects to sign-in when signed out or not
  * permitted. A no-op in the static demo build (no server, demo identity).
  */
-export async function requirePageUser(permission: Permission, next: string, resource?: TenantResource): Promise<User | null> {
+export async function requirePageUser(permission: Permission, next: string, resource?: TenantResource, signInPath = "/sign-in"): Promise<User | null> {
   if (STATIC_EXPORT) return null;
   const user = await currentUser();
   const target = safeNextPath(next) ?? "/";
-  if (!user) redirect(`/sign-in?next=${encodeURIComponent(target)}`);
+  if (!user) redirect(`${signInPath}?next=${encodeURIComponent(target)}`);
   if (!can(user, permission, resource)) {
     recordSecurityEvent({ eventType: "security.permission_denied", user, payload: { permission, page: target, resourceTenantId: resource?.tenantId } });
-    redirect(`/sign-in?denied=${encodeURIComponent(permission)}&next=${encodeURIComponent(target)}`);
+    redirect(`${signInPath}?denied=${encodeURIComponent(permission)}&next=${encodeURIComponent(target)}`);
   }
   return user;
 }
