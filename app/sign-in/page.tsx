@@ -44,6 +44,7 @@ function SignIn() {
   const identity = useIdentity();
   const next = safeNext(sp.get("next"));
   const denied = sp.get("denied") as Permission | null;
+  const [staffPassword, setStaffPassword] = useState("");
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const errorCode = sp.get("error");
@@ -60,7 +61,7 @@ function SignIn() {
   async function choose(userId: string, role: (typeof ROLES)[number]) {
     setBusy(userId);
     setError(undefined);
-    const r = await signInDemo(userId, next);
+    const r = await signInDemo(userId, next, staffPassword);
     if (!r.ok) {
       setError(r.error);
       setBusy(undefined);
@@ -184,6 +185,19 @@ function SignIn() {
                 multi-factor authentication. Customers never sign in; they use their secure session link.
               </p>
             </div>
+
+            {methods?.staffPassword && (
+              <label className="mt-4 block max-w-sm">
+                <span className="mb-1 block text-sm font-medium text-ink">Staff password</span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={staffPassword}
+                  onChange={(e) => setStaffPassword(e.target.value)}
+                  className="h-10 w-full rounded-md border border-line-strong bg-surface px-3 text-sm"
+                />
+              </label>
+            )}
 
             {error && (
               <p className="mt-4 text-sm text-danger" role="alert">

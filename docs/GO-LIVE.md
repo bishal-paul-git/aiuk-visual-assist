@@ -137,6 +137,8 @@ Write down for each run: phone, network, whether each step worked, and how long 
 | `ANTHROPIC_API_KEY` | Anthropic console | Real AI |
 | `ELEVENLABS_API_KEY` (+ `STT_PROVIDER=elevenlabs`) | ElevenLabs | Voice and iPhone speech |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` (+ `TURN_PROVIDER=twilio`) | Twilio | SMS links and live video on mobile data |
+| `TRIAL_LOGIN_EMAIL`, `TRIAL_LOGIN_PASSWORD`, `TRIAL_PREFILL`, `TRIAL_MAX_SESSIONS_PER_DAY` | You choose | The client trial login and its daily limit (all optional, see `docs/TEAM-TESTING.md`) |
+| `STAFF_SIGNIN_PASSWORD` | You choose (8+ characters) | Password for the staff person-picker, recommended before sharing the address widely |
 | *(none: Platform → Integrations)* | Built-in, n8n or a client API | Real business actions (`INTEGRATIONS_CONFIG` is optional and overrides the page) |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Resend | Email links (optional) |
 | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Microsoft Entra ID / Okta | Company sign-in (before a client pilot) |

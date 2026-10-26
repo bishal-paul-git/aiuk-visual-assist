@@ -35,7 +35,7 @@ export default async function ClientSessions({ searchParams }: { searchParams: P
               <tr>
                 <Th>Session</Th>
                 <Th>Started</Th>
-                <Th>Run on</Th>
+                <Th>AI</Th>
                 <Th>Status</Th>
                 <Th>Result</Th>
                 <Th>Handled by</Th>
@@ -59,7 +59,7 @@ export default async function ClientSessions({ searchParams }: { searchParams: P
                       {formatRelative(s.startedAt ?? s.createdAt)}
                       <div className="text-muted">{formatDateTime(s.startedAt ?? s.createdAt)}</div>
                     </Td>
-                    <Td className="text-xs">{s.scenario ? "Scripted scenario" : "Live AI"}</Td>
+                    <Td className="text-xs">{s.scenario ? "Guided example" : "Real AI"}</Td>
                     <Td>
                       <SessionStatusBadge status={s.status} />
                     </Td>

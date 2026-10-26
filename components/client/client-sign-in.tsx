@@ -1,167 +1,239 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, Info, KeyRound, ShieldAlert } from "lucide-react";
+import { ArrowRight, CheckCircle2, KeyRound, Loader2, ShieldAlert } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
-import { Badge, Panel, buttonClass, cx } from "@/components/ui/primitives";
+import { buttonClass, cx } from "@/components/ui/primitives";
 import { tenants } from "@/lib/config/catalog";
 import { demoUsers } from "@/lib/auth/identity";
-import { PERMISSION_LABELS, ROLE_NAMES, isPlatformRole, permissionPhrase, type Permission } from "@/lib/auth/rbac";
-import { loadSignInMethods, signInDemo, ssoSignInUrl, useIdentity, type SignInMethods } from "@/lib/client/identity";
+import { ROLE_NAMES, isPlatformRole, permissionPhrase, PERMISSION_LABELS, type Permission } from "@/lib/auth/rbac";
+import { DEFAULT_TRIAL_EMAIL, DEFAULT_TRIAL_PASSWORD, TRIAL_USER_ID } from "@/lib/auth/trial";
+import { setDemoIdentity, signInDemo, ssoSignInUrl, useIdentity, type SignInMethods } from "@/lib/client/identity";
 import { BASE_PATH, STATIC_DEMO } from "@/lib/paths";
-
-const ROLE_HINT: Record<string, string> = {
-  supervisor: "Can run the whole trial: start sessions, join, take over and see results.",
-  agent: "Can start sessions, join and take over, and see results.",
-  client_admin: "Can see every session and result and change settings, but cannot start or join sessions.",
-};
 
 function safeNext(v: string | null): string | undefined {
   return v && v.startsWith("/") && !v.startsWith("//") && !v.includes("\\") ? v : undefined;
 }
 
-function ClientSignIn() {
+export interface TrialPrefill {
+  email: string;
+  password: string;
+}
+
+function ClientSignIn({ prefill, methods: initial }: { prefill?: TrialPrefill; methods: SignInMethods }) {
   const sp = useSearchParams();
   const router = useRouter();
   const identity = useIdentity();
   const next = safeNext(sp.get("next")) ?? "/client";
   const denied = sp.get("denied") as Permission | null;
+  const [email, setEmail] = useState(prefill?.email ?? "");
+  const [password, setPassword] = useState(prefill?.password ?? "");
+  const [staffPassword, setStaffPassword] = useState("");
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
-  const [methods, setMethods] = useState<SignInMethods | undefined>(STATIC_DEMO ? { sso: null, demo: true } : undefined);
-  useEffect(() => {
-    if (!STATIC_DEMO) void loadSignInMethods().then(setMethods);
-  }, []);
+  const methods = initial;
   const sso = methods?.sso ?? null;
+  const showTrial = Boolean(methods?.demo);
 
-  async function choose(userId: string) {
+  function go(to: string) {
+    // Full navigation in the server edition so server-rendered pages see the new session.
+    if (STATIC_DEMO) router.push(to);
+    else window.location.assign(`${BASE_PATH}${to}`);
+  }
+
+  async function logIn(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy("trial");
+    setError(undefined);
+    if (STATIC_DEMO) {
+      // The online demo has no server: the same login, checked in the browser.
+      if (email.trim().toLowerCase() !== DEFAULT_TRIAL_EMAIL || password !== DEFAULT_TRIAL_PASSWORD) {
+        setError("That email or password isn't right.");
+        setBusy(undefined);
+        return;
+      }
+      setDemoIdentity(TRIAL_USER_ID);
+      return go(next);
+    }
+    try {
+      const r = await fetch(`${BASE_PATH}/api/auth/trial`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, next }) });
+      const d = (await r.json().catch(() => ({}))) as { next?: string; error?: string };
+      if (!r.ok) {
+        setError(d.error ?? "Could not log in. Please try again.");
+        setBusy(undefined);
+        return;
+      }
+      go(d.next ?? next);
+    } catch {
+      setError("Could not reach the server. Please try again.");
+      setBusy(undefined);
+    }
+  }
+
+  async function chooseOther(userId: string) {
     setBusy(userId);
     setError(undefined);
-    const r = await signInDemo(userId, next);
+    const r = await signInDemo(userId, next, staffPassword);
     if (!r.ok) {
       setError(r.error);
       setBusy(undefined);
       return;
     }
-    if (STATIC_DEMO) router.push(next);
-    else window.location.assign(`${BASE_PATH}${next}`);
+    go(next);
   }
 
-  // Client organisations only: platform staff sign in to the admin portal.
-  const clientUsers = demoUsers().filter((u) => !isPlatformRole(u.role) && u.status === "active");
+  const others = demoUsers().filter((u) => !isPlatformRole(u.role) && u.status === "active" && u.id !== TRIAL_USER_ID);
 
   return (
-    <main className="min-h-screen bg-canvas px-4 py-10">
-      <div className="mx-auto max-w-3xl">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="rounded-md">
-            <Logo />
-          </Link>
-          {methods && (sso ? <Badge tone="navy">Single sign-on</Badge> : <Badge tone="warn">Trial sign-in</Badge>)}
-        </div>
+    <main className="flex min-h-screen flex-col bg-canvas">
+      <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-5 py-4">
+        <Link href="/" className="rounded-md">
+          <Logo />
+        </Link>
+      </header>
 
-        <h1 className="mt-8 text-xl font-semibold tracking-tight text-ink">Client portal</h1>
-        <p className="mt-1 text-sm text-muted">Try Visual Assist with your own team and see how it works for your customers.</p>
+      <div className="mx-auto grid w-full max-w-5xl flex-1 items-center gap-8 px-5 pb-12 lg:grid-cols-2">
+        <section className="lg:pr-6">
+          <p className="text-xs font-semibold tracking-[0.12em] text-brand uppercase">Your trial is ready</p>
+          <h1 className="mt-2 text-[28px] leading-tight font-semibold tracking-tight text-ink sm:text-[34px]">Try Visual Assist for yourself</h1>
+          <p className="mt-3 text-[15px] leading-relaxed text-ink-2">In about ten minutes you&apos;ll play both sides of a support call:</p>
+          <ul className="mt-4 space-y-3 text-[14px] text-ink-2">
+            <li className="flex gap-2">
+              <CheckCircle2 className="mt-0.5 size-4.5 shrink-0 text-ok" aria-hidden />
+              <span>
+                <strong className="text-ink">The customer</strong>, on your phone: show a problem to the camera and talk or type to the AI.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 className="mt-0.5 size-4.5 shrink-0 text-ok" aria-hidden />
+              <span>
+                <strong className="text-ink">The support agent</strong>, on your laptop: watch it live, then take over and help.
+              </span>
+            </li>
+          </ul>
+        </section>
 
-        {denied && PERMISSION_LABELS[denied] && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-4 py-3 text-sm text-danger" role="alert">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <p>
-              {identity.status === "signed_in" ? `${identity.user.name} cannot open that page` : "That page needs a different sign-in"}: it needs permission to {permissionPhrase(denied)}.
-            </p>
-          </div>
-        )}
-
-        {sso && (
-          <section className="mt-6 rounded-lg border border-line bg-surface p-5" aria-labelledby="csso">
-            <h2 id="csso" className="flex items-center gap-2 text-sm font-semibold text-ink">
-              <KeyRound className="size-4" aria-hidden /> Your organisation account
-            </h2>
-            <p className="mt-1 text-xs text-muted">You will be taken to {sso.name} to sign in, then returned here.</p>
-            <a href={ssoSignInUrl(next)} className={cx(buttonClass("navy"), "mt-3 h-10 w-full text-sm")} data-testid="sso-sign-in">
-              Sign in with {sso.name} <ArrowRight className="size-4" aria-hidden />
-            </a>
-          </section>
-        )}
-
-        {methods?.demo && (
-          <>
-            <div className="mt-4 flex items-start gap-2 rounded-lg border border-line bg-surface px-4 py-3 text-xs text-ink-2">
-              <Info className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
-              <p>
-                Trial sign-in: there are no passwords yet. Pick a person from your organisation. Before a real pilot, your team signs in with your own company account (single sign-on)
-                and customers never sign in; they only use their secure link.
-              </p>
+        <section className="rounded-2xl border border-line bg-surface p-6 shadow-sm sm:p-7" aria-labelledby="login-title">
+          {denied && PERMISSION_LABELS[denied] && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-soft px-3 py-2.5 text-sm text-danger" role="alert">
+              <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <p>That page needs permission to {permissionPhrase(denied)}. Log in with a different account.</p>
             </div>
-            {error && (
-              <p className="mt-3 text-sm text-danger" role="alert">
-                {error}
-              </p>
-            )}
-            <div className="mt-5 space-y-4">
-              {tenants.map((t) => {
-                const list = clientUsers.filter((u) => u.tenantId === t.id).sort((a, b) => (a.role === "supervisor" ? -1 : b.role === "supervisor" ? 1 : 0));
-                if (list.length === 0) return null;
-                return (
-                  <Panel key={t.id} title={t.name} description={t.brand.displayName} bodyClassName="p-0">
-                    <ul className="divide-y divide-line">
-                      {list.map((u) => {
-                        const current = identity.status === "signed_in" && identity.user.id === u.id;
-                        return (
+          )}
+
+          {sso && (
+            <div className="mb-5">
+              <h2 id="login-title" className="text-lg font-semibold text-ink">
+                Log in
+              </h2>
+              <a href={ssoSignInUrl(next)} className={cx(buttonClass("navy"), "mt-3 h-11 w-full text-sm")} data-testid="sso-sign-in">
+                <KeyRound className="size-4" aria-hidden /> Continue with {sso.name}
+              </a>
+            </div>
+          )}
+
+          {showTrial && (
+            <form onSubmit={logIn} noValidate>
+              {!sso && (
+                <h2 id="login-title" className="text-lg font-semibold text-ink">
+                  Log in to your trial
+                </h2>
+              )}
+              {prefill && <p className="mt-1 text-sm text-muted">We&apos;ve filled in your details. Just click Log in.</p>}
+              <label className="mt-4 block">
+                <span className="mb-1 block text-sm font-medium text-ink">Email</span>
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-[15px]"
+                />
+              </label>
+              <label className="mt-3 block">
+                <span className="mb-1 block text-sm font-medium text-ink">Password</span>
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-[15px]"
+                />
+              </label>
+              {error && (
+                <p className="mt-3 text-sm text-danger" role="alert">
+                  {error}
+                </p>
+              )}
+              <button type="submit" disabled={Boolean(busy)} className={cx(buttonClass("primary"), "mt-5 h-11 w-full text-[15px]")}>
+                {busy === "trial" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null} {busy === "trial" ? "Logging in…" : "Log in"}
+              </button>
+              <p className="mt-3 text-xs text-muted">This is a trial account. It can start and watch sessions, but it can&apos;t change any settings.</p>
+            </form>
+          )}
+
+          {!sso && !methods.demo && (
+            <div className="flex items-start gap-2 rounded-lg border border-warn/25 bg-warn-soft px-4 py-3 text-sm text-ink" role="alert">
+              <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
+              <p>Log in is unavailable. Please contact your administrator.</p>
+            </div>
+          )}
+
+          {showTrial && (
+            <details className="mt-5 border-t border-line pt-4 text-sm">
+              <summary className="cursor-pointer text-xs font-medium text-ink-2 select-none">Log in as someone else from your team</summary>
+              <div className="mt-3 space-y-3">
+                {methods.staffPassword && (
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-ink">Team password</span>
+                    <input type="password" autoComplete="off" value={staffPassword} onChange={(e) => setStaffPassword(e.target.value)} className="h-9 w-full rounded-md border border-line-strong bg-surface px-2 text-sm" />
+                  </label>
+                )}
+                {tenants.map((t) => {
+                  const list = others.filter((u) => u.tenantId === t.id);
+                  if (list.length === 0) return null;
+                  return (
+                    <div key={t.id}>
+                      <p className="text-xs font-semibold text-ink">{t.name}</p>
+                      <ul className="mt-1 divide-y divide-line rounded-md border border-line">
+                        {list.map((u) => (
                           <li key={u.id}>
                             <button
                               type="button"
-                              onClick={() => choose(u.id)}
                               disabled={Boolean(busy)}
-                              className={cx("flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-surface-2 disabled:opacity-60", current && "bg-brand-soft/40")}
+                              onClick={() => chooseOther(u.id)}
+                              className={cx("flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-surface-2 disabled:opacity-60", identity.status === "signed_in" && identity.user.id === u.id && "bg-brand-soft/40")}
                             >
-                              <span className="min-w-0">
-                                <span className="block text-sm font-medium text-ink">
-                                  {u.name} <span className="text-xs font-normal text-muted">· {ROLE_NAMES[u.role]}</span>
-                                  {current && <span className="text-xs font-normal text-muted"> · signed in</span>}
-                                </span>
-                                <span className="block text-xs text-muted">{ROLE_HINT[u.role]}</span>
+                              <span>
+                                {u.name} <span className="text-muted">· {ROLE_NAMES[u.role]}</span>
                               </span>
-                              <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand">
-                                {busy === u.id ? "Signing in…" : "Continue"} <ArrowRight className="size-3.5" aria-hidden />
+                              <span className="flex items-center gap-1 font-medium text-brand">
+                                {busy === u.id ? "Signing in…" : "Continue"} <ArrowRight className="size-3" aria-hidden />
                               </span>
                             </button>
                           </li>
-                        );
-                      })}
-                    </ul>
-                  </Panel>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        {methods && !sso && !methods.demo && (
-          <div className="mt-6 flex items-start gap-2 rounded-lg border border-warn/25 bg-warn-soft px-4 py-3 text-sm text-ink" role="alert">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
-            <p>Sign-in is unavailable. Contact your administrator.</p>
-          </div>
-        )}
-
-        <p className="mt-8 text-xs text-muted">
-          Absolute Intelligence staff sign in to the{" "}
-          <Link href="/sign-in" className="font-medium text-brand hover:underline">
-            admin portal
-          </Link>
-          .
-        </p>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          )}
+        </section>
       </div>
     </main>
   );
 }
 
-export function ClientSignInPage() {
+export function ClientSignInPage({ prefill, methods }: { prefill?: TrialPrefill; methods: SignInMethods }) {
   return (
     <Suspense>
-      <ClientSignIn />
+      <ClientSignIn prefill={prefill} methods={methods} />
     </Suspense>
   );
 }

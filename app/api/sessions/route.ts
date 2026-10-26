@@ -10,6 +10,7 @@ import { requestLogger } from "@/lib/server/log";
 import { getWorkflow } from "@/lib/config/catalog";
 import { scopeTenantFilter } from "@/lib/auth/rbac";
 import { authorize, authError } from "@/lib/server/auth";
+import { takeTrialSession } from "@/lib/server/trial";
 
 const CHANNELS: SessionChannel[] = ["secure_link", "sms", "qr", "website", "contact_centre"];
 
@@ -38,6 +39,8 @@ export async function POST(request: Request) {
   if (!ownerTenant) return jsonError("Unknown workflow", 422);
   const auth = await authorize("session.create", { tenantId: ownerTenant });
   if (!auth.ok) return auth.response;
+  // The trial account has a daily allowance, to cap AI and SMS spend.
+  if (!takeTrialSession(auth.user.id)) return jsonError("The trial limit for today has been reached. Please try again tomorrow, or ask us to raise it.", 429);
   const channel = (str(body.channel, 40) ?? "secure_link") as SessionChannel;
   if (!CHANNELS.includes(channel)) return jsonError("Unknown channel");
   const deliverTo = parseDeliverTo(body.deliverTo);

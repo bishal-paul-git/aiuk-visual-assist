@@ -66,7 +66,7 @@ export default async function ClientSessionDetail({ params, searchParams }: { pa
       </div>
       <PageHeader
         title={s.reference}
-        description={`${s.workflowName} · ${humanize(s.channel)} · ${scripted ? `Scripted scenario (${s.scenario})` : "Live AI"}`}
+        description={`${s.workflowName} · ${humanize(s.channel)} · ${scripted ? "Guided example" : "Real AI"}`}
         meta={
           <>
             <SessionStatusBadge status={s.status} />
@@ -122,7 +122,7 @@ export default async function ClientSessionDetail({ params, searchParams }: { pa
         <Panel title="How this was run">
           <KeyValue
             items={[
-              ["AI", scripted ? "Scripted scenario: the readings below are pre-set, not from a real photo." : "Live AI read the photos the customer showed."],
+              ["AI used", scripted ? "Guided example: the AI's answers and the readings below are pre-written, not from a real photo." : "Real AI looked at the photos the customer showed."],
               ["Workflow", `${s.workflowName} version ${s.workflowVersion}`],
               ["Customer", s.customerLabel],
               ["Consent", state.consent ? `Agreed ${formatDateTime(state.consent.acceptedAt)}` : "Not yet agreed"],
@@ -154,7 +154,7 @@ export default async function ClientSessionDetail({ params, searchParams }: { pa
 
       <Panel
         title="What the AI saw"
-        description={scripted ? "Pre-set readings for this scripted scenario" : "Each reading comes with how sure the AI was"}
+        description={scripted ? "Pre-written readings for this guided example" : "Each reading comes with how sure the AI was"}
         className="mt-4"
       >
         {state.visualEvents.length === 0 ? (

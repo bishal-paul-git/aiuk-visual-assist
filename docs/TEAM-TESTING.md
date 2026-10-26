@@ -49,12 +49,28 @@ Anything that is **broken**, **confusing** or **slow**, plus any ideas. Say whic
 
 ## Trying it as a client (client portal)
 
-Clients use their own portal, separate from the admin portal Absolute Intelligence staff use.
+This is what a client tester sees. It is separate from the admin portal that Absolute Intelligence staff use.
 
-1. Open `/client` on the live server and choose a person from your organisation. For Northline, **Tom Hughes (Supervisor)** can run the whole trial.
-2. On **Home**, press **Start test session**, type your mobile number and press **Create session**.
-3. Open the link on your phone, agree, turn on the camera and show the problem.
-4. Press **Open the live queue**, then **Join session** and **Take over**.
-5. Afterwards open **Sessions** for the conversation, what the AI saw and the business actions it ran, and **Results** for the numbers.
+1. Open the server's address. The front page describes the product. Press **Try it now**.
+2. The login already has the email and password filled in. Press **Log in**.
+3. Choose how the AI sees the problem, then press **Start the conversation**:
+   - **Real AI with a real camera** (when switched on): use your phone, and show your own router.
+   - **Guided example**: no camera needed; the AI's answers are pre-written so you can see every outcome.
+4. You now play both sides. A banner always says whose turn it is and what to do next.
+   - **Be the customer**: press **Open customer view**, ideally on your phone (or copy the link to it). Tap **Agree and continue**, allow the camera and microphone, then talk or type, and show the problem.
+   - **Be the human agent**: press **Open agent screen**. When the customer taps **Human help**, press **Join session**, then **Take over**. You see their camera live, can message them, and press **End**, then **Resolved**, to finish.
+5. Open **Sessions** to see the conversation, what the AI saw and how sure it was, and any business actions. **Results** shows the numbers.
 
-Only Northline has a published workflow today, so only Northline can start sessions. Other clients see their portal but are told there is nothing to try yet.
+Things worth trying: type instead of speaking; show something blurry and see the AI ask for a better view; ask for a person; step in as the agent without being asked, then press **Return to AI**. If the customer asked for a person, a person finishes it, so Return to AI is greyed out with the reason.
+
+Only Northline has a published workflow today, so only Northline can start conversations. Other clients see their portal and are told there is nothing to try yet.
+
+**Settings for the owner** (Render, Environment). All optional:
+
+| Setting | Default | What it does |
+|---|---|---|
+| `TRIAL_LOGIN_EMAIL` | `demo@northline.example` | The trial email |
+| `TRIAL_LOGIN_PASSWORD` | `VisualAssist-Trial` | The trial password |
+| `TRIAL_PREFILL` | on | Set `0` to stop filling the login in. Testers must then be told the password |
+| `TRIAL_MAX_SESSIONS_PER_DAY` | `40` | How many conversations the trial account may start per day. Guards AI and text-message spend |
+| `STAFF_SIGNIN_PASSWORD` | not set | When set (8+ characters), the staff and team person-pickers on the sign-in pages ask for it. Recommended before the address is shared widely |

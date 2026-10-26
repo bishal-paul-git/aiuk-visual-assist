@@ -6,6 +6,9 @@ import { recordSecurityEvent } from "@/lib/auth/security-log";
 import { authError, isSecureRequest, publicBaseUrl, safeNextPath, startSession } from "@/lib/server/auth";
 import { identityProviders } from "@/lib/server/identity-provider";
 import { readJson, str } from "@/lib/server/http";
+import { TRIAL_USER_ID } from "@/lib/auth/trial";
+import { checkStaffPassword, staffPasswordRequired } from "@/lib/server/staff-password";
+import { trialFailures } from "@/lib/server/trial";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
@@ -47,6 +50,16 @@ export async function POST(request: Request) {
   if (!demo) return authError(403, "Demo sign-in is disabled; use single sign-on");
   const body = await readJson(request, 4_000);
   const userId = str(body?.userId, 80) ?? undefined;
+  // With STAFF_SIGNIN_PASSWORD set, picking an account needs the password (the trial account has its own login).
+  if (staffPasswordRequired() && userId !== TRIAL_USER_ID) {
+    const client = `staff:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local"}`;
+    if (trialFailures.blocked(client)) return Response.json({ error: "Too many attempts. Please wait a few minutes and try again." }, { status: 429 });
+    if (!checkStaffPassword(str(body?.password, 200) ?? "")) {
+      trialFailures.record(client);
+      recordSecurityEvent({ eventType: "security.sign_in_failed", payload: { provider: demo.id, attemptedUserId: userId ?? null, reason: "staff_password" } });
+      return Response.json({ error: "Enter the staff password to continue." }, { status: 401 });
+    }
+  }
   const result = await demo.completeSignIn({ userId });
   if (!result.ok) {
     recordSecurityEvent({ eventType: "security.sign_in_failed", payload: { provider: demo.id, attemptedUserId: userId ?? null, reason: result.reason } });

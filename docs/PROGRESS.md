@@ -3,7 +3,7 @@
 
 This is the single place for build status. Update it with every change that alters what works, and add a dated entry to the log at the bottom. The newest entry goes first.
 
-**Last updated:** 2026-10-26
+**Last updated:** 2026-10-27
 
 ---
 
@@ -107,6 +107,14 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 ---
 
 ## Log
+
+### 2026-10-27 — A real client experience: landing page, login, two-sided trial
+
+- New: the server's front page (`/`) is now a short marketing page for the product, with a **Try it now** button. The GitHub Pages demo keeps its walk-through home page.
+- New: a trial login. The email and password are already filled in on `/client/sign-in`; the tester clicks **Log in**. It signs in as a supervisor of Northline (`Demo Tester`), so one login can play the customer and the agent, and it cannot change settings. Wrong passwords are throttled, and the account may start 40 conversations a day (`TRIAL_*` settings in `docs/TEAM-TESTING.md`).
+- New: the portal's first page is a guided two-sided trial. The tester starts a conversation (real AI with a real camera, or a guided example), then gets two clearly labelled cards, **Be the customer** and **Be the human agent**, and a live banner that says whose turn it is and what to do, taken from the real session. The latest messages from both sides show underneath.
+- Checked end to end in a real browser: landing page, login, start, customer on a phone (consent, camera, typing), Human help, agent joins, live video reaches the agent with real frames, take over, chat both ways, End, and the record shows everything. Also an agent who steps in on their own handing back to the AI. When a customer asks for a person, policy keeps a person on the call, and Return to AI shows why it is unavailable.
+- New: optional `STAFF_SIGNIN_PASSWORD`. Without it anyone with the address can pick any staff account on `/sign-in` (the existing demo sign-in). **Recommended to set it before sharing the address widely.**
 
 ### 2026-10-26 — Client portal
 

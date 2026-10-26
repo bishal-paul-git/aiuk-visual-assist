@@ -13,7 +13,7 @@ import { ROLE_NAMES } from "@/lib/auth/rbac";
 export type PortalPage = "home" | "sessions" | "results" | "systems";
 
 const NAV: { id: PortalPage; href: string; label: string; icon: typeof Home }[] = [
-  { id: "home", href: "/client", label: "Home", icon: Home },
+  { id: "home", href: "/client", label: "Try it", icon: Home },
   { id: "sessions", href: "/client/sessions", label: "Sessions", icon: History },
   { id: "results", href: "/client/results", label: "Results", icon: BarChart3 },
   { id: "systems", href: "/client/systems", label: "Systems", icon: Plug },
@@ -68,7 +68,7 @@ export function PortalShell({ scope, active, children }: { scope: ClientScope; a
           </div>
         </div>
         <nav aria-label="Client portal" className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-1.5 text-[13px] sm:px-4">
-          {NAV.map((n) => (
+          {NAV.filter((n) => n.id !== "systems" || scope.allows("settings.view")).map((n) => (
             <Link
               key={n.id}
               href={link(n.href)}

@@ -1,6 +1,7 @@
 import { toPublicUser } from "@/lib/auth/identity";
 import { currentSession } from "@/lib/server/auth";
 import { identityProviders } from "@/lib/server/identity-provider";
+import { staffPasswordRequired } from "@/lib/server/staff-password";
 
 /**
  * The signed-in user (or null), the provider of the current session, and the
@@ -17,6 +18,7 @@ export async function GET() {
       signIn: {
         sso: oidc ? { name: oidc.displayName, mfa: oidc.config.requireMfa } : null,
         demo: Boolean(demo),
+        staffPassword: Boolean(demo) && staffPasswordRequired(),
       },
     },
     { headers: { "Cache-Control": "no-store" } },

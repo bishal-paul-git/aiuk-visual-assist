@@ -118,7 +118,7 @@ export function setDemoIdentity(id: string) {
 }
 
 /** Server edition: sign in as a demo user. Returns where to go next. */
-export async function signInDemo(userId: string, next?: string): Promise<{ ok: true; next: string } | { ok: false; error: string }> {
+export async function signInDemo(userId: string, next?: string, password?: string): Promise<{ ok: true; next: string } | { ok: false; error: string }> {
   if (STATIC_DEMO) {
     setDemoIdentity(userId);
     return { ok: true, next: next ?? "/" };
@@ -127,7 +127,7 @@ export async function signInDemo(userId: string, next?: string): Promise<{ ok: t
     const r = await fetch(`${BASE_PATH}/api/auth/sign-in`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, next }),
+      body: JSON.stringify({ userId, next, password }),
     });
     const d = (await r.json().catch(() => ({}))) as { user?: PublicUser; next?: string; error?: string };
     if (!r.ok || !d.user) return { ok: false, error: d.error ?? "Sign-in failed" };
@@ -155,6 +155,8 @@ export async function signOut(): Promise<{ logoutUrl?: string }> {
 export interface SignInMethods {
   sso: { name: string; mfa: boolean } | null;
   demo: boolean;
+  /** Picking a demo account needs the staff password (STAFF_SIGNIN_PASSWORD). */
+  staffPassword?: boolean;
 }
 
 /** Server edition: which sign-in methods to offer. The static demo only has demo identities. */

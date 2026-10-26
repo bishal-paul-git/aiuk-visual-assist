@@ -38,24 +38,24 @@ export default async function ClientResults({ searchParams }: { searchParams: Pr
     <PortalShell scope={scope} active="results">
       <PageHeader
         title="Results"
-        description={`How ${scope.tenant.name}'s sessions went. Live AI sessions are what show how the product really performs; scripted scenarios always follow their script.`}
-        meta={<Badge tone="neutral">{live.length} live · {scripted.length} scripted</Badge>}
+        description={`How ${scope.tenant.name}'s sessions went. Real AI sessions show how the product really performs; guided examples always follow their script.`}
+        meta={<Badge tone="neutral">{live.length} real AI · {scripted.length} guided</Badge>}
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Live AI sessions" value={m.sessions} hint={has(m.completed, () => `${m.completed} finished`)} />
+        <Stat label="Real AI sessions" value={m.sessions} hint={has(m.completed, () => `${m.completed} finished`)} />
         <Stat label="Fixed by the AI" value={has(m.completed, () => pct(m.aiResolutionRate))} hint={has(m.completed, () => `${m.aiResolved} of ${m.completed}`)} />
         <Stat label="Needed a person" value={has(m.sessions, () => pct(m.escalationRate))} hint={has(m.sessions, () => `${m.escalated} of ${m.sessions}`)} />
         <Stat label="Average time" value={has(m.completed, () => formatDuration(m.avgDurationSec))} />
       </div>
 
-      <Panel title="Live AI compared with scripted scenarios" className="mt-4" bodyClassName="p-0">
+      <Panel title="Real AI compared with guided examples" className="mt-4" bodyClassName="p-0">
         <Table>
           <thead>
             <tr>
               <Th>Measure</Th>
-              <Th align="right">Live AI</Th>
-              <Th align="right">Scripted</Th>
+              <Th align="right">Real AI</Th>
+              <Th align="right">Guided</Th>
             </tr>
           </thead>
           <tbody>
@@ -78,9 +78,9 @@ export default async function ClientResults({ searchParams }: { searchParams: Pr
       </Panel>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Panel title="How live sessions ended" bodyClassName="p-0">
+        <Panel title="How real AI sessions ended" bodyClassName="p-0">
           {outcomes.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-muted">No finished live sessions yet.</p>
+            <p className="px-4 py-6 text-sm text-muted">No finished real AI sessions yet.</p>
           ) : (
             <Table>
               <tbody>
@@ -98,7 +98,7 @@ export default async function ClientResults({ searchParams }: { searchParams: Pr
         </Panel>
         <Panel title="Why a person took over" bodyClassName="p-0">
           {reasons.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-muted">No live session has needed a person yet.</p>
+            <p className="px-4 py-6 text-sm text-muted">No real AI session has needed a person yet.</p>
           ) : (
             <Table>
               <tbody>
