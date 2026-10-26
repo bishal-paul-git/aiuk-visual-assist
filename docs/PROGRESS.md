@@ -3,7 +3,7 @@
 
 This is the single place for build status. Update it with every change that alters what works, and add a dated entry to the log at the bottom. The newest entry goes first.
 
-**Last updated:** 2026-10-27
+**Last updated:** 2026-10-28
 
 ---
 
@@ -107,6 +107,14 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 ---
 
 ## Log
+
+### 2026-10-28 — The assistant talks; better British voices; AI training
+
+- Fixed: the assistant and agent now speak aloud. Phones refuse sound until the person taps, so the app unlocks audio on the first tap (agree, camera, anything) and uses one audio player for the whole session. If a phone still blocks it, a **Tap to hear the assistant** button appears and repeats the last line.
+- Changed: on the real server every line is spoken live by the voice service (new British voices: Georgia K for the assistant, Ali and Craig for agents). If the service refuses a voice for plan reasons, stock British voices (Alice, George) are tried. The recorded clips are used only on the public demo.
+- Changed: the voice provider's real error now appears in the Render logs and in `GET /api/tts`; `npm run check:deployment` speaks a test line and fails if it cannot.
+- New: AI training notes per workflow (`aiNotes`), added to the AI's instructions and shown to admins. The AI is also told to use British English and never to report what it cannot see. `docs/AI-TRAINING.md` explains the full training loop.
+- Not done: the session record does not yet say whether the customer heard the voice; real-phone check still needed.
 
 ### 2026-10-27 — A real client experience: landing page, login, two-sided trial
 

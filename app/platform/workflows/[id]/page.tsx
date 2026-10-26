@@ -114,6 +114,16 @@ export default async function WorkflowDetailPage({ params }: Props) {
                 ))}
               </ul>
             </div>
+            {def.aiNotes && def.aiNotes.length > 0 && (
+              <div>
+                <FieldLabel>AI training notes</FieldLabel>
+                <ul className="mt-1.5 list-disc space-y-1 pl-5 text-[13px] text-ink-2">
+                  {def.aiNotes.map((s) => (
+                    <li key={s}>{s}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div>
               <FieldLabel>Prohibited guidance</FieldLabel>
               <ul className="mt-1.5 space-y-1 text-[13px] text-ink-2">

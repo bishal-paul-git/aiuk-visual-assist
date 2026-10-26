@@ -76,6 +76,13 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
 
   // --- Voice ----------------------------------------------------------------
   const speaker = useSpeaker(soundOn && phase === "live" && !ended);
+  // The first tap anywhere unlocks audio for the rest of the session (iOS and Android refuse sound before a tap).
+  const unlockVoice = speaker.unlock;
+  useEffect(() => {
+    const once = () => unlockVoice();
+    window.addEventListener("pointerdown", once, { once: true });
+    return () => window.removeEventListener("pointerdown", once);
+  }, [unlockVoice]);
   const lastSpoken = useRef<string | null>(initial.transcript.at(-1)?.id ?? null);
   useEffect(() => {
     if (phase !== "live") return;
@@ -121,6 +128,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
 
   // --- Session start -------------------------------------------------------
   async function startWith(mode: "camera" | "demo" | "voice") {
+    speaker.unlock(); // still inside the tap, so the phone lets the assistant speak later
     setBusy(true);
     let camera = false;
     if (mode === "camera") camera = await cam.start("environment");
@@ -399,6 +407,11 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
 
       {/* Bottom: speech + controls */}
       <div className="relative z-10 px-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+        {soundOn && speaker.voiceState === "blocked" && (
+          <button type="button" onClick={speaker.enableSound} className="mb-2 flex w-full items-center justify-center gap-2 rounded-lg bg-white px-3 py-2.5 text-sm font-semibold text-ink">
+            <Volume2 className="size-4" aria-hidden /> Tap to hear the assistant
+          </button>
+        )}
         {notice && (
           <div role="status" className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-danger px-3 py-2 text-xs">
             {notice}

@@ -35,37 +35,54 @@ function loadManifest(): Promise<Manifest | null> {
 
 /**
  * Where a line's audio comes from, best first:
- * 1. a pre-recorded ElevenLabs clip (public/voice, British voices; covers the
- *    demo's scripted lines and works on the static site),
- * 2. live ElevenLabs synthesis via /api/tts (server edition with
- *    ELEVENLABS_API_KEY),
- * 3. the browser's own en-GB voice.
+ * - server edition: live ElevenLabs synthesis via /api/tts (current British
+ *   voices), then a pre-recorded clip, then the browser's own en-GB voice;
+ * - static demo: the pre-recorded clip (public/voice, no server there), then
+ *   the browser's own en-GB voice.
+ * `failure` says why live voice did not play, for the "voice is off" notice.
  */
-async function audioUrlFor(line: SpokenLine): Promise<string | null> {
+async function audioUrlFor(line: SpokenLine, report: (why: string) => void): Promise<string | null> {
   const role = voiceRoleFor(line.speaker ?? "ai", line.speakerName);
-  const manifest = await loadManifest();
-  const clip = manifest?.clips[clipKey(role, line.text)];
-  if (clip) return `${BASE_PATH}/voice/${clip.file}`;
-  if (STATIC_DEMO) return null;
+  const clipUrl = async () => {
+    const manifest = await loadManifest();
+    const clip = manifest?.clips[clipKey(role, line.text)];
+    return clip ? `${BASE_PATH}/voice/${clip.file}` : null;
+  };
+  if (STATIC_DEMO) return clipUrl();
   try {
     const r = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: line.text, role }),
     });
-    if (!r.ok) return null;
-    return URL.createObjectURL(await r.blob());
+    if (r.ok) return URL.createObjectURL(await r.blob());
+    if (r.status !== 404) report(`voice service answered ${r.status}`);
   } catch {
-    return null;
+    report("voice service unreachable");
   }
+  return clipUrl();
 }
+
+/** A silent, valid WAV: playing it from a tap unlocks audio on iOS and Android. */
+const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+export type VoiceState = "idle" | "ready" | "blocked" | "fallback" | "off";
 
 /**
  * Speaks assistant and agent lines one at a time, in order. Swappable for a
  * streaming voice stack later without touching the customer UI.
  */
-export function useSpeaker(enabled: boolean) {
+export function useSpeaker(enabled: boolean, onOutcome?: (outcome: "played" | "browser" | "blocked" | "failed", why?: string) => void) {
   const [speaking, setSpeaking] = useState(false);
+  /** What the customer's device is doing with our voice; "blocked" asks for one tap. */
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const outcomeRef = useRef(onOutcome);
+  useEffect(() => {
+    outcomeRef.current = onOutcome;
+  }, [onOutcome]);
+  const audioEl = useRef<HTMLAudioElement | null>(null);
+  const unlocked = useRef(false);
+  const lastLine = useRef<SpokenLine | null>(null);
   const supported = typeof window !== "undefined" && ("speechSynthesis" in window || "Audio" in window);
   const queue = useRef<SpokenLine[]>([]);
   const busy = useRef(false);
@@ -94,9 +111,36 @@ export function useSpeaker(enabled: boolean) {
     });
   }, []);
 
+  /** One audio element for the whole session: once a tap has unlocked it, later lines play without further taps. */
+  const element = useCallback(() => {
+    audioEl.current ??= new Audio();
+    return audioEl.current;
+  }, []);
+
+  /** Call from a tap or click (consent, camera, a message sent). Unlocks audio on iOS and Android. */
+  const unlock = useCallback(() => {
+    if (typeof window === "undefined" || unlocked.current) return;
+    const a = element();
+    a.src = SILENCE;
+    void a
+      .play()
+      .then(() => {
+        unlocked.current = true;
+        setVoiceState((s) => (s === "blocked" ? "ready" : s));
+      })
+      .catch(() => undefined);
+    // Wake the browser voice too (iOS needs a speak() inside a gesture).
+    if ("speechSynthesis" in window) {
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    }
+  }, [element]);
+
   const playUrl = useCallback((url: string) => {
     return new Promise<boolean>((resolve) => {
-      const audio = new Audio(url);
+      const audio = element();
+      audio.src = url;
       current.current = audio;
       let settled = false;
       // A stalled clip must not block later lines: give up after 45 s.
@@ -105,16 +149,25 @@ export function useSpeaker(enabled: boolean) {
         if (settled) return;
         settled = true;
         clearTimeout(guard);
+        audio.onended = null;
+        audio.onerror = null;
         if (url.startsWith("blob:")) URL.revokeObjectURL(url);
         current.current = null;
         resolve(ok);
       }
       audio.onended = () => done(true);
       audio.onerror = () => done(false);
-      // Autoplay can be blocked until the user interacts; fall back to the browser voice.
-      audio.play().catch(() => done(false));
+      // Autoplay can be blocked until the user taps; then we say so and offer a tap.
+      audio.play().catch((e: unknown) => {
+        if ((e as DOMException)?.name === "NotAllowedError") {
+          unlocked.current = false;
+          setVoiceState("blocked");
+          outcomeRef.current?.("blocked");
+        }
+        done(false);
+      });
     });
-  }, []);
+  }, [element]);
 
   const drain = useCallback(async () => {
     if (busy.current) return;
@@ -122,10 +175,20 @@ export function useSpeaker(enabled: boolean) {
     setSpeaking(true);
     while (queue.current.length && enabledRef.current) {
       const line = queue.current.shift()!;
-      const url = await audioUrlFor(line);
+      lastLine.current = line;
+      let why = "";
+      const url = await audioUrlFor(line, (w) => (why = w));
       if (!enabledRef.current) break;
       const played = url ? await playUrl(url) : false;
-      if (!played && enabledRef.current) await browserSpeak(line.text);
+      if (played) {
+        setVoiceState("ready");
+        outcomeRef.current?.("played");
+      } else if (enabledRef.current) {
+        // Not blocked by the browser: the voice service is off or failed, so the phone's own voice speaks.
+        setVoiceState((s) => (s === "blocked" ? s : why ? "fallback" : "off"));
+        await browserSpeak(line.text);
+        outcomeRef.current?.(why ? "failed" : "browser", why || undefined);
+      }
     }
     busy.current = false;
     setSpeaking(false);
@@ -168,7 +231,18 @@ export function useSpeaker(enabled: boolean) {
     void loadManifest();
   }, []);
 
-  return { speak, cancel, speaking: speaking && enabled, supported };
+  /** The "tap to hear" button: unlock inside the tap, then say the last line again. */
+  const enableSound = useCallback(() => {
+    unlock();
+    setVoiceState("ready");
+    const l = lastLine.current;
+    if (l) {
+      queue.current.unshift(l);
+      void drain();
+    }
+  }, [drain, unlock]);
+
+  return { speak, cancel, speaking: speaking && enabled, supported, voiceState, unlock, enableSound };
 }
 
 interface RecognitionLike {

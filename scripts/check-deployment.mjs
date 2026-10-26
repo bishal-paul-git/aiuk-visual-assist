@@ -55,7 +55,12 @@ try {
   if (caps.speechToText) add("ok", "Speech recognition", `Server speech-to-text is on (${caps.sttProvider}); iPhone customers can speak.`);
   else add("warn", "Speech recognition", "Server speech-to-text is off; only browsers with built-in recognition (mainly Chrome) can speak. Set STT_PROVIDER and its key.");
 
-  if (caps.textToSpeech) add("ok", "Voice", "ElevenLabs voice is on for every line.");
+  if (caps.textToSpeech) {
+    // Speak one short line for real, so a refused voice or a bad key shows up here, not in front of a customer.
+    const probe = await fetch(new URL("/api/tts", base), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "Hello, this is a voice check.", role: "assistant" }) }).catch(() => null);
+    if (probe?.ok) add("ok", "Voice", "ElevenLabs voice is on and a test line was spoken (British voice).");
+    else add("fail", "Voice", `ElevenLabs voice is on but a test line failed (${probe ? `HTTP ${probe.status}` : "no answer"}). Check the key, the plan and ELEVENLABS_VOICE_ID.`);
+  }
   else add("warn", "Voice", "ElevenLabs voice is off; only the recorded demo lines use it and other lines use the phone's own voice. Set ELEVENLABS_API_KEY.");
 
   if (caps.turnRelay) add("ok", "Live video", "A TURN relay is configured, so live video should connect on mobile data.");

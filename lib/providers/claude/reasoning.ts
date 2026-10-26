@@ -225,13 +225,16 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
   }
 }
 
-function systemPrompt(workflow: WorkflowDefinition): string {
+export function systemPrompt(workflow: WorkflowDefinition): string {
+  const notes = (workflow.aiNotes ?? []).map((n) => n.trim()).filter(Boolean);
   return [
     "You are the perception and language layer of a visual support assistant. A customer is showing a problem through their phone camera.",
     "You never decide what happens next: an approved workflow and policy engine does that, using your structured output.",
     `Workflow: ${workflow.name} v${workflow.version}. Objective: ${workflow.objective}`,
     `Never suggest any of the following: ${workflow.prohibitedGuidance.join("; ")}.`,
     "Be honest about uncertainty. Saying something cannot be read is always better than guessing.",
+    "Use British English. Report only what is visible in the image, never what is usual for this kind of device. If lighting, glare, distance or an obstruction makes a value unreadable, say it cannot be read.",
+    ...(notes.length ? ["Notes from this client about their equipment and customers (treat as reliable background, never as a reason to report something that is not visible):", ...notes.map((n) => `- ${n}`)] : []),
   ].join("\n");
 }
 

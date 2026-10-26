@@ -5,9 +5,19 @@
  */
 
 export const VOICES = {
-  assistant: { id: "MWUpoNpAY0rOQGP294mF", name: "Clarice (calm British female)" },
-  agentFemale: { id: "LZAcK8Cx5QjdQhfBsJQZ", name: "Grace (British female)" },
-  agentMale: { id: "dNH3PGQenpJn3UgJkJS8", name: "James (British male)" },
+  assistant: { id: "bGnz83yTAb7caZSC7BBz", name: "Georgia K (British female, warm and clear)" },
+  agentFemale: { id: "EKpKHSkyNegCyjBRc55p", name: "Ali (British female)" },
+  agentMale: { id: "MnTN9XubPKNlI4AwhLj5", name: "Craig (British male)" },
+} as const;
+
+/**
+ * Stock British voices every ElevenLabs plan can use. Tried when the main voice
+ * is refused for plan or availability reasons, so the line is still spoken.
+ */
+export const FALLBACK_VOICES = {
+  assistant: "Xb7hH8MSUJpSbSDYk0k2", // Alice, British female
+  agentFemale: "Xb7hH8MSUJpSbSDYk0k2",
+  agentMale: "JBFqnCBsd6RMkjVDRZzb", // George, British male
 } as const;
 
 export type VoiceRole = keyof typeof VOICES;

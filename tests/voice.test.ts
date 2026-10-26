@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
-import { clipKey, voiceRoleFor, VOICES } from "@/lib/voice/voices";
-import { synthesise, voiceIdFor } from "@/lib/server/voice/elevenlabs";
+import { clipKey, FALLBACK_VOICES, voiceRoleFor, VOICES } from "@/lib/voice/voices";
+import { synthesise, voiceCandidates, voiceHealth, voiceIdFor } from "@/lib/server/voice/elevenlabs";
+import { systemPrompt } from "@/lib/providers/claude/reasoning";
+import { routerTroubleshootingV3 } from "@/lib/config/workflows/router-troubleshooting";
 
 const manifest = JSON.parse(fs.readFileSync("public/voice/manifest.json", "utf8")) as {
   clips: Record<string, { file: string; role: keyof typeof VOICES; text: string }>;
@@ -41,5 +43,42 @@ describe("voice", () => {
     const r = await synthesise("Hi", "agentMale", { env: { ELEVENLABS_API_KEY: "k" }, fetchImpl });
     expect(r.ok).toBe(true);
     expect(called).toContain(VOICES.agentMale.id);
+  });
+
+  it("tries a stock British voice when the main one is refused for the plan", async () => {
+    const tried: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      tried.push(decodeURIComponent(url.split("/text-to-speech/")[1].split("?")[0]));
+      return tried.length === 1 ? new Response(JSON.stringify({ detail: { status: "paid_plan_required" } }), { status: 402 }) : new Response(new Uint8Array([1]), { status: 200 });
+    }) as unknown as typeof fetch;
+    const r = await synthesise("Hi", "assistant", { env: { ELEVENLABS_API_KEY: "k" }, fetchImpl });
+    expect(r).toMatchObject({ ok: true, voiceId: FALLBACK_VOICES.assistant });
+    expect(tried).toEqual([VOICES.assistant.id, FALLBACK_VOICES.assistant]);
+    expect(voiceHealth()).toMatchObject({ ok: true, usedFallback: true });
+  });
+
+  it("stops on a bad key and reports why", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ detail: { status: "invalid_api_key" } }), { status: 401 });
+    }) as unknown as typeof fetch;
+    const r = await synthesise("Hi", "agentFemale", { env: { ELEVENLABS_API_KEY: "bad" }, fetchImpl });
+    expect(r).toMatchObject({ ok: false, status: 502 });
+    expect(r.ok === false && r.error).toContain("invalid_api_key");
+    expect(calls).toBe(1);
+    expect(voiceHealth()).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it("lists a custom voice first, then the defaults, without repeats", () => {
+    expect(voiceCandidates("agentMale", { ELEVENLABS_AGENT_VOICE_ID_MALE: "mine" })).toEqual(["mine", VOICES.agentMale.id, FALLBACK_VOICES.agentMale]);
+    expect(new Set(voiceCandidates("assistant", {})).size).toBe(voiceCandidates("assistant", {}).length);
+  });
+
+  it("puts the workflow's training notes in the AI's instructions", () => {
+    const prompt = systemPrompt({ ...routerTroubleshootingV3, aiNotes: ["The grey cable is the broadband cable."] });
+    expect(prompt).toContain("British English");
+    expect(prompt).toContain("- The grey cable is the broadband cable.");
+    expect(systemPrompt({ ...routerTroubleshootingV3, aiNotes: [] })).not.toContain("Notes from this client");
   });
 });

@@ -1,6 +1,6 @@
 import { jsonError, readJson, str } from "@/lib/server/http";
 import { clipKey, VOICES, type VoiceRole } from "@/lib/voice/voices";
-import { elevenLabsConfigured, synthesise } from "@/lib/server/voice/elevenlabs";
+import { elevenLabsConfigured, synthesise, voiceHealth } from "@/lib/server/voice/elevenlabs";
 
 /**
  * Speech for assistant and agent lines that have no pre-recorded clip.
@@ -24,6 +24,11 @@ function rateLimited(ip: string): boolean {
   return h.count > 60;
 }
 
+/** Whether live voice is on and how the last line went (no secrets). Used by the deployment check. */
+export async function GET() {
+  return Response.json({ configured: elevenLabsConfigured(), ...voiceHealth() }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(request: Request) {
   if (!elevenLabsConfigured()) return jsonError("Live voice is not configured", 404);
   const origin = request.headers.get("origin");
@@ -42,7 +47,10 @@ export async function POST(request: Request) {
   let audio = cache.get(key);
   if (!audio) {
     const r = await synthesise(text, role);
-    if (!r.ok) return jsonError(r.error, r.status);
+    if (!r.ok) {
+      console.error(`[tts] ${r.error}`);
+      return jsonError(r.error, r.status);
+    }
     audio = r.audio;
     cache.set(key, audio);
     if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value!);

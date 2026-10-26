@@ -27,6 +27,12 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     "Advice on mains electrical wiring or sockets",
     "Promising compensation, credits or engineer appointments",
   ],
+  aiNotes: [
+    "Customers call the router light that shows the internet connection by many names (globe, WAN, broadband, internet). Treat them as the same light.",
+    "A light that is lit but very faint in a bright room is usually on; only report off if the whole panel is dark.",
+    "Amber or red on the internet light means the router has no connection to the provider; a steady white or green light means connected.",
+    "The broadband cable is usually the grey or yellow cable in the port marked DSL, WAN or Internet. Ethernet cables in the yellow LAN ports are not the broadband cable.",
+  ],
   defaultConfidenceThreshold: 0.75,
   maxAiDurationSec: 900,
   policyId: "pol_northline_standard",

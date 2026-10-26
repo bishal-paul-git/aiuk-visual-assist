@@ -168,6 +168,12 @@ export interface WorkflowDefinition {
   objective: string;
   allowedScope: string[];
   prohibitedGuidance: string[];
+  /**
+   * "Training notes" for the AI: short, plain statements of how this client's
+   * equipment and customers behave (what a light pattern means, common
+   * mistakes). Added to the AI's instructions; versioned with the workflow.
+   */
+  aiNotes?: string[];
   defaultConfidenceThreshold: number;
   maxAiDurationSec: number;
   policyId: string;
