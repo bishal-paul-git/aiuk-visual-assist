@@ -552,8 +552,8 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
         s.customerState = "human_connected";
         ctx.audit("human.took_over", { userId: ctx.actor.id, atStep: s.workflow.currentStep });
         const first = ctx.actor.name.split(" ")[0];
-        ctx.addTranscript("human_agent", ctx.actor.name, `Hi, it's ${first} from the support team. I can see everything you've shown so far, so let's carry on from here.`, 1);
-        s.instruction = { text: `${first} from the support team is helping you`, from: "human", at: ctx.now };
+        const hello = ctx.addTranscript("human_agent", ctx.actor.name, `Hi, it's ${first} from the support team. I can see everything you've shown so far, so let's carry on from here.`, 1);
+        s.instruction = { text: hello.text, from: "human", at: ctx.now };
       } else if (s.escalation) s.customerState = "human_connected";
       return;
     }

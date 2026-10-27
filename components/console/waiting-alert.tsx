@@ -120,7 +120,11 @@ export function WaitingAlert({ variant = "light" }: { variant?: "light" | "navy"
   const path = usePathname();
   const query = useSearchParams();
   const here = (sid: string) => path.endsWith(`/${sid}`) || query.get("id") === sid;
-  const banner = waiting.filter((s) => !dismissed.includes(s.id) && !here(s.id))[0];
+  // Newest first: the customer who has just asked is the one the agent heard.
+  const others = waiting
+    .filter((s) => !dismissed.includes(s.id) && !here(s.id))
+    .sort((x, y) => (y.escalation?.requestedAt ?? "").localeCompare(x.escalation?.requestedAt ?? ""));
+  const banner = others[0];
 
   return (
     <>
@@ -142,7 +146,10 @@ export function WaitingAlert({ variant = "light" }: { variant?: "light" | "navy"
           <BellRing className="size-5 shrink-0" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">A customer is waiting for a person</p>
-            <p className="truncate text-xs text-white/85">{banner.escalation?.reasonDetail ?? "They asked for help."}</p>
+            <p className="truncate text-xs text-white/85">
+              {banner.reference} · {banner.escalation?.reasonDetail ?? "They asked for help."}
+              {others.length > 1 && ` · ${others.length - 1} more waiting`}
+            </p>
           </div>
           <Link href={consolePath(banner.id)} className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-danger">
             Join now

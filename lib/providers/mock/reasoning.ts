@@ -12,6 +12,10 @@ import { describeReply, getScenario, scenarioObservations } from "./scenarios";
 export const MOCK_VISION_MODEL = "aiuk-vision-sim-1";
 
 const PATTERNS: Record<string, RegExp> = {
+  no_camera: /\b(no camera|camera('?s| is)? (off|broken|not working)|without (the |a )?camera|can'?t (show|use the camera))\b/i,
+  power_light_off: /\b(no lights?( at all)?|nothing('?s| is)? (on|lit)|all dark|completely dark|power light('?s| is)? off|it'?s dead)\b/i,
+  internet_light_problem: /\b(yellow|orange|amber|red|flash(ing|es)?|blink(ing|s)?|off)\b/i,
+  internet_light_ok: /\b(green|white|blue|steady|solid|normal)\b/i,
   out_of_scope: /\b(bill|billing|payment|pay|cancel|contract|price|refund|move house|moving house|upgrade)\b/i,
   broadband_issue: /\b(internet|broadband|wi-?fi|router|hub|connection|connect|online|offline|signal|slow|buffering|lights?)\b/i,
   cannot: /\b(can'?t|cannot|unable|won'?t|don'?t know how)\b/i,
@@ -35,7 +39,7 @@ export function classifyUtterance(text: string, expectedIntents: string[]): stri
 }
 
 function rank(intent: string): number {
-  return ["out_of_scope", "cannot", "negate", "broadband_issue", "done", "affirm"].indexOf(intent) + 1 || 99;
+  return ["out_of_scope", "no_camera", "power_light_off", "internet_light_problem", "internet_light_ok", "cannot", "negate", "broadband_issue", "done", "affirm"].indexOf(intent) + 1 || 99;
 }
 
 export function isAfterIntervention(state: SessionState): boolean {

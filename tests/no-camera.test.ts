@@ -37,7 +37,7 @@ describe("helping a customer without a camera", () => {
     const h = start(true);
     expect(h.state.workflow.currentStep).toBe("show_router");
     h.send({ type: "customer.utterance", text: "Sorry, I can't show it", confidence: 0.95 });
-    expect(h.state.transcript.filter((x) => x.speaker === "customer").at(-1)!.intent).toBe("cannot");
+    expect(h.state.transcript.filter((x) => x.speaker === "customer").at(-1)!.intent).toMatch(/^(cannot|no_camera)$/);
     expect(h.state.workflow.currentStep).toBe("describe_lights");
     expect(h.state.evidenceRequest).toBeUndefined();
   });
@@ -48,6 +48,26 @@ describe("helping a customer without a camera", () => {
     h.send({ type: "media.update", media: { camera: false } });
     expect(h.state.workflow.currentStep).toBe("describe_lights");
     expect(stepPath(h)).toContain("show_router");
+  });
+});
+
+describe("the words customers use, read by the simulator", () => {
+  it("follows the camera-free route from plain words", () => {
+    const h = start(false);
+    const say = (text: string) => h.send({ type: "customer.utterance", text, confidence: 0.95 });
+    say("The internet light is yellow");
+    expect(h.state.workflow.currentStep).toBe("guide_cables_by_touch");
+    say("Done, it's pushed in");
+    say("Okay, done");
+    expect(h.state.workflow.currentStep).toBe("describe_lights_recheck");
+    say("It's green now");
+    expect(h.state.workflow.currentStep).toBe("confirm_working");
+  });
+
+  it("hears 'my camera is broken' as no camera", () => {
+    const h = start(true);
+    h.send({ type: "customer.utterance", text: "My camera is broken", confidence: 0.95 });
+    expect(h.state.workflow.currentStep).toBe("describe_lights");
   });
 });
 
