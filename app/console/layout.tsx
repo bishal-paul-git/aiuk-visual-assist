@@ -4,6 +4,8 @@ import { Logo } from "@/components/brand/logo";
 import { AgentPicker } from "@/components/console/agent-identity";
 import { PortalLink } from "@/components/console/portal-link";
 import { TestSessionLauncher } from "@/components/shared/test-session-launcher";
+import { Suspense } from "react";
+import { WaitingAlert } from "@/components/console/waiting-alert";
 
 export const metadata = { title: { default: "Agent Console", template: "%s · Agent Console" } };
 
@@ -26,6 +28,9 @@ export default function ConsoleLayout({ children }: { children: ReactNode }) {
           <span className="hidden lg:block">
             <TestSessionLauncher variant="navy" />
           </span>
+          <Suspense>
+            <WaitingAlert variant="navy" />
+          </Suspense>
           <AgentPicker />
         </div>
       </header>

@@ -65,7 +65,7 @@ describe("demo walkthrough director", () => {
   it("hands the line-fault scenario to a human who books an engineer", async () => {
     const { state, steps } = await play("wan_down");
     expect(state.session.outcome).toBe("resolved_by_human");
-    expect(steps).toEqual(expect.arrayContaining(["problem", "join", "take_over", "action:book_engineer", "end"]));
+    expect(steps).toEqual(expect.arrayContaining(["problem", "join", "action:book_engineer", "end"]));
     expect(state.toolActions.find((t) => t.toolName === "book_engineer")?.requestedBy).toBe("human");
     expect(state.escalation?.reason).toBeDefined();
   });

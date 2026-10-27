@@ -50,7 +50,7 @@ describe("trial coach", () => {
     s.session.status = "escalated";
     s.customerState = "escalating";
     expect(coachFor(s)).toMatchObject({ key: "needs_agent", actor: "agent" });
-    expect(coachFor(s).detail).toMatch(/Join session.*Take over/);
+    expect(coachFor(s).detail).toMatch(/Join session.*take over at once/);
 
     s.participants.push(agent);
     expect(coachFor(s)).toMatchObject({ key: "agent_joined", actor: "agent" });

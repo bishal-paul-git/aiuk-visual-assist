@@ -34,9 +34,10 @@ function loadManifest(): Promise<Manifest | null> {
 }
 
 /**
- * Where a line's audio comes from, best first:
- * - server edition: live ElevenLabs synthesis via /api/tts (current British
- *   voices), then a pre-recorded clip, then the browser's own en-GB voice;
+ * Where a line's audio comes from:
+ * - server edition: only live ElevenLabs synthesis via /api/tts, in the one
+ *   British voice (tried twice). If it can't be had, the line stays as text:
+ *   a different voice would sound like someone else joined;
  * - static demo: the pre-recorded clip (public/voice, no server there), then
  *   the browser's own en-GB voice.
  * `failure` says why live voice did not play, for the "voice is off" notice.
@@ -49,19 +50,25 @@ async function audioUrlFor(line: SpokenLine, report: (why: string) => void): Pro
     return clip ? `${BASE_PATH}/voice/${clip.file}` : null;
   };
   if (STATIC_DEMO) return clipUrl();
-  try {
-    const r = await fetch("/api/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: line.text, role }),
-    });
-    if (r.ok) return URL.createObjectURL(await r.blob());
-    if (r.status !== 404) report(`voice service answered ${r.status}`);
-  } catch {
-    report("voice service unreachable");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: line.text, role }),
+      });
+      if (r.ok) return URL.createObjectURL(await r.blob());
+      if (r.status === 404 || r.status === 400) break; // voice off, or a line it won't speak: retrying won't help
+      report(`voice service answered ${r.status}`);
+    } catch {
+      report("voice service unreachable");
+    }
   }
-  return clipUrl();
+  return null;
 }
+
+/** Server edition: one voice only, so never fall back to the browser's (different) voice. */
+const BROWSER_VOICE_FALLBACK = STATIC_DEMO;
 
 /** A silent, valid WAV: playing it from a tap unlocks audio on iOS and Android. */
 const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
@@ -186,7 +193,7 @@ export function useSpeaker(enabled: boolean, onOutcome?: (outcome: "played" | "b
       } else if (enabledRef.current) {
         // Not blocked by the browser: the voice service is off or failed, so the phone's own voice speaks.
         setVoiceState((s) => (s === "blocked" ? s : why ? "fallback" : "off"));
-        await browserSpeak(line.text);
+        if (BROWSER_VOICE_FALLBACK) await browserSpeak(line.text);
         outcomeRef.current?.(why ? "failed" : "browser", why || undefined);
       }
     }

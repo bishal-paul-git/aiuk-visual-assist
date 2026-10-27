@@ -19,7 +19,7 @@ export const routerTroubleshootingV2: WorkflowDefinition = {
           next: s.next.map((r) => (r.to === "show_cables" ? { ...r, to: "guide_power_cycle" } : r)),
         };
       }
-      if (s.key === "recheck_lights") {
+      if (s.key === "recheck_lights" || s.key === "describe_lights_recheck") {
         return {
           ...s,
           next: s.next.map((r) => (r.to === "run_line_test" ? { ...r, to: "escalate_network" } : r)),

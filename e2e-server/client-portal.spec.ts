@@ -73,6 +73,8 @@ test.describe("server edition: the client trial, start to finish", () => {
       await expect(customer.getByText("Connecting you to a person", { exact: true })).toBeVisible({ timeout: 30_000 });
       await expect(coach).toHaveAttribute("data-step", "needs_agent", { timeout: 30_000 });
       await expect(coach.getByText("The customer asked for a person")).toBeVisible();
+      // The agent is alerted wherever they are, with a Join button.
+      await expect(a.getByTestId("waiting-alert").getByRole("link", { name: "Join now" })).toBeVisible({ timeout: 30_000 });
 
       // --- Side 2: the human agent, on the laptop -----------------------------------
       const agent = await laptop.context.newPage();
@@ -80,16 +82,15 @@ test.describe("server edition: the client trial, start to finish", () => {
       await expect(agent.getByRole("heading", { name: /Session VA-/ })).toBeVisible();
       await agent.getByRole("button", { name: "Join session" }).first().click();
       await expect(agent.getByRole("button", { name: "Join session" })).toHaveCount(0, { timeout: 15_000 });
-      await expect(coach).toHaveAttribute("data-step", "agent_joined", { timeout: 30_000 });
+      // Joining a customer who asked for a person puts the agent straight in charge.
+      await expect(coach).toHaveAttribute("data-step", "agent_in_control", { timeout: 30_000 });
+      await expect(agent.getByRole("button", { name: "Take over" })).toHaveCount(0, { timeout: 15_000 });
 
       // Live video: the customer's camera reaches the agent, and the customer is told.
       await expect(agent.getByTestId("live-video-state")).toHaveText("Live", { timeout: 60_000 });
       await expect.poll(() => agent.getByLabel("Live video of the customer's camera").evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 30_000 }).toBeGreaterThan(0);
       await expect(customer.getByText("Agent can see your camera")).toBeVisible();
 
-      await agent.getByRole("button", { name: "Take over" }).first().click();
-      await expect(agent.getByRole("button", { name: "Take over" })).toHaveCount(0, { timeout: 15_000 });
-      await expect(coach).toHaveAttribute("data-step", "agent_in_control", { timeout: 30_000 });
       await expect(customer.getByText(/is with you/)).toBeVisible({ timeout: 30_000 });
 
       // Chat both ways. Letters only: long digit runs can be redacted as card numbers.

@@ -20,6 +20,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
+import { AssistantAvatar } from "./assistant-avatar";
 import type { CustomerView } from "@/lib/session/projections";
 import { useCustomerStream } from "@/lib/client/use-transport";
 import { captureFrame, isSourceReady, MotionMeter, type FrameSource } from "@/lib/client/frame-capture";
@@ -313,9 +314,12 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
       <div className="absolute inset-0">
         <CameraStage mode={cam.mode} stream={cam.stream} facing={cam.facing} scene={view.demoScene} onSource={onSource} />
         {cam.mode === "none" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center text-white/70">
-            <CameraOff className="size-10" aria-hidden />
-            <p className="text-sm">Camera is off — you&apos;re on voice only.</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-8 text-center text-white/75">
+            <AssistantAvatar who={human ? "human" : "ai"} name={human ? (view.humanName ?? "Support") : view.agentName} color={view.brandColor} speaking={speaker.speaking} size={132} />
+            <p className="text-base font-semibold text-white">{human ? (view.humanName ?? "Support team") : view.agentName}</p>
+            <p className="max-w-xs text-sm">
+              {human ? "A person from the team is with you." : "Your camera is off. That's fine: I'll ask you what you can see and guide you step by step."}
+            </p>
             <button type="button" onClick={() => void cam.start("environment").then((ok) => ok && send({ type: "media.update", media: { camera: true } }))} className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink">
               Turn camera on
             </button>
@@ -356,13 +360,11 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
         <div className="rounded-2xl bg-white/95 px-4 py-3 text-ink shadow-lg backdrop-blur">
           <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
             {view.instruction.from === "human" ? (
-              <Headset className="size-3.5 text-violet" aria-hidden />
+              <AssistantAvatar who="human" name={view.humanName ?? "Support"} color={view.brandColor} speaking={speaker.speaking} size={22} />
             ) : view.instruction.from === "system" ? (
               <Info className="size-3.5" aria-hidden />
             ) : (
-              <span className="flex size-4 items-center justify-center rounded text-[8px] font-bold text-white" style={{ background: view.brandColor }} aria-hidden>
-                AI
-              </span>
+              <AssistantAvatar who="ai" name={view.agentName} color={view.brandColor} speaking={speaker.speaking} size={22} />
             )}
             {speakerName}
             {view.instruction.from === "ai" && <span className="font-normal normal-case tracking-normal">· virtual assistant</span>}

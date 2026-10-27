@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { BarChart3, FlaskConical, Home, History, Info, Plug, Radio, Settings } from "lucide-react";
+import { Suspense } from "react";
 import { Logo } from "@/components/brand/logo";
+import { WaitingAlert } from "@/components/console/waiting-alert";
 import { IdentityMenu } from "@/components/auth/identity-menu";
 import { cx } from "@/components/ui/primitives";
 import { tenants } from "@/lib/config/catalog";
@@ -54,6 +56,11 @@ export function PortalShell({ scope, active, children }: { scope: ClientScope; a
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {canOperate && (
+              <Suspense>
+                <WaitingAlert />
+              </Suspense>
+            )}
             {canOperate && (
               <Link href="/console" className="hidden h-8 items-center gap-1.5 rounded-md border border-line px-2.5 text-xs font-medium text-ink hover:bg-surface-2 sm:inline-flex">
                 <Radio className="size-3.5" aria-hidden /> Live queue

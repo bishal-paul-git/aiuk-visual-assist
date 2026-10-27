@@ -71,7 +71,7 @@ test.describe("server edition: cross-device session", () => {
       await expect(a.getByText("Customer requested a person").filter({ visible: true }).first()).toBeVisible();
       await a.getByRole("button", { name: "Join session" }).first().click();
       await expect(a.getByRole("button", { name: "Join session" })).toHaveCount(0, { timeout: 15_000 });
-      await a.getByRole("button", { name: "Take over" }).first().click();
+      // Answering a customer who asked for a person: joining puts the agent in charge.
       await expect(a.getByRole("button", { name: "Take over" })).toHaveCount(0, { timeout: 15_000 });
 
       // The phone sees the human agent (pushed over SSE).

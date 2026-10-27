@@ -29,6 +29,7 @@ describe("session runtime", () => {
     const { id, token } = rt.create({ workflowId: "wf_router_v3", channel: "secure_link", customerLabel: "Test", scenario: "power_cycle_fix" });
     expect(rt.idForToken(token)).toBe(id);
     const customer = { type: "customer" as const, id: "c", name: "Test" };
+    rt.dispatch(id, { type: "media.update", media: { camera: true, microphone: true } }, customer);
     rt.dispatch(id, { type: "customer.consent", accepted: true, noticeVersion: "privacy-notice@2" }, customer);
     rt.dispatch(id, { type: "customer.utterance", text: "my broadband is down" }, customer);
     await flush();

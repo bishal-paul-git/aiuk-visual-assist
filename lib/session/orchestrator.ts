@@ -244,6 +244,16 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
         if (degraded) ctx.audit("session.degraded", { quality: after.quality });
       }
       s.media = after;
+      // Camera turned off mid-step: carry on by description instead of waiting for a picture.
+      if (before.camera && !after.camera && s.session.ownerType === "ai" && s.session.status === "active") {
+        const step = ctx.currentStep();
+        if (step?.type === "visual_request" && step.withoutCamera) {
+          s.evidenceRequest = undefined;
+          ctx.completeStep("Camera turned off");
+          ctx.audit("workflow.branch_selected", { from: step.key, to: step.withoutCamera, rule: "Camera turned off" });
+          ctx.enterStep(step.withoutCamera);
+        }
+      }
       return;
     }
 
@@ -294,6 +304,14 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
         } else {
           ctx.say(cmd.reply ?? `Sorry, I didn't quite catch that. ${step.instruction}`);
         }
+        return;
+      }
+      // The customer says they can't show it (or their camera is off): describe it instead.
+      if (step.type === "visual_request" && step.withoutCamera && (cmd.intent === "cannot" || cmd.intent === "no_camera")) {
+        s.evidenceRequest = undefined;
+        ctx.completeStep("Customer can't show it");
+        ctx.audit("workflow.branch_selected", { from: step.key, to: step.withoutCamera, rule: "Customer can't show it" });
+        ctx.enterStep(step.withoutCamera);
         return;
       }
       if (cmd.reply) ctx.say(cmd.reply);
@@ -526,7 +544,17 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
       }
       ctx.audit("human.joined", { userId: ctx.actor.id });
       ctx.addTranscript("system", "System", `${ctx.actor.name} from the support team joined.`, 1);
-      if (s.escalation) s.customerState = "human_connected";
+      if (s.escalation && s.session.ownerType !== "human") {
+        // Answering a customer who asked for help: the person is now in charge and says hello.
+        s.session.ownerType = "human";
+        s.session.status = "human_active";
+        s.evidenceRequest = undefined;
+        s.customerState = "human_connected";
+        ctx.audit("human.took_over", { userId: ctx.actor.id, atStep: s.workflow.currentStep });
+        const first = ctx.actor.name.split(" ")[0];
+        ctx.addTranscript("human_agent", ctx.actor.name, `Hi, it's ${first} from the support team. I can see everything you've shown so far, so let's carry on from here.`, 1);
+        s.instruction = { text: `${first} from the support team is helping you`, from: "human", at: ctx.now };
+      } else if (s.escalation) s.customerState = "human_connected";
       return;
     }
 
@@ -855,6 +883,13 @@ class Ctx {
         s.customerState = "guidance";
         return;
       case "visual_request": {
+        if (!s.media.camera && step.withoutCamera) {
+          // No camera on: don't ask for a picture the customer can't send.
+          this.completeStep("No camera");
+          this.audit("workflow.branch_selected", { from: key, to: step.withoutCamera, rule: "No camera" });
+          this.enterStep(step.withoutCamera);
+          return;
+        }
         const attempts = (s.workflow.attempts[key] ?? 0) + 1;
         s.workflow.attempts[key] = attempts;
         const max = Math.min(step.maxAttempts ?? this.deps.policy.maxCaptureAttempts, this.deps.policy.maxCaptureAttempts);

@@ -71,7 +71,7 @@ describe("structural workflow editing", () => {
     const rear = r.get(id)!.steps.find((s) => s.key === "show_cables")!;
     expect(rear.next.map((n) => n.to)).toEqual(["guide_reseat_cable"]);
     expect(issues.some((i) => i.stepKey && i.message.includes("guide_power_cycle"))).toBe(false);
-    expect(r.audit.at(-1)).toMatchObject({ eventType: "config.workflow_step_removed", payload: { step: "guide_power_cycle", removedReferences: ["Check rear cables: rule “Cables connected”"] } });
+    expect(r.audit.at(-1)).toMatchObject({ eventType: "config.workflow_step_removed", payload: { step: "guide_power_cycle", removedReferences: ["Check rear cables: rule “Cables connected”", "Check cables (no camera): rule “Cables checked by touch”"] } });
   });
 
   it("removes failure paths that point at a removed step, and never removes the start step", () => {

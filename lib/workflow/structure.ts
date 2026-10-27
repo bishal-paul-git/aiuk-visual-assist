@@ -82,6 +82,7 @@ export function referencesTo(def: WorkflowDefinition, key: string): StepReferenc
     if (s.key === key) continue;
     for (const r of s.next) if (r.to === key) refs.push({ from: s.key, kind: "rule", label: `${s.title}: rule “${r.label}”` });
     if (s.onFailure?.to === key) refs.push({ from: s.key, kind: "failure", label: `${s.title}: failure path` });
+    if (s.withoutCamera === key) refs.push({ from: s.key, kind: "failure", label: `${s.title}: no-camera path` });
   }
   return refs;
 }
@@ -131,6 +132,7 @@ export function removeStep(def: WorkflowDefinition, key: string, removeReference
   for (const s of def.steps) {
     s.next = s.next.filter((r) => r.to !== key);
     if (s.onFailure?.to === key) delete s.onFailure;
+    if (s.withoutCamera === key) delete s.withoutCamera;
   }
   def.steps.splice(def.steps.indexOf(step), 1);
   return refs;

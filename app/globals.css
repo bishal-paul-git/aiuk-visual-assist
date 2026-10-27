@@ -101,7 +101,38 @@ body {
   animation: va-scan 1.8s linear infinite;
 }
 
+@keyframes va-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+.va-ring {
+  animation: va-ring 1.2s ease-out infinite;
+}
+
+@keyframes va-mouth {
+  0%,
+  100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1.1);
+  }
+}
+.va-mouth {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: va-mouth 0.32s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .va-ring,
+  .va-mouth,
   .va-pulse,
   .va-scan {
     animation: none;

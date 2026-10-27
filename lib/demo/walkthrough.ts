@@ -128,8 +128,8 @@ export function direct(s: SessionState, agentId: string): DirectorDecision {
         stage: "human",
         caption:
           tool === "book_engineer"
-            ? "The human has taken over and the AI has stopped acting. The line test found a fault, so the agent books an engineer, which policy allows only a human to do."
-            : "The human has taken over and the AI has stopped acting. The agent raises a ticket with everything already captured.",
+            ? "The agent joined and took over, so the AI has stopped acting. The line test found a fault, so the agent books an engineer, which policy allows only a human to do."
+            : "The agent joined and took over, so the AI has stopped acting. The agent raises a ticket with everything already captured.",
         next: { key: `action:${tool}`, actor: "agent", command: { type: "human.run_action", tool, params: {} }, delayMs: 3000 },
       };
     if (action.status === "requested" || action.status === "running") return { stage: "human", caption: "The business action is running…" };

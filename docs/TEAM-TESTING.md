@@ -23,7 +23,7 @@ Try one on your phone as well.
 1. Open the **[Agent Console](https://bishal-paul-git.github.io/aiuk-visual-assist/console/)**, press **Start test session**, then **Create session**.
 2. Press **Open customer view**. It opens in a new tab: you are now the customer.
 3. Press **Agree and continue**, then **Use demo camera**, and follow the instructions. Press **Human help** at any point to ask for a person.
-4. In the first tab, press **Open in agent console** (it opens another tab). Press **Join session** (**Join** on a phone), then **Take over**. You are now the agent. Try a message, an action and **End**.
+4. In the first tab, press **Open in agent console** (it opens another tab). Press **Join session** (**Join** on a phone); if the customer asked for a person you are in charge at once, otherwise also press **Take over**. You are now the agent. Try a message, an action and **End**.
 
 ## 3. Look around (5 min)
 
@@ -58,7 +58,7 @@ This is what a client tester sees. It is separate from the admin portal that Abs
    - **Guided example**: no camera needed; the AI's answers are pre-written so you can see every outcome.
 4. You now play both sides. A banner always says whose turn it is and what to do next.
    - **Be the customer**: press **Open customer view**, ideally on your phone (or copy the link to it). Tap **Agree and continue**, allow the camera and microphone, then talk or type, and show the problem.
-   - **Be the human agent**: press **Open agent screen**. When the customer taps **Human help**, press **Join session**, then **Take over**. You see their camera live, can message them, and press **End**, then **Resolved**, to finish.
+   - **Be the human agent**: press **Open agent screen**. When the customer taps **Human help** you hear an alert (press **Turn on alerts** once first); press **Join session** and you are in charge straight away. You see their camera live, can message them, and press **End**, then **Resolved**, to finish.
 5. Open **Sessions** to see the conversation, what the AI saw and how sure it was, and any business actions. **Results** shows the numbers.
 
 Things worth trying: type instead of speaking; show something blurry and see the AI ask for a better view; ask for a person; step in as the agent without being asked, then press **Return to AI**. If the customer asked for a person, a person finishes it, so Return to AI is greyed out with the reason.

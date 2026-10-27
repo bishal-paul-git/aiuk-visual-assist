@@ -32,6 +32,8 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     "A light that is lit but very faint in a bright room is usually on; only report off if the whole panel is dark.",
     "Amber or red on the internet light means the router has no connection to the provider; a steady white or green light means connected.",
     "The broadband cable is usually the grey or yellow cable in the port marked DSL, WAN or Internet. Ethernet cables in the yellow LAN ports are not the broadband cable.",
+    "Many customers can't or won't use the camera. When they describe the lights in words, map them: yellow, orange or amber means amber; green, white or blue and steady means on; nothing lit means off.",
+    "Short replies like \"can't show\", \"no camera\" or \"camera's off\" mean the customer cannot show it, not that the problem is fixed.",
   ],
   defaultConfidenceThreshold: 0.75,
   maxAiDurationSec: 900,
@@ -72,6 +74,7 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     {
       key: "show_router",
       type: "visual_request",
+      withoutCamera: "describe_lights",
       title: "Identify router",
       instruction: "Let's take a look. Please point your camera at the front of your router so I can see the whole device.",
       customerPrompt: "Show me the front of your router",
@@ -92,6 +95,7 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     {
       key: "inspect_lights",
       type: "visual_request",
+      withoutCamera: "describe_lights",
       title: "Read status lights",
       instruction: "Thanks. Now move a little closer to the lights on the front so I can read each one clearly.",
       customerPrompt: "Move closer to the lights",
@@ -126,6 +130,7 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     {
       key: "show_cables",
       type: "visual_request",
+      withoutCamera: "guide_cables_by_touch",
       title: "Check rear cables",
       instruction:
         "The internet light isn't showing a connection. Please turn the router around and show me the cables plugged into the back.",
@@ -173,6 +178,7 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     {
       key: "recheck_lights",
       type: "visual_request",
+      withoutCamera: "describe_lights_recheck",
       title: "Re-check status lights",
       instruction: "Thanks. Please show me the lights on the front again, nice and close.",
       customerPrompt: "Show me the lights again",
@@ -202,6 +208,46 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
       next: [
         { when: { kind: "tool_result", field: "line_test.status", values: ["fault_detected"] }, to: "escalate_network", label: "Line fault found" },
         { when: { kind: "tool_result", field: "line_test.status", values: ["no_fault"] }, to: "escalate_unresolved", label: "No line fault" },
+      ],
+    },
+    {
+      key: "describe_lights",
+      type: "question",
+      title: "Describe the lights (no camera)",
+      instruction:
+        "No problem, we can do this without the camera. Look at the lights on the front of your router. What colour is the internet light? It may show a globe, or say Internet or Broadband.",
+      customerPrompt: "Tell me the colour of the internet light",
+      next: [
+        { when: { kind: "intent", intents: ["power_light_off"] }, to: "guide_power_supply", label: "No power (customer report)" },
+        { when: { kind: "intent", intents: ["internet_light_problem"] }, to: "guide_cables_by_touch", label: "No internet signal (customer report)" },
+        { when: { kind: "intent", intents: ["internet_light_ok"] }, to: "confirm_working", label: "Lights normal (customer report)" },
+        { when: { kind: "intent", intents: ["cannot", "negate"] }, to: "escalate_unresolved", label: "Customer can't see the lights" },
+      ],
+    },
+    {
+      key: "guide_cables_by_touch",
+      type: "guidance",
+      title: "Check cables (no camera)",
+      instruction:
+        "Thanks. At the back of the router, find the grey or green cable in the port marked Broadband, DSL or Internet. Push it in firmly until it clicks, and check the power lead is in too. Tell me when that's done.",
+      customerPrompt: "Push the broadband cable in firmly, then say “done”",
+      allowedGuidance: ["Reseat broadband/DSL/fibre cable", "Check adapter seated in router"],
+      next: [
+        { when: { kind: "intent", intents: ["done", "affirm"] }, to: "guide_power_cycle", label: "Cables checked by touch" },
+        { when: { kind: "intent", intents: ["negate", "cannot"] }, to: "escalate_unresolved", label: "Customer unable" },
+      ],
+    },
+    {
+      key: "describe_lights_recheck",
+      type: "question",
+      title: "Describe the lights again (no camera)",
+      instruction: "Thanks. Now look at the internet light again. What colour is it now?",
+      customerPrompt: "Tell me the colour of the internet light now",
+      next: [
+        { when: { kind: "intent", intents: ["internet_light_ok"] }, to: "confirm_working", label: "Internet restored (customer report)" },
+        { when: { kind: "intent", intents: ["power_light_off"] }, to: "escalate_unresolved", label: "Still no power (customer report)" },
+        { when: { kind: "intent", intents: ["internet_light_problem"] }, to: "run_line_test", label: "Still no internet (customer report)" },
+        { when: { kind: "intent", intents: ["cannot", "negate"] }, to: "escalate_unresolved", label: "Customer can't see the lights" },
       ],
     },
     {

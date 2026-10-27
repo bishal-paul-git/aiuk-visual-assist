@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import { clipKey, FALLBACK_VOICES, voiceRoleFor, VOICES } from "@/lib/voice/voices";
-import { synthesise, voiceCandidates, voiceHealth, voiceIdFor } from "@/lib/server/voice/elevenlabs";
+import { resetVoiceFallback, synthesise, voiceCandidates, voiceHealth, voiceIdFor } from "@/lib/server/voice/elevenlabs";
 import { systemPrompt } from "@/lib/providers/claude/reasoning";
 import { routerTroubleshootingV3 } from "@/lib/config/workflows/router-troubleshooting";
 
@@ -32,6 +32,10 @@ describe("voice", () => {
     expect(voiceIdFor("assistant", { ELEVENLABS_VOICE_ID: "custom" })).toBe("custom");
   });
 
+  it("uses one voice for the assistant and every agent", () => {
+    for (const role of ["assistant", "agentFemale", "agentMale"] as const) expect(voiceIdFor(role, {})).toBe(VOICES.assistant.id);
+  });
+
   it("calls ElevenLabs only when configured", async () => {
     expect(await synthesise("Hi", "assistant", { env: {} })).toMatchObject({ ok: false, status: 404 });
     let called = "";
@@ -42,10 +46,11 @@ describe("voice", () => {
     }) as unknown as typeof fetch;
     const r = await synthesise("Hi", "agentMale", { env: { ELEVENLABS_API_KEY: "k" }, fetchImpl });
     expect(r.ok).toBe(true);
-    expect(called).toContain(VOICES.agentMale.id);
+    expect(called).toContain(VOICES.assistant.id);
   });
 
-  it("tries a stock British voice when the main one is refused for the plan", async () => {
+  it("tries a stock British voice when the main one is refused, then sticks to it", async () => {
+    resetVoiceFallback();
     const tried: string[] = [];
     const fetchImpl = (async (url: string) => {
       tried.push(decodeURIComponent(url.split("/text-to-speech/")[1].split("?")[0]));
@@ -55,6 +60,8 @@ describe("voice", () => {
     expect(r).toMatchObject({ ok: true, voiceId: FALLBACK_VOICES.assistant });
     expect(tried).toEqual([VOICES.assistant.id, FALLBACK_VOICES.assistant]);
     expect(voiceHealth()).toMatchObject({ ok: true, usedFallback: true });
+    expect(voiceCandidates("agentMale", {})).toEqual([FALLBACK_VOICES.assistant]);
+    resetVoiceFallback();
   });
 
   it("stops on a bad key and reports why", async () => {
@@ -70,8 +77,8 @@ describe("voice", () => {
     expect(voiceHealth()).toMatchObject({ ok: false, status: 401 });
   });
 
-  it("lists a custom voice first, then the defaults, without repeats", () => {
-    expect(voiceCandidates("agentMale", { ELEVENLABS_AGENT_VOICE_ID_MALE: "mine" })).toEqual(["mine", VOICES.agentMale.id, FALLBACK_VOICES.agentMale]);
+  it("lists the chosen voice first, then one stock voice, without repeats", () => {
+    expect(voiceCandidates("agentMale", { ELEVENLABS_VOICE_ID: "mine" })).toEqual(["mine", FALLBACK_VOICES.assistant]);
     expect(new Set(voiceCandidates("assistant", {})).size).toBe(voiceCandidates("assistant", {}).length);
   });
 

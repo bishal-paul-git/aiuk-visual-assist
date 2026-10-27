@@ -10,14 +10,27 @@ export function elevenLabsConfigured(env: Record<string, string | undefined> = p
   return Boolean(env.ELEVENLABS_API_KEY);
 }
 
-export function voiceIdFor(role: VoiceRole, env: Record<string, string | undefined> = process.env): string {
-  const override = role === "assistant" ? env.ELEVENLABS_VOICE_ID : role === "agentMale" ? env.ELEVENLABS_AGENT_VOICE_ID_MALE : env.ELEVENLABS_AGENT_VOICE_ID;
-  return override || VOICES[role].id;
+/**
+ * One voice for every line, the assistant's and the agents' alike, so the
+ * customer never hears it change. ELEVENLABS_VOICE_ID overrides it. The role
+ * is kept so separate agent voices can come back later if wanted.
+ */
+export function voiceIdFor(_role: VoiceRole, env: Record<string, string | undefined> = process.env): string {
+  return env.ELEVENLABS_VOICE_ID || VOICES.assistant.id;
 }
 
-/** Voices to try for a role, best first, without repeats. */
+/** Set once the main voice has been refused: from then on every line uses the stock voice, so it never flips back and forth. */
+let stuckFallback: string | null = null;
+
+/** Voices to try, best first: the one voice, then (only if the plan refuses it) one stock British voice. */
 export function voiceCandidates(role: VoiceRole, env: Record<string, string | undefined> = process.env): string[] {
-  return [...new Set([voiceIdFor(role, env), VOICES[role].id, FALLBACK_VOICES[role]])];
+  if (stuckFallback) return [stuckFallback];
+  return [...new Set([voiceIdFor(role, env), FALLBACK_VOICES.assistant])];
+}
+
+/** Tests only. */
+export function resetVoiceFallback() {
+  stuckFallback = null;
 }
 
 /** Provider answers that mean "this voice is not usable for you"; another voice may work. */
@@ -75,7 +88,7 @@ export async function synthesise(
           text,
           model_id: env.ELEVENLABS_MODEL || "eleven_turbo_v2_5",
           language_code: "en",
-          voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.1, use_speaker_boost: true },
+          voice_settings: { stability: 0.75, similarity_boost: 0.8, style: 0, use_speaker_boost: true },
         }),
       });
     } catch {
@@ -83,6 +96,7 @@ export async function synthesise(
       break;
     }
     if (res.ok) {
+      if (i > 0) stuckFallback = id;
       record({ ok: true, status: 200, detail: null, voiceId: id, usedFallback: i > 0 });
       return { ok: true, audio: await res.arrayBuffer(), voiceId: id };
     }

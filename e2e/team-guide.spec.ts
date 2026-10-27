@@ -25,7 +25,7 @@ test("team guide: start a test session on a phone, ask for a person, join and ta
   await page.goto(consoleHref!.replace(/^\/[^/]+(?=\/console)/, ""));
   await expect(page.getByText("Viewing only.", { exact: false })).toHaveCount(0);
   await page.getByRole("navigation", { name: "Session actions" }).getByRole("button", { name: "Join" }).click();
-  await page.getByRole("navigation", { name: "Session actions" }).getByRole("button", { name: "Take over" }).click();
+  // The customer asked for a person, so joining puts the agent in charge.
   await expect(page.getByRole("navigation", { name: "Session actions" }).getByRole("button", { name: "Take over" })).toBeHidden();
   // No refusal or error banner along the way.
   await expect(page.getByRole("button", { name: "Dismiss" })).toHaveCount(0);

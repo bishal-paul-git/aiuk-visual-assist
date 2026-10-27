@@ -108,6 +108,15 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-10-29 — Human handover fixed, agent alert, one voice, avatar, no-camera help
+
+- Fixed: when a customer asks for a person, the agent who presses **Join session** is put in charge straight away and greets the customer by name. Before, joining only watched, so the customer heard nothing until **Take over** was pressed.
+- New: agents are alerted. The console and the client portal play a chime (repeated every 15 s while someone waits), show a **Join now** banner, flash the tab title and send a desktop notification. Press **Turn on alerts** once, because browsers block sound until a click.
+- Changed: one British voice (Georgia K) speaks every line, the AI's and the agents' typed messages. If the plan refuses it, Alice is used from then on, never switching back. The phone's own voice is no longer used on the real server; if the voice service fails, the line stays as text.
+- New: an assistant avatar on the customer screen, which moves its mouth while speaking. When the camera is off it fills the screen; a person shows as their initials.
+- New: help without a camera. If the camera is off, turned off, or the customer says they can't show it, the AI asks them to describe the lights and guides the cable check by touch, then the restart. Training notes cover how customers describe the lights.
+- Test text: the sender is `+447863750600`. The first test was sent to the same number, which Twilio refuses; it must go to a different mobile.
+
 ### 2026-10-28 — The assistant talks; better British voices; AI training
 
 - Fixed: the assistant and agent now speak aloud. Phones refuse sound until the person taps, so the app unlocks audio on the first tap (agree, camera, anything) and uses one audio player for the whole session. If a phone still blocks it, a **Tap to hear the assistant** button appears and repeats the last line.

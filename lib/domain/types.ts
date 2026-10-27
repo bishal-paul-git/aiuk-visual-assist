@@ -144,6 +144,12 @@ export interface WorkflowStep {
   next: NextRule[];
   /** Step to go to when attempts are exhausted / the step fails. */
   onFailure?: { to: string; reason: EscalationReasonCode };
+  /**
+   * Visual steps only: where to go when the customer has no camera on (or
+   * turns it off, or says they can't show it). Usually a step that asks the
+   * customer to describe what they see instead.
+   */
+  withoutCamera?: string;
   escalation?: { reason: EscalationReasonCode; severity: EscalationSeverity; humanOnly?: boolean };
   completion?: { outcome: SessionOutcome };
 }

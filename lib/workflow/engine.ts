@@ -39,7 +39,9 @@ export function conditionMatches(cond: StepCondition, facts: StepFacts): boolean
 /** Intents a step can branch on, in rule order. */
 export function expectedIntents(step: WorkflowStep | undefined): string[] {
   if (!step) return [];
-  return step.next.flatMap((r) => (r.when.kind === "intent" ? r.when.intents : []));
+  const intents = step.next.flatMap((r) => (r.when.kind === "intent" ? r.when.intents : []));
+  if (step.type === "visual_request" && step.withoutCamera) intents.push("cannot", "no_camera");
+  return intents;
 }
 
 /** First matching rule wins; rule order in the definition is the priority order. */
@@ -122,6 +124,9 @@ export function validateWorkflow(def: WorkflowDefinition): ValidationIssue[] {
       if (!keys.has(rule.to)) {
         issues.push({ stepKey: step.key, severity: "error", message: `Rule "${rule.label}" targets unknown step "${rule.to}"` });
       }
+    }
+    if (step.withoutCamera && !keys.has(step.withoutCamera)) {
+      issues.push({ stepKey: step.key, severity: "error", message: `No-camera path targets unknown step "${step.withoutCamera}"` });
     }
     if (step.onFailure && !keys.has(step.onFailure.to)) {
       issues.push({ stepKey: step.key, severity: "error", message: `Failure path targets unknown step "${step.onFailure.to}"` });

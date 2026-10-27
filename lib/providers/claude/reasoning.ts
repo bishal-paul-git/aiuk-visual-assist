@@ -248,6 +248,10 @@ function describeIntents(intents: string[]): string {
     cannot: "the customer is unable to do the requested step",
     wait: "the customer needs more time",
     human_request: "the customer asks for a person",
+    no_camera: "the customer's camera is off, broken or they would rather not use it",
+    internet_light_ok: "the customer says the internet (globe, WAN, broadband) light is green, white or blue and steady",
+    internet_light_problem: "the customer says the internet light is orange, amber, yellow, red, flashing or off",
+    power_light_off: "the customer says the router has no lights at all or the power light is off",
     unknown: "none of the above",
   };
   return intents.map((i) => `- ${i}: ${meaning[i] ?? i.replace(/_/g, " ")}`).join("\n");

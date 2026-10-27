@@ -288,7 +288,7 @@ function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHr
           <a href={agentHref} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
             <ExternalLink className="size-4" aria-hidden /> Open agent screen
           </a>
-          <p className="basis-full text-xs text-muted">Open it next to the customer view. Press Join session, then Take over, whenever you like or when the customer asks for a person.</p>
+          <p className="basis-full text-xs text-muted">Open it next to the customer view. When the customer asks for a person you hear an alert: press Join session and you are straight in. You can also Join and Take over at any time.</p>
         </SideCard>
       </div>
 

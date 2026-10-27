@@ -114,7 +114,7 @@ Use one iPhone (Safari), one Android phone (Chrome) and a laptop. Test each phon
 2. Phone: open the SMS link → **Agree and continue** → **Turn on camera** → speak: "My broadband isn't working".
 3. Show the real router when asked, try a blurry or far-away photo once, and check the AI asks again.
 4. Follow the steps until the line test runs (check n8n), or press **Human help**.
-5. Laptop: **Join session** → **Take over**. Check you can see and hear the customer live, then talk, run an action and **End**.
+5. Laptop: press **Turn on alerts** first; when the alert sounds, **Join session** (you are in charge at once). Check you can see and hear the customer live, then talk, run an action and **End**.
 
 Write down for each run: phone, network, whether each step worked, and how long the AI took to answer.
 

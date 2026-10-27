@@ -54,7 +54,7 @@ export function coachFor(state: SessionState | undefined): CoachStep {
       : {
           key: "needs_agent",
           title: "The customer asked for a person",
-          detail: "On the agent screen press Join session, then Take over. You'll see the whole conversation and every photo, so the customer repeats nothing.",
+          detail: "On the agent screen press Join session. You take over at once and the customer is told you're there. You'll see the whole conversation and every photo, so the customer repeats nothing.",
           actor: "agent",
           tone: "go",
         };
