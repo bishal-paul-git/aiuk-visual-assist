@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AutoRefresh } from "@/components/client/auto-refresh";
 import { ArrowRight, CheckCircle2, CircleDashed, FlaskConical, Smartphone, UserRound } from "lucide-react";
 import { clientScope, testableWorkflow } from "@/lib/server/client-data";
 import { STATIC_EXPORT, staticSafeSearchParams } from "@/lib/server/platform-data";
@@ -84,6 +85,7 @@ export default async function ClientHome({ searchParams }: { searchParams: Promi
           }
           bodyClassName="p-0"
         >
+          <AutoRefresh />
           {recent.length === 0 ? (
             <EmptyState title="Nothing yet" icon={<Smartphone className="size-5" aria-hidden />}>
               Your conversations will appear here.

@@ -1,4 +1,5 @@
 import type { Escalation, EscalationReasonCode, Policy, ToolAction } from "@/lib/domain/types";
+import { ESCALATION_REASON_LABELS } from "@/lib/domain/labels";
 
 export type PolicyDecision =
   | { decision: "allow"; reason: string; requiresIdempotencyKey: boolean }
@@ -66,7 +67,11 @@ export function isMandatoryHuman(policy: Policy, reason: EscalationReasonCode): 
 export function canReturnToAi(policy: Policy, escalation: Escalation | undefined): { allowed: boolean; reason: string } {
   if (!policy.allowReturnToAi) return { allowed: false, reason: "Policy does not permit returning control to AI" };
   if (escalation?.mandatoryHuman) {
-    return { allowed: false, reason: `Escalation reason "${escalation.reason}" requires a human to finish the session` };
+    const why =
+      escalation.reason === "customer_requested"
+        ? "the customer asked for a person, so a person finishes this conversation"
+        : `"${ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason}" must be finished by a person`;
+    return { allowed: false, reason: why.charAt(0).toUpperCase() + why.slice(1) };
   }
   return { allowed: true, reason: "Permitted by policy" };
 }

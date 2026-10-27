@@ -372,6 +372,12 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
           </div>
           <p className="mt-1 text-[17px] font-medium leading-snug">{view.instruction.text}</p>
         </div>
+        {view.seen && !human && now - Date.parse(view.seen.at) < 60_000 && (
+          <p data-testid="ai-seen" className="mt-2 inline-flex max-w-full items-start gap-1.5 rounded-2xl bg-black/60 px-3 py-1.5 text-[12px] font-medium backdrop-blur">
+            <CheckCircle2 className="mt-px size-3.5 shrink-0 text-[#3bd16f]" aria-hidden />
+            <span className="line-clamp-2">I saw: {view.seen.items.join(" · ")}</span>
+          </p>
+        )}
         {callLive ? (
           <div className="mt-2 flex items-center gap-2">
             <p role="status" className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px]">
@@ -584,7 +590,7 @@ function CentreOverlay({ view, capture, cameraOn, onCaptureNow }: { view: Custom
           <p className="mt-2 rounded-full bg-warn/90 px-3 py-1 text-xs font-semibold">{s === "need_closer_view" ? "Closer view needed" : "Try another angle"}</p>
         )}
         {capture.state !== "sending" && (
-          <button type="button" onClick={onCaptureNow} className="mt-3 rounded-full border border-white/40 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10">
+          <button type="button" onClick={onCaptureNow} className="mt-3 rounded-full bg-black/60 px-3.5 py-1.5 text-xs font-semibold text-white ring-1 ring-white/40 backdrop-blur hover:bg-black/75">
             Capture now
           </button>
         )}

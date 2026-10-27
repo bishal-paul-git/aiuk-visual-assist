@@ -31,6 +31,8 @@ export interface CustomerView {
   transcript: { id: string; speaker: string; speakerName: string; text: string; timestamp: string }[];
   humanName?: string;
   agentName: string;
+  /** What the AI read in the latest picture, in plain words ("Internet light: off"), so the customer sees it was understood. */
+  seen?: { items: string[]; at: string };
   /** True while a human is (or is about to be) watching — the only time a low-rate preview is relayed. */
   previewRequested: boolean;
   /** True while live video with the human agent may run (agent present, consent, camera on). */
@@ -67,8 +69,17 @@ export function toCustomerView(state: SessionState, brand: { name: string; color
     evidenceMode,
     scenario: state.session.scenario,
     demoScene: demoSceneFor(state),
+    seen: latestSeen(state),
     seq: state.seq,
   };
+}
+
+function latestSeen(state: SessionState): CustomerView["seen"] {
+  const read = state.observations.filter((o) => o.status === "confirmed_visible" || o.status === "likely_visible");
+  const last = read.at(-1);
+  if (!last) return undefined;
+  const items = [...new Set(read.filter((o) => o.visualEventId === last.visualEventId).map((o) => o.observationText))];
+  return items.length ? { items, at: last.timestamp } : undefined;
 }
 
 export interface SessionSummaryView {

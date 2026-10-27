@@ -108,6 +108,15 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-10-29 — Walk-through review: clearer screens
+
+- Walked the whole trial as a first-time tester, with screenshots, and fixed what was unclear:
+  - the customer now sees what the AI read in each picture ("I saw: Internet light: off"), instead of the next instruction replacing it silently;
+  - **Capture now** is readable over the camera picture;
+  - the agent screen says "The customer asked for a person, so a person finishes this conversation" instead of a system code;
+  - the portal's conversation list updates by itself.
+- New: `docs/TESTER-GUIDE.md`, a one-page, 10-minute guide to send to testers.
+
 ### 2026-10-29 — Human handover fixed, agent alert, one voice, avatar, no-camera help
 
 - Fixed: when a customer asks for a person, the agent who presses **Join session** is put in charge straight away and greets the customer by name. Before, joining only watched, so the customer heard nothing until **Take over** was pressed.

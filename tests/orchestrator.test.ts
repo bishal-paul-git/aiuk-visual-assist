@@ -129,7 +129,7 @@ describe("human escalation and takeover", () => {
     const h = routerHarness("wan_down");
     h.runCustomer();
     h.send({ type: "human.take_over" }, AGENT);
-    expect(h.send({ type: "human.return_to_ai" }, AGENT)).toMatch(/requires a human/);
+    expect(h.send({ type: "human.return_to_ai" }, AGENT)).toMatch(/must be finished by a person|so a person finishes/);
     expect(h.state.audit.some((a) => a.eventType === "policy.check" && a.payload.check === "return_to_ai" && a.payload.allowed === false)).toBe(true);
   });
 
