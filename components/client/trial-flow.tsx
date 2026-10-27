@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bot, CheckCircle2, Copy, ExternalLink, FlaskConical, Headset, Loader2, MessageSquare, Smartphone, Sparkles, User as UserIcon } from "lucide-react";
+import { Bot, CheckCircle2, Circle, Copy, ExternalLink, FlaskConical, Headset, Loader2, MessageSquare, Smartphone, Sparkles, ThumbsDown, ThumbsUp, User as UserIcon } from "lucide-react";
+import QRCode from "qrcode";
+import { checklistFor } from "@/lib/session/trial-checklist";
+import { useIdentity } from "@/lib/client/identity";
 import { SCENARIOS } from "@/lib/providers/mock/scenarios";
 import { BASE_PATH, STATIC_DEMO, getTransport, type LinkDelivery } from "@/lib/client/transport";
 import type { AgentView } from "@/lib/session/projections";
@@ -273,8 +276,9 @@ function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHr
               {sent.ok ? (sent.simulated ? `Text to ${sent.to} was recorded, not sent (texting isn't switched on).` : `Link texted to ${sent.to}.`) : `The text to ${sent.to} didn't send: ${sent.error ?? "unknown error"}. Use the link instead.`}
             </p>
           )}
+          <PhoneQr link={link} />
           <p className="basis-full text-xs text-muted">
-            {live ? "On a laptop with no camera, choose voice only or type instead." : "Using a guided example? Tap “Use demo camera” when asked."}
+            {live ? "Scan the code with your phone's camera to open it there. On a laptop with no camera, choose voice only or type instead." : "Scan the code with your phone's camera. Using a guided example? Tap “Use demo camera” when asked."}
           </p>
         </SideCard>
 
@@ -291,6 +295,8 @@ function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHr
           <p className="basis-full text-xs text-muted">Open it next to the customer view. When the customer asks for a person you hear an alert: press Join session and you are straight in. You can also Join and Take over at any time.</p>
         </SideCard>
       </div>
+
+      <Checklist state={view?.state} />
 
       <div className="mt-4 rounded-xl border border-line bg-surface p-4">
         <h3 className="text-sm font-semibold text-ink">What&apos;s being said</h3>
@@ -317,7 +323,112 @@ function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHr
           </Link>
         </div>
       </div>
+
+      <Feedback sessionId={created.id} reference={view?.state.session.reference} ended={view?.state.session.status === "completed" || view?.state.session.status === "failed"} />
     </section>
+  );
+}
+
+/** The customer link as a QR code, so the tester's phone opens it with one scan. */
+function PhoneQr({ link }: { link: string }) {
+  const [src, setSrc] = useState<string>();
+  useEffect(() => {
+    let live = true;
+    void QRCode.toDataURL(link, { margin: 1, width: 240, errorCorrectionLevel: "M" }).then((d) => live && setSrc(d)).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [link]);
+  if (!src) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="QR code: scan with your phone to open the customer view" width={120} height={120} className="basis-full rounded-md border border-line sm:basis-auto" data-testid="phone-qr" />
+  );
+}
+
+/** What the tester has tried so far in this conversation, ticked off from the real session. */
+function Checklist({ state }: { state: AgentView["state"] | undefined }) {
+  const items = checklistFor(state);
+  const done = items.filter((i) => i.done).length;
+  const next = items.find((i) => !i.done);
+  return (
+    <div className="mt-4 rounded-xl border border-line bg-surface p-4" data-testid="test-checklist">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-ink">Your test checklist</h3>
+        <span className="text-xs font-medium text-ink-2">
+          {done} of {items.length} tried
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+        <div className="h-full rounded-full bg-ok transition-all" style={{ width: `${(done / items.length) * 100}%` }} />
+      </div>
+      <ul className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+        {items.map((i) => (
+          <li key={i.key} className="flex gap-2 text-[13px]" data-done={i.done ? "true" : "false"}>
+            {i.done ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-label="Done" /> : <Circle className="mt-0.5 size-4 shrink-0 text-line-strong" aria-label="Not yet" />}
+            <span className="min-w-0">
+              <span className={cx("block", i.done ? "text-ink" : "font-medium text-ink")}>{i.label}</span>
+              {!i.done && i === next && <span className="block text-xs text-ink-2">{i.how}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** The tester's verdict, saved on the conversation's record for the team to read. */
+function Feedback({ sessionId, reference, ended }: { sessionId: string; reference?: string; ended: boolean }) {
+  const id = useIdentity();
+  const [verdict, setVerdict] = useState<"good" | "problem">();
+  const [text, setText] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const userId = id.status === "signed_in" ? id.user.id : undefined;
+
+  async function send() {
+    if (!userId || !verdict) return;
+    setState("sending");
+    const t = await getTransport();
+    const note = `Tester feedback (${verdict === "good" ? "worked well" : "found a problem"})${text.trim() ? `: ${text.trim()}` : ""}`;
+    const r = await t.agentCommand(sessionId, userId, { type: "human.note", text: note }).catch(() => ({ ok: false }));
+    setState(r.ok ? "sent" : "error");
+  }
+
+  return (
+    <div className={cx("mt-4 rounded-xl border p-4", ended ? "border-brand/40 bg-brand-soft" : "border-line bg-surface")} data-testid="tester-feedback">
+      <h3 className="text-sm font-semibold text-ink">How did it go?</h3>
+      {state === "sent" ? (
+        <p className="mt-1 text-sm text-ink-2" role="status">
+          Thanks. Your feedback is saved on {reference ?? "this conversation"}, with everything that happened in it.
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 text-[13px] text-ink-2">Tell us anything that was unclear, wrong or slow. It&apos;s saved with this conversation, so we can see exactly what happened.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" aria-pressed={verdict === "good"} onClick={() => setVerdict("good")} className={cx(buttonClass("secondary"), verdict === "good" && "border-ok bg-ok-soft")}>
+              <ThumbsUp className="size-4" aria-hidden /> It worked well
+            </button>
+            <button type="button" aria-pressed={verdict === "problem"} onClick={() => setVerdict("problem")} className={cx(buttonClass("secondary"), verdict === "problem" && "border-danger bg-danger-soft")}>
+              <ThumbsDown className="size-4" aria-hidden /> I found a problem
+            </button>
+          </div>
+          {verdict && (
+            <>
+              <label className="mt-3 block">
+                <span className="mb-1 block text-xs font-medium text-ink">{verdict === "problem" ? "What happened, and what did you expect?" : "Anything to add? (optional)"}</span>
+                <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1500} className="w-full rounded-md border border-line-strong bg-surface p-2 text-sm" />
+              </label>
+              <div className="mt-2 flex items-center gap-3">
+                <button type="button" className={buttonClass("primary")} disabled={state === "sending" || (verdict === "problem" && !text.trim())} onClick={send}>
+                  {state === "sending" ? "Saving…" : "Send feedback"}
+                </button>
+                {state === "error" && <span className="text-xs text-danger">That didn&apos;t save. Please try again.</span>}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 

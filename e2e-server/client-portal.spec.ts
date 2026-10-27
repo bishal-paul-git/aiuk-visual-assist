@@ -49,6 +49,10 @@ test.describe("server edition: the client trial, start to finish", () => {
       const agentHref = await a.getByRole("link", { name: "Open agent screen" }).getAttribute("href");
       expect(customerHref).toMatch(/^\/assist\//);
       expect(agentHref).toMatch(/^\/console\/sessions\//);
+      // A QR code opens the customer view on a phone; the checklist starts at nothing tried.
+      await expect(a.getByTestId("phone-qr")).toBeVisible();
+      const checklist = a.getByTestId("test-checklist");
+      await expect(checklist).toContainText("0 of 8 tried");
 
       // --- Side 1: the customer, on a phone ---------------------------------------
       await customer.goto(customerHref!);
@@ -118,6 +122,18 @@ test.describe("server edition: the client trial, start to finish", () => {
       await agent.getByRole("menuitem", { name: "Resolved", exact: true }).click();
       await expect(customer.getByRole("heading", { name: "Session ended" })).toBeVisible({ timeout: 30_000 });
       await expect(coach).toHaveAttribute("data-step", "finished", { timeout: 30_000 });
+      // The checklist ticked off what really happened.
+      await expect(checklist.locator('li[data-done="true"]')).toHaveCount(5, { timeout: 15_000 });
+      for (const label of ["opened the link", "described the problem", "asked for a person", "A person joined", "was finished"]) {
+        await expect(checklist.locator('li[data-done="true"]').filter({ hasText: label })).toHaveCount(1);
+      }
+
+      // The tester's feedback is saved on the record.
+      const feedback = a.getByTestId("tester-feedback");
+      await feedback.getByRole("button", { name: "I found a problem" }).click();
+      await feedback.getByRole("textbox").fill(`The light colour was unclear ${tag}`);
+      await feedback.getByRole("button", { name: "Send feedback" }).click();
+      await expect(feedback.getByText(/Your feedback is saved/)).toBeVisible({ timeout: 15_000 });
 
       await expectNoErrorBanner(agent);
       await expectNoErrorBanner(customer);
@@ -128,6 +144,7 @@ test.describe("server edition: the client trial, start to finish", () => {
       await expect(a.locator("ol li").getByText(typed)).toBeVisible();
       await expect(a.locator("ol li").getByText(toCustomer)).toBeVisible();
       await expect(a.locator("ol li").getByText(reply)).toBeVisible();
+      await expect(a.getByText(`Tester feedback (found a problem): The light colour was unclear ${tag}`)).toBeVisible();
     } finally {
       await laptop.context.close();
       await phoneContext.close();

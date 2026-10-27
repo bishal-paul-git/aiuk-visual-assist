@@ -15,12 +15,6 @@ import { TrialFlow } from "@/components/client/trial-flow";
 
 export const metadata = { title: "Try it" };
 
-const IDEAS = [
-  "Type instead of speaking, or talk instead of typing.",
-  "Show the problem, then show something blurry or too far away. A good AI asks for a better view instead of guessing.",
-  "Tap Human help on the customer screen and watch the hand-over: the agent arrives already knowing everything.",
-  "As the agent, ask the customer for a photo and send a message. If you step in on your own, you can hand the conversation back to the AI. If the customer asked for a person, a person finishes it.",
-];
 
 export default async function ClientHome({ searchParams }: { searchParams: Promise<{ org?: string }> }) {
   const { org } = await staticSafeSearchParams(searchParams);
@@ -64,18 +58,7 @@ export default async function ClientHome({ searchParams }: { searchParams: Promi
         </Panel>
       )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Panel title="Things worth trying" description="This is where you'll see how it really behaves">
-          <ul className="space-y-2.5 text-[14px] text-ink-2">
-            {IDEAS.map((i) => (
-              <li key={i} className="flex gap-2">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-hidden />
-                {i}
-              </li>
-            ))}
-          </ul>
-        </Panel>
-
+      <div className="mt-4">
         <Panel
           title="Your latest conversations"
           actions={

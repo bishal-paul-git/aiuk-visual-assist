@@ -108,6 +108,14 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-10-29 — Testing guided inside the product
+
+- The trial page now guides the test itself, so testers need no document:
+  - a **QR code** next to the customer link: scan it with the phone to open the customer view;
+  - a live **test checklist** (8 things to try), ticked off from the real conversation as it happens, with the next thing to try spelled out;
+  - **How did it go?** at the end: "It worked well" or "I found a problem" plus a note, saved on that conversation's record (shown under "Notes and tester feedback" in Sessions).
+- Removed the static "Things worth trying" box; the checklist replaces it.
+
 ### 2026-10-29 — Walk-through review: clearer screens
 
 - Walked the whole trial as a first-time tester, with screenshots, and fixed what was unclear:

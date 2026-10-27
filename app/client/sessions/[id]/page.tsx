@@ -131,6 +131,21 @@ export default async function ClientSessionDetail({ params, searchParams }: { pa
         </Panel>
       </div>
 
+      {state.notes.length > 0 && (
+        <Panel title="Notes and tester feedback" className="mt-4" bodyClassName="p-0">
+          <ul className="divide-y divide-line">
+            {state.notes.map((n) => (
+              <li key={n.id} className="px-4 py-2.5">
+                <div className="text-xs text-muted">
+                  <span className="font-medium text-ink-2">{n.authorName}</span> · {formatDateTime(n.timestamp)}
+                </div>
+                <p className="mt-1 text-sm whitespace-pre-wrap text-ink">{n.text}</p>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
       <Panel title="Conversation" description={`${state.transcript.length} message${state.transcript.length === 1 ? "" : "s"}`} className="mt-4" bodyClassName="max-h-[520px] overflow-y-auto p-0">
         {state.transcript.length === 0 ? (
           <p className="px-4 py-6 text-sm text-muted">Nothing said yet.</p>
