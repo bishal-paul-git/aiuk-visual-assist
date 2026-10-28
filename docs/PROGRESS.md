@@ -108,6 +108,14 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-10-30 — Fixes from the owner's live test
+
+- Found in the live sessions: the phone camera sent black pictures (540×960, ~4.8 KB each), so the AI could not see anything and handed over after three tries. Now black frames are never sent; the customer is told to check nothing covers the camera; after 8 s the AI carries on by description.
+- Found: the call between customer and agent only ran with the camera on, so a voice-only customer and the agent could not talk. Now the call runs as a voice call when the camera is off (agent screen: "Voice call with the customer").
+- New: every session records what each device did (browser, voice played/blocked/failed, black camera, call connecting/live/failed and why, from both sides), visible in the agent screen's audit tab.
+- Changed: the AI model name no longer appears on the agent screen or the test launcher; the trial agent is called Alex Morgan (customers heard "Hi, it's Demo").
+- Tests: server browser tests for a voice-only call between customer and agent, and for a camera that only gives black pictures.
+
 ### 2026-10-30 — Demo brand "X Telecom"; clean start; photo evaluation
 
 - The demo client is now called **X Telecom** everywhere testers look (portal, customer screen, AI's greeting, router name "X Telecom Hub 4"). The trial login is demo@xtelecom.example (internal id unchanged).

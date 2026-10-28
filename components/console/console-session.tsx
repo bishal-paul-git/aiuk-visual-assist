@@ -74,6 +74,17 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
   const eligibility = callEligibility(s);
   const call = useLiveCall({ role: "agent", sessionId: id, keyId: id, transport, eligible: eligibility.eligible && !!agentId && eligibility.agentUserId === agentId });
   const access = useConsoleAccess(s.session.tenantId);
+  // The session record notes how the call went on this side (connecting, live, failed and why).
+  const reportedCall = useRef(new Set<string>());
+  const agentCallPhase = call.state.phase;
+  const agentCallReason = call.state.reason;
+  useEffect(() => {
+    const kind = agentCallPhase === "connecting" ? "call_connecting" : agentCallPhase === "live" ? "call_live" : agentCallPhase === "fallback" ? "call_failed" : null;
+    if (!kind || !transport || !agentId || reportedCall.current.has(kind)) return;
+    reportedCall.current.add(kind);
+    const detail = kind === "call_failed" ? `agent side: ${agentCallReason ?? "unknown"}` : `agent side${call.micAvailable ? "" : ", no microphone"}`;
+    void transport.agentCommand(id, agentId, { type: "client.report", kind, detail }).catch(() => undefined);
+  }, [agentCallPhase, agentCallReason, transport, agentId, id, call.micAvailable]);
 
   if (access.known && !access.view) return <OtherClientNotice access={access} />;
 
@@ -294,8 +305,7 @@ export function ConsoleSession({ id, initial, serverNow }: { id: string; initial
               items={[
                 ["Customer issue", view.handover.customerIssue],
                 ["Current step", step ? `${step.title}` : "—"],
-                ["Model", s.session.modelVersion],
-                ["Policy", `${s.session.policyId} v${s.session.policyVersion}`],
+                ["Rules", `Version ${s.session.policyVersion}`],
               ]}
             />
           </div>

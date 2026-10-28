@@ -69,6 +69,9 @@ export interface ObservationInput {
   recommendedNextAction?: string;
 }
 
+export const CLIENT_REPORT_KINDS = ["device", "voice_played", "voice_blocked", "voice_failed", "camera_black", "camera_recovered", "call_connecting", "call_live", "call_failed", "call_ended"] as const;
+export type ClientReportKind = (typeof CLIENT_REPORT_KINDS)[number];
+
 export type Command =
   | { type: "customer.consent"; accepted: boolean; noticeVersion: string }
   | {
@@ -84,6 +87,12 @@ export type Command =
     }
   | { type: "customer.request_human" }
   | { type: "media.update"; media: Partial<MediaState> }
+  /**
+   * What a device actually did (voice played or was blocked, camera picture
+   * black, call connected or failed, which browser), so a session record shows
+   * why something didn't work for a tester. No customer content.
+   */
+  | { type: "client.report"; kind: ClientReportKind; detail?: string }
   | {
       type: "frame.captured";
       trigger: FrameTrigger;
@@ -228,6 +237,11 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
       ctx.audit("session.started", {});
       ctx.audit("workflow.started", { workflowId: ctx.deps.workflow.id, version: ctx.deps.workflow.version });
       ctx.enterStep(ctx.deps.workflow.startStep);
+      return;
+    }
+
+    case "client.report": {
+      ctx.audit("client.report", { from: ctx.actor.type, kind: cmd.kind, ...(cmd.detail ? { detail: cmd.detail } : {}) });
       return;
     }
 

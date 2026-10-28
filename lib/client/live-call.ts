@@ -278,16 +278,16 @@ export class LiveCallController {
     this.apply({ type: "failed", reason, now: Date.now() });
   }
 
-  /** Customer: offer camera video (send only) and two-way audio to the agent peer that announced itself. */
+  /** Customer: offer camera video (send only, when the camera is on) and two-way audio to the agent peer that announced itself. */
   private async startOffer(to: string) {
     const stream = this.local;
     const video = stream?.getVideoTracks()[0];
-    if (!stream || !video || !this.iceServers) return; // Not ready yet; the agent announces again shortly.
+    if (!stream || stream.getTracks().length === 0 || !this.iceServers) return; // Not ready yet; the agent announces again shortly.
     const callId = randomId();
     try {
       const pc = this.createPc(callId);
       this.apply({ type: "started", callId, remotePeer: to, now: Date.now() });
-      pc.addTransceiver(video, { direction: "sendonly", streams: [stream] });
+      if (video) pc.addTransceiver(video, { direction: "sendonly", streams: [stream] });
       const audio = stream.getAudioTracks()[0];
       if (audio) pc.addTransceiver(audio, { direction: "sendrecv", streams: [stream] });
       else pc.addTransceiver("audio", { direction: "recvonly" });

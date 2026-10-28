@@ -39,6 +39,8 @@ export function LiveVideo({
   const [liveAt, setLiveAt] = useState<number>(0);
   const urlRef = useRef<string | null>(null);
   const callLive = call?.state.phase === "live" && Boolean(call.remoteStream?.getVideoTracks().length);
+  /** Live with sound only: the customer's camera is off, but you can talk. */
+  const voiceLive = call?.state.phase === "live" && !callLive && Boolean(call.remoteStream?.getAudioTracks().length);
 
   useEffect(() => {
     if (!active || !transport || callLive) return;
@@ -76,6 +78,8 @@ export function LiveVideo({
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-[#0b0f17]">
         {callLive ? (
           <RemoteVideo stream={call!.remoteStream!} />
+        ) : voiceLive ? (
+          <VoiceCall stream={call!.remoteStream!} />
         ) : isPreview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={src!} alt="Live view of the customer's camera" className="h-full w-full object-cover" />
@@ -93,6 +97,10 @@ export function LiveVideo({
             <>
               <span className="size-1.5 rounded-full bg-[#e5484d] va-pulse" aria-hidden /> <Video className="size-3" aria-hidden /> Live customer camera
             </>
+          ) : voiceLive ? (
+            <>
+              <span className="size-1.5 rounded-full bg-[#e5484d] va-pulse" aria-hidden /> <Mic className="size-3" aria-hidden /> Voice call with the customer
+            </>
           ) : isPreview ? (
             <>
               <span className="size-1.5 rounded-full bg-[#e5484d] va-pulse" aria-hidden /> <Video className="size-3" aria-hidden /> {fallback ? "Customer camera · snapshots" : "Live customer camera"}
@@ -104,7 +112,7 @@ export function LiveVideo({
           )}
         </div>
         {call?.label && <CallState label={call.label} phase={call.state.phase} />}
-        {!callLive && !isPreview && active && (
+        {!callLive && !voiceLive && !isPreview && active && (
           <div className="absolute bottom-2 left-2 rounded-md bg-black/65 px-2 py-1 text-[11px] text-white/80">
             {cameraOn ? "Waiting for live video from the customer's device…" : "Customer camera is off (voice only)"}
           </div>
@@ -147,7 +155,7 @@ function CallControls({ call }: { call: LiveCall }) {
             ? call.state.reason === "unsupported"
               ? "Live video isn't available on this device; showing snapshots"
               : "Live video couldn't connect; showing snapshots"
-            : "Connecting live video and audio…"}
+            : "Connecting the call…"}
       </span>
       <div className="flex items-center gap-2">
         {phase === "fallback" && call.state.reason !== "unsupported" && (
@@ -170,6 +178,38 @@ function CallControls({ call }: { call: LiveCall }) {
           {!call.micAvailable ? "No microphone" : call.micOn ? "Mute mic" : "Unmute mic"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Camera off: sound only, with a clear picture of what is happening. */
+function VoiceCall({ stream }: { stream: MediaStream }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    a.srcObject = stream;
+    a.play().then(
+      () => setAudioBlocked(false),
+      () => setAudioBlocked(true),
+    );
+  }, [stream]);
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 text-white/80" data-testid="voice-call">
+      <Mic className="size-8" aria-hidden />
+      <span className="text-sm font-medium">Voice call: the customer&apos;s camera is off</span>
+      <span className="text-xs text-white/60">You can talk to each other</span>
+      <audio ref={audioRef} autoPlay />
+      {audioBlocked && (
+        <button
+          type="button"
+          onClick={() => void audioRef.current?.play().then(() => setAudioBlocked(false), () => {})}
+          className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-white px-2.5 py-1.5 text-[12px] font-semibold text-ink"
+        >
+          <Volume2 className="size-3.5" aria-hidden /> Play customer audio
+        </button>
+      )}
     </div>
   );
 }

@@ -78,6 +78,11 @@ test.describe("server edition: no camera, then a person", () => {
       await expect(customer.getByRole("img", { name: /Sarah Jennings, support team/ }).first()).toBeVisible();
       await expect(customer.getByRole("button", { name: "Human joined" })).toBeVisible();
 
+      // With the camera off, customer and agent are put on a two-way voice call.
+      await expect(a.getByTestId("voice-call")).toBeVisible({ timeout: 45_000 });
+      await expect(a.getByTestId("live-video-state")).toHaveText("Live");
+      await expect(customer.getByText(/On a call with Sarah Jennings/)).toBeVisible({ timeout: 30_000 });
+
       // Chat reaches the customer.
       const composer = a.getByLabel("Message the customer");
       await expect(composer).toBeEnabled({ timeout: 15_000 });

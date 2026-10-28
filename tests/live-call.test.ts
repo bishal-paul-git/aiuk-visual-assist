@@ -46,7 +46,7 @@ const AGENT_PEER = "agentPeer0001";
 const CUSTOMER_PEER = "custPeer00001";
 
 describe("live video eligibility", () => {
-  it("needs consent, the camera on and an active human agent", () => {
+  it("needs consent and an active human agent; with the camera off it is a voice call", () => {
     const rt = runtime();
     const { id } = rt.create({ workflowId: "wf_router_v3", channel: "secure_link", customerLabel: "Test", scenario: "power_cycle_fix" });
     expect(callEligibility(rt.get(id)!.state)).toMatchObject({ eligible: false, reason: "no_consent" });
@@ -56,7 +56,7 @@ describe("live video eligibility", () => {
     expect(noHuman.rt.customerView(noHuman.id)!.liveVideo).toBe(false);
 
     const voiceOnly = session({ join: true, camera: false });
-    expect(callEligibility(voiceOnly.rt.get(voiceOnly.id)!.state)).toMatchObject({ eligible: false, reason: "camera_off" });
+    expect(callEligibility(voiceOnly.rt.get(voiceOnly.id)!.state)).toMatchObject({ eligible: true, reason: "ok" });
 
     const { rt: rt2, id: id2 } = session({ join: true });
     expect(callEligibility(rt2.get(id2)!.state)).toEqual({ eligible: true, agentUserId: agentUser.id, reason: "ok" });

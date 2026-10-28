@@ -146,6 +146,8 @@ export function scopeTenantFilter(user: Subject, requested?: string): string | u
 /** Permission required for each human console command (docs/03 §3). */
 export function commandPermission(commandType: string): Permission | null {
   switch (commandType) {
+    case "client.report":
+      return "session.view";
     case "human.join":
     case "human.leave":
     case "human.message":

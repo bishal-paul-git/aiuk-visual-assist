@@ -240,7 +240,7 @@ export const teams: HumanTeam[] = [
 
 export const users: User[] = [
   // Trial account for client testers (lib/auth/trial.ts): a supervisor, so one login can play both the customer's side and the agent's.
-  { id: "usr_demo", tenantId: "tnt_northline", role: "supervisor", name: "Demo Tester", email: "demo@xtelecom.example", status: "active", teamId: "team_nl_l1" },
+  { id: "usr_demo", tenantId: "tnt_northline", role: "supervisor", name: "Alex Morgan", email: "demo@xtelecom.example", status: "active", teamId: "team_nl_l1" },
   { id: "usr_sarah", tenantId: "tnt_northline", role: "agent", name: "Sarah Jennings", email: "sarah.jennings@xtelecom.example", status: "active", teamId: "team_nl_l1" },
   { id: "usr_marcus", tenantId: "tnt_northline", role: "agent", name: "Marcus Webb", email: "marcus.webb@xtelecom.example", status: "active", teamId: "team_nl_l2" },
   { id: "usr_aisha", tenantId: "tnt_northline", role: "agent", name: "Aisha Khan", email: "aisha.khan@xtelecom.example", status: "active", teamId: "team_nl_l1" },

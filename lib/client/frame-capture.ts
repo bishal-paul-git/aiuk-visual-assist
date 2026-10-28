@@ -17,6 +17,33 @@ export function isSourceReady(src: FrameSource | null): src is FrameSource {
   return w > 0 && h > 0;
 }
 
+/**
+ * True when the source is showing an all-black (or near-black, flat) picture:
+ * a covered lens, a camera another app holds, or a phone browser that is not
+ * painting the video. Such a frame is useless to the AI and is never sent.
+ */
+export function isBlackFrame(src: FrameSource): boolean {
+  if (!isSourceReady(src)) return false;
+  const c = document.createElement("canvas");
+  c.width = 32;
+  c.height = 24;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return false;
+  ctx.drawImage(src, 0, 0, 32, 24);
+  const { data } = ctx.getImageData(0, 0, 32, 24);
+  let sum = 0;
+  let sq = 0;
+  const n = data.length / 4;
+  for (let i = 0; i < data.length; i += 4) {
+    const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    sum += l;
+    sq += l * l;
+  }
+  const mean = sum / n;
+  const sd = Math.sqrt(Math.max(0, sq / n - mean * mean));
+  return mean < 12 && sd < 6;
+}
+
 export interface CapturedFrame {
   dataUrl: string;
   width: number;

@@ -34,7 +34,7 @@ export function callEligibility(state: SessionState): CallEligibility {
   const status = state.session.status;
   if (status === "completed" || status === "failed") return { eligible: false, reason: "ended" };
   if (status === "created" || status === "awaiting_consent" || !state.consent) return { eligible: false, reason: "no_consent" };
-  if (!state.media.camera) return { eligible: false, reason: "camera_off" };
+  // With the camera off the call still runs, as a voice call.
   const human = state.participants
     .filter((p) => p.type === "human_agent" && !p.leftAt && p.userId)
     .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))[0];

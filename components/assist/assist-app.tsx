@@ -23,7 +23,7 @@ import {
 import { AssistantAvatar } from "./assistant-avatar";
 import type { CustomerView } from "@/lib/session/projections";
 import { useCustomerStream } from "@/lib/client/use-transport";
-import { captureFrame, isSourceReady, MotionMeter, type FrameSource } from "@/lib/client/frame-capture";
+import { captureFrame, isBlackFrame, isSourceReady, MotionMeter, type FrameSource } from "@/lib/client/frame-capture";
 import { readRecogniserEnv, useListener, useRecorderListener, useSpeaker, type RecorderPhase, type TranscribeFn } from "@/lib/client/speech";
 import { chooseRecogniser, type RecogniserKind } from "@/lib/client/voice-activity";
 import { formatDuration } from "@/lib/format";
@@ -40,11 +40,15 @@ type Quality = "good" | "fair" | "poor" | "lost";
 const STEADY_MS = 1200;
 const SETTLE_MS = 1500;
 const MAX_WAIT_MS = 9000;
+/** A camera that shows only black for this long is given up on (the AI continues by description). */
+const BLACK_GIVE_UP_MS = 8000;
 
 export function AssistApp({ token, initial, serverNow }: { token: string; initial: CustomerView; serverNow: number }) {
   const { data: view, status: streamStatus, transport } = useCustomerStream(token, initial);
   const [phase, setPhase] = useState<Phase>(initial.customerState === "consent" ? "consent" : "live");
   const cam = useCamera();
+  /** Microphone-only stream for a voice call with the agent while the camera is off. */
+  const [voiceStream, setVoiceStream] = useState<MediaStream | null>(null);
   const [busy, setBusy] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -69,6 +73,18 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     [token, transport],
   );
 
+  /** Tells the session record what this device did (once per kind and detail), so failures can be diagnosed. */
+  const reported = useRef(new Set<string>());
+  const report = useCallback(
+    (kind: string, detail?: string) => {
+      const key = `${kind}|${detail ?? ""}`;
+      if (reported.current.has(key) || !transport) return;
+      reported.current.add(key);
+      void transport.customerCommand(token, { type: "client.report", kind, ...(detail ? { detail: detail.slice(0, 300) } : {}) }).catch(() => undefined);
+    },
+    [token, transport],
+  );
+
   /** Mutes the microphone for the assistant and the live call alike (same track). */
   const toggleMic = () => {
     cam.toggleMic();
@@ -76,7 +92,12 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
   };
 
   // --- Voice ----------------------------------------------------------------
-  const speaker = useSpeaker(soundOn && phase === "live" && !ended);
+  const speaker = useSpeaker(soundOn && phase === "live" && !ended, (outcome, why) =>
+    report(outcome === "played" ? "voice_played" : outcome === "blocked" ? "voice_blocked" : "voice_failed", outcome === "browser" ? "voice service off" : why),
+  );
+  useEffect(() => {
+    if (phase === "live") report("device", typeof navigator === "undefined" ? undefined : navigator.userAgent);
+  }, [phase, report]);
   // The first tap anywhere unlocks audio for the rest of the session (iOS and Android refuse sound before a tap).
   const unlockVoice = speaker.unlock;
   useEffect(() => {
@@ -126,7 +147,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     async (clip) => (transport ? transport.transcribe(token, clip) : { ok: false, status: 0, error: "Not connected" }),
     [token, transport],
   );
-  const recorder = useRecorderListener({ active: canListen && recogniser === "server", stream: cam.stream, transcribe });
+  const recorder = useRecorderListener({ active: canListen && recogniser === "server", stream: cam.stream ?? voiceStream, transcribe });
   const voiceInput = recogniser === "server" || (recogniser === "browser" && listener.supported);
 
   // --- Session start -------------------------------------------------------
@@ -172,10 +193,21 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
 
   // --- Media gateway: stability-gated evidence capture ---------------------
   const req = view.evidenceRequest;
+  const turnCameraOff = cam.turnOff;
+  /** The camera only ever gives a black picture: carry on by description instead of failing three times. */
+  const onBlackCamera = useCallback(() => {
+    setNotice("We can't get a picture from your camera, so let's carry on without it. Just tell me what you see.");
+    turnCameraOff();
+    void send({ type: "media.update", media: { camera: false } });
+  }, [turnCameraOff, send]);
   const doCapture = useCallback(
     async (manual: boolean) => {
       const src = sourceRef.current;
       if (!req || !isSourceReady(src) || capturedFor.current === req.id) return;
+      if (cam.mode === "camera" && isBlackFrame(src)) {
+        setCapture({ state: "error", message: "Your camera is showing a black picture. Check nothing is covering the camera." });
+        return;
+      }
       capturedFor.current = req.id;
       const frame = captureFrame(src);
       if (!frame) return;
@@ -190,7 +222,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
         setCapture({ state: "error", message: "That didn't send — trying again" });
       } else setCapture({ state: "idle" });
     },
-    [req, token, transport],
+    [req, token, transport, cam.mode],
   );
 
   useEffect(() => {
@@ -203,9 +235,26 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     meterRef.current.reset();
     const started = Date.now();
     let stable = 0;
+    let blackFor = 0;
     const timer = setInterval(() => {
       const src = sourceRef.current;
       if (!isSourceReady(src) || capturedFor.current === req.id) return;
+      // A black picture is perfectly "steady", but useless: never send it.
+      if (cam.mode === "camera" && isBlackFrame(src)) {
+        blackFor += 200;
+        if (blackFor === 1000) {
+          report("camera_black", `${(src as HTMLVideoElement).videoWidth}x${(src as HTMLVideoElement).videoHeight}`);
+          void (src as HTMLVideoElement).play?.().catch(() => undefined);
+        }
+        setCapture({ state: "error", message: "Your camera is showing a black picture. Check nothing is covering the camera." });
+        if (blackFor >= BLACK_GIVE_UP_MS) {
+          clearInterval(timer);
+          onBlackCamera();
+        }
+        return;
+      }
+      if (blackFor > 0) report("camera_recovered");
+      blackFor = 0;
       const diff = meterRef.current!.sample(src);
       const elapsed = Date.now() - started;
       if (elapsed < SETTLE_MS) {
@@ -220,22 +269,49 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
       }
     }, 200);
     return () => clearInterval(timer);
-  }, [req, cam.mode, phase, doCapture]);
+  }, [req, cam.mode, phase, doCapture, report, onBlackCamera]);
 
   // --- Live video with the human agent (WebRTC) -----------------------------
   // Runs only while an agent is with the customer, after consent, camera on.
   // The demo camera is a canvas, so its captured stream is sent instead.
   const [demoStream, setDemoStream] = useState<MediaStream | null>(null);
   useEffect(() => () => demoStream?.getTracks().forEach((t) => t.stop()), [demoStream]);
+  // Camera off: the call with the agent is a voice call, on a microphone-only stream.
+  const wantVoiceCall = view.liveVideo && phase === "live" && cam.mode === "none" && !ended;
+  useEffect(() => {
+    if (!wantVoiceCall || !navigator.mediaDevices?.getUserMedia) return;
+    let stream: MediaStream | null = null;
+    let cancelled = false;
+    void navigator.mediaDevices
+      .getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false })
+      .then((s) => {
+        if (cancelled) return s.getTracks().forEach((t) => t.stop());
+        stream = s;
+        setVoiceStream(s);
+      })
+      .catch((e: Error) => report("call_failed", `microphone: ${e.name}`));
+    return () => {
+      cancelled = true;
+      stream?.getTracks().forEach((t) => t.stop());
+      setVoiceStream(null);
+    };
+  }, [wantVoiceCall, report]);
   const call = useLiveCall({
     role: "customer",
     sessionId: view.sessionId,
     keyId: token,
     transport,
-    eligible: view.liveVideo && phase === "live" && cam.mode !== "none" && !ended,
-    localStream: cam.mode === "camera" ? cam.stream : cam.mode === "demo" ? demoStream : null,
+    eligible: view.liveVideo && phase === "live" && !ended && (cam.mode !== "none" || Boolean(voiceStream)),
+    localStream: cam.mode === "camera" ? cam.stream : cam.mode === "demo" ? demoStream : voiceStream,
   });
   const callLive = call.state.phase === "live";
+  const callPhase = call.state.phase;
+  const callReason = call.state.reason;
+  useEffect(() => {
+    if (callPhase === "connecting") report("call_connecting");
+    else if (callPhase === "live") report("call_live", cam.mode === "none" ? "voice only" : "video and voice");
+    else if (callPhase === "fallback") report("call_failed", callReason);
+  }, [callPhase, callReason, report, cam.mode]);
 
   // --- Low-rate preview relay while a human is present ---------------------
   // Fallback for live video: paused while the WebRTC call is live.
@@ -383,7 +459,8 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
         {callLive ? (
           <div className="mt-2 flex items-center gap-2">
             <p role="status" className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px]">
-              <span className="size-1.5 rounded-full bg-[#e5484d] va-pulse" aria-hidden /> Agent can see your camera
+              <span className="size-1.5 rounded-full bg-[#e5484d] va-pulse" aria-hidden />{" "}
+              {cam.mode === "none" ? `On a call with ${view.humanName ?? "the support team"}: just talk` : "Agent can see your camera"}
               <span className="text-white/60">· not recorded</span>
             </p>
             {cam.mode === "camera" && (

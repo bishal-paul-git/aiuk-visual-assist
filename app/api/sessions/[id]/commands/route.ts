@@ -1,4 +1,5 @@
 import { getRuntime } from "@/lib/server/runtime";
+import { CLIENT_REPORT_KINDS, type ClientReportKind } from "@/lib/session/orchestrator";
 import { jsonError, readJson, str } from "@/lib/server/http";
 import { commandPermission } from "@/lib/auth/rbac";
 import { actorFor } from "@/lib/server/auth";
@@ -49,6 +50,11 @@ function parse(body: Record<string, unknown>): Command | string {
       const resumeStep = c.resumeStep === undefined ? undefined : str(c.resumeStep, 80);
       if (resumeStep === null) return "Invalid step";
       return { type: c.type, resumeStep };
+    }
+    case "client.report": {
+      const kind = str(c.kind, 40);
+      if (!kind || !(CLIENT_REPORT_KINDS as readonly string[]).includes(kind)) return "Unknown report";
+      return { type: c.type, kind: kind as ClientReportKind, detail: str(c.detail, 300) ?? undefined };
     }
     case "session.end": {
       const outcome = c.outcome as SessionOutcome | undefined;

@@ -1,4 +1,5 @@
 import { resolveCustomer } from "@/lib/server/customer";
+import { CLIENT_REPORT_KINDS, type ClientReportKind } from "@/lib/session/orchestrator";
 import { jsonError, readJson, str } from "@/lib/server/http";
 import type { Command } from "@/lib/session/orchestrator";
 import { requestLogger } from "@/lib/server/log";
@@ -29,6 +30,11 @@ function parse(c: Record<string, unknown>): Command | string {
     }
     case "session.end":
       return { type: c.type, reason: "Customer ended the session" };
+    case "client.report": {
+      const kind = str(c.kind, 40);
+      if (!kind || !(CLIENT_REPORT_KINDS as readonly string[]).includes(kind)) return "Unknown report";
+      return { type: c.type, kind: kind as ClientReportKind, detail: str(c.detail, 300) ?? undefined };
+    }
     default:
       return "Command not permitted";
   }

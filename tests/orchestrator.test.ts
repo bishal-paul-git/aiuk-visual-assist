@@ -196,3 +196,19 @@ describe("audit and lifecycle", () => {
     expect(h.state.workflow.history).toEqual([]);
   });
 });
+
+describe("device reports", () => {
+  it("records what a device did, from the customer or the agent, without changing the session", () => {
+    const h = routerHarness("wan_down");
+    h.runCustomer({ maxTurns: 2 });
+    const step = h.state.workflow.currentStep;
+    expect(h.send({ type: "client.report", kind: "camera_black", detail: "540x960" })).toBeUndefined();
+    expect(h.send({ type: "client.report", kind: "call_failed", detail: "agent side: ice_failed" }, AGENT)).toBeUndefined();
+    const reports = h.state.audit.filter((a) => a.eventType === "client.report").map((a) => a.payload);
+    expect(reports).toEqual([
+      { from: "customer", kind: "camera_black", detail: "540x960" },
+      { from: "human_agent", kind: "call_failed", detail: "agent side: ice_failed" },
+    ]);
+    expect(h.state.workflow.currentStep).toBe(step);
+  });
+});

@@ -529,6 +529,7 @@ export type DomainEventType =
   | "session.completed"
   | "session.failed"
   | "session.consent_recorded"
+  | "client.report"
   | "media.camera_enabled"
   | "media.camera_disabled"
   | "media.microphone_enabled"

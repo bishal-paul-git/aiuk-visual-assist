@@ -142,7 +142,7 @@ export function TestSessionLauncher({
                   />
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
-                      <Sparkles className="size-3.5 text-brand" aria-hidden /> Live AI{live?.model ? ` · ${live.model}` : ""}
+                      <Sparkles className="size-3.5 text-brand" aria-hidden /> Live AI
                     </span>
                     <span className="block text-xs text-muted">
                       {live === undefined
