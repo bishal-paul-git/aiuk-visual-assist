@@ -137,6 +137,9 @@ export const policies: Policy[] = (gp.__aiukPolicies ??= [
  * reader see the same list, including across dev hot reloads.
  */
 const g = globalThis as unknown as { __aiukWorkflows?: WorkflowDefinition[] };
+/** The workflows shipped in the code, untouched by any platform edit. */
+export const BUILT_IN_WORKFLOWS: readonly WorkflowDefinition[] = [routerTroubleshootingV3, routerTroubleshootingV2, boilerFaultV1, homeDamageV1];
+
 export const workflows: WorkflowDefinition[] = (g.__aiukWorkflows ??= [
   structuredClone(routerTroubleshootingV3),
   structuredClone(routerTroubleshootingV2),

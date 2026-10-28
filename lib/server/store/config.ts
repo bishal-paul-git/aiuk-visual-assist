@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { policies, workflows } from "@/lib/config/catalog";
+import { BUILT_IN_WORKFLOWS, policies, workflows } from "@/lib/config/catalog";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { getPolicyRegistry } from "@/lib/policy/registry";
 import type { AuditEvent, Policy, WorkflowDefinition } from "@/lib/domain/types";
@@ -41,13 +41,36 @@ function applyConfig(saved: ConfigFile | undefined): boolean {
   const wfReg = getWorkflowRegistry();
   const polReg = getPolicyRegistry();
   // Replace in place: every reader holds a reference to these arrays.
-  workflows.splice(0, workflows.length, ...saved.workflows);
+  workflows.splice(0, workflows.length, ...refreshBuiltIns(saved.workflows, saved.workflowAudit ?? [], [...BUILT_IN_WORKFLOWS]));
   policies.splice(0, policies.length, ...saved.policies);
   wfReg.audit.splice(0, wfReg.audit.length, ...(saved.workflowAudit ?? []));
   polReg.audit.splice(0, polReg.audit.length, ...(saved.policyAudit ?? []));
   if (saved.connectors) getConnectorRegistry().setStored(saved.connectors);
   if (saved.secrets) getSecretVault().load(saved.secrets);
   return true;
+}
+
+/**
+ * A built-in workflow (shipped in the code) that nobody has changed on the
+ * platform is taken from the code, not from the saved copy, so improvements
+ * to its steps, reading guides, approved answers and training notes reach the
+ * live server on the next deploy. Anything created or changed on the platform
+ * (it has config audit events) is kept exactly as saved. Built-ins missing
+ * from the saved config are added.
+ */
+export function refreshBuiltIns(saved: WorkflowDefinition[], audit: AuditEvent[], builtIns: WorkflowDefinition[]): WorkflowDefinition[] {
+  const touched = new Set(audit.map((a) => (a.payload as { workflowId?: string } | undefined)?.workflowId).filter(Boolean));
+  const fromCode = new Map(builtIns.map((w) => [w.id, w]));
+  const out = saved.map((w) => {
+    const code = fromCode.get(w.id);
+    if (!code || touched.has(w.id)) return w;
+    return structuredClone(code);
+  });
+  const ids = new Set(out.map((w) => w.id));
+  for (const w of builtIns) if (!ids.has(w.id)) out.push(structuredClone(w));
+  const refreshed = saved.filter((w) => fromCode.has(w.id) && !touched.has(w.id)).map((w) => w.id);
+  if (refreshed.length) log.info("config.builtin_workflows_refreshed", { workflows: refreshed });
+  return out;
 }
 
 function currentConfig(): ConfigFile {

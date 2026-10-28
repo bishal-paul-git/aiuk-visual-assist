@@ -54,3 +54,23 @@ describe("configuration store", () => {
     reg.setStored([]);
   });
 });
+
+describe("built-in workflows after a deploy", () => {
+  it("takes an unedited built-in from the code, keeps platform edits, adds missing built-ins", async () => {
+    const { refreshBuiltIns } = await import("@/lib/server/store/config");
+    const { BUILT_IN_WORKFLOWS } = await import("@/lib/config/catalog");
+    const router = BUILT_IN_WORKFLOWS.find((w) => w.id === "wf_router_v3")!;
+    const boiler = BUILT_IN_WORKFLOWS.find((w) => w.id === "wf_boiler_v1")!;
+    const staleRouter = { ...structuredClone(router), knowledge: undefined, aiNotes: ["old note"] };
+    const editedBoiler = { ...structuredClone(boiler), objective: "Edited on the platform" };
+    const custom = { ...structuredClone(boiler), id: "wf_custom_v1", key: "custom" };
+    const audit = [{ payload: { workflowId: "wf_boiler_v1" } }, { payload: { workflowId: "wf_custom_v1" } }] as never[];
+    const out = refreshBuiltIns([staleRouter, editedBoiler, custom], audit, [...BUILT_IN_WORKFLOWS]);
+    const byId = new Map(out.map((w) => [w.id, w]));
+    expect(byId.get("wf_router_v3")!.knowledge?.length).toBeGreaterThan(0);
+    expect(byId.get("wf_router_v3")!.aiNotes).toEqual(router.aiNotes);
+    expect(byId.get("wf_boiler_v1")!.objective).toBe("Edited on the platform");
+    expect(byId.has("wf_custom_v1")).toBe(true);
+    expect(byId.has("wf_router_v2")).toBe(true);
+  });
+});
