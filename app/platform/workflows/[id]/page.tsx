@@ -114,6 +114,19 @@ export default async function WorkflowDetailPage({ params }: Props) {
                 ))}
               </ul>
             </div>
+            {def.knowledge && def.knowledge.length > 0 && (
+              <div>
+                <FieldLabel>Approved answers the AI may give</FieldLabel>
+                <dl className="mt-1.5 space-y-1.5 text-[13px] text-ink-2">
+                  {def.knowledge.map((k) => (
+                    <div key={k.question}>
+                      <dt className="font-medium text-ink">{k.question}</dt>
+                      <dd>{k.answer}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
             {def.aiNotes && def.aiNotes.length > 0 && (
               <div>
                 <FieldLabel>AI training notes</FieldLabel>

@@ -59,7 +59,8 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
   }
 
   async interpretUtterance(input: UtteranceInput): Promise<UtteranceInterpretation> {
-    const intents = [...new Set([...input.expectedIntents, "wait", "human_request", "unknown"])];
+    const knowledge = input.workflow.knowledge ?? [];
+    const intents = [...new Set([...input.expectedIntents, "wait", "human_request", ...(knowledge.length ? ["question"] : []), "unknown"])];
     const recent = input.state.transcript
       .slice(-10)
       .map((t) => `${t.speaker === "customer" ? "Customer" : t.speaker === "ai" ? "Assistant" : t.speakerName}: ${t.text}`)
@@ -73,7 +74,10 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
       `Recent conversation:\n${recent}`,
       `Customer's latest message: "${input.utterance.text}"`,
       'If the intent is "broadband_issue" or the customer describes their problem, set customer_issue to a short neutral summary of the problem in their words; otherwise null.',
-      'Only if the intent is "unknown" or "wait", write a short, friendly spoken reply (max 2 sentences) that steers back to the current step. Otherwise reply is null.',
+      knowledge.length
+        ? `Approved answers (the only facts you may give the customer):\n${knowledge.map((k) => `- Q: ${k.question}\n  A: ${k.answer}`).join("\n")}`
+        : "",
+      'Only if the intent is "unknown", "wait" or "question", write a short, friendly spoken reply (max 2 sentences). For "question", answer from the approved answers only (if none fits, say a member of the team can help with that), then steer back to the current step. Otherwise reply is null.',
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -112,7 +116,7 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
         ? `Checkpoint: "${step.evidence?.checkpoint}" — ${step.evidence?.description}. Expected view: ${step.evidence?.view}.`
         : `An agent asked the customer: "${input.state.evidenceRequest?.prompt ?? "show the item"}".`,
       "Report one observation for each of these items, using only the allowed values:",
-      types.map((t) => `- ${t}: ${vocab[t].description}. Allowed values: ${vocab[t].values.join(", ")}`).join("\n"),
+      types.map((t) => `- ${t}: ${vocab[t].description}. Allowed values: ${vocab[t].values.join(", ")}${vocab[t].guide ? `\n  How to read it: ${vocab[t].guide}` : ""}`).join("\n"),
       [
         "Rules:",
         "- Describe only what is actually visible in this image. Never guess or infer from context.",
@@ -242,12 +246,13 @@ function describeIntents(intents: string[]): string {
   const meaning: Record<string, string> = {
     broadband_issue: "the customer describes a broadband, internet, Wi-Fi or router problem",
     out_of_scope: "a request this workflow does not cover (billing, contracts, moving home, other products)",
-    done: "the customer has completed the requested step",
-    affirm: "yes / it works / confirmation",
-    negate: "no / still not working",
-    cannot: "the customer is unable to do the requested step",
+    done: "the customer has completed the requested step (\"done\", \"ok I've done it\", \"it's back on\", \"plugged it in\")",
+    affirm: "yes / it works / confirmation (\"yes\", \"yeah it's loading\", \"sorted\")",
+    negate: "no / still not working (\"no\", \"still nothing\", \"same as before\")",
+    cannot: "the customer is unable to do the requested step (\"I can't reach it\", \"I don't know where that is\", \"can't show\")",
     wait: "the customer needs more time",
-    human_request: "the customer asks for a person",
+    human_request: "the customer asks for a person, a human, an agent, someone real, or to speak to somebody",
+    question: "the customer asks a question (how long, why, what does it mean, is it safe) instead of answering or doing the step",
     no_camera: "the customer's camera is off, broken or they would rather not use it",
     internet_light_ok: "the customer says the internet (globe, WAN, broadband) light is green, white or blue and steady",
     internet_light_problem: "the customer says the internet light is orange, amber, yellow, red, flashing or off",
@@ -258,9 +263,9 @@ function describeIntents(intents: string[]): string {
 }
 
 /** Vocabulary for the step's required evidence, falling back to values used in its rules. */
-export function vocabularyFor(workflow: WorkflowDefinition, step: WorkflowStep | undefined): Record<string, { description: string; values: string[] }> {
+export function vocabularyFor(workflow: WorkflowDefinition, step: WorkflowStep | undefined): Record<string, { description: string; values: string[]; guide?: string }> {
   const types = step?.evidence?.observationTypes ?? Object.keys(workflow.observationVocabulary ?? {});
-  const out: Record<string, { description: string; values: string[] }> = {};
+  const out: Record<string, { description: string; values: string[]; guide?: string }> = {};
   for (const t of types) {
     const v = workflow.observationVocabulary?.[t];
     if (v) {

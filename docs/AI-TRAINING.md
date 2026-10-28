@@ -10,9 +10,13 @@ Each workflow has `aiNotes`: short plain statements about this client's equipmen
 - Write facts, not orders. The AI is already told to report only what is visible, so notes never make it guess.
 - Add a note when you see the same mistake twice in QA.
 
-## 2. The approved vocabulary (the AI can only answer in these terms)
+## 2. The approved vocabulary and reading guides (what it may report, and how to read it)
 
-`observationVocabulary` lists what the AI may report (for example `internet_light`: on, off, red, amber, flashing). Anything outside it is rejected and the customer goes to a person. To teach it a new thing to look for, add it to the vocabulary and a step that needs it.
+`observationVocabulary` lists what the AI may report (for example `internet_light`: on, off, red, amber, flashing). Anything outside it is rejected and the customer goes to a person. Each item has a `guide`: exactly how to read it from a photo (labels and symbols, what each value looks like, traps such as glare, LAN vs broadband ports, single-light hubs). The guide is sent with every photo. To teach it a new thing to look for, add it to the vocabulary with a guide, and a step that needs it.
+
+## 2b. Approved answers (what it may tell the customer)
+
+`knowledge` is a list of question-and-answer pairs (how long a restart takes, what an amber light means, is it safe, is the camera recorded…). When a customer asks a question mid-step, the AI answers only from these, in its own words, then steers back to the step. Anything not covered: "a member of the team can help with that". Shown to admins on the workflow page.
 
 ## 3. Measure it with real photos (the real "training data")
 

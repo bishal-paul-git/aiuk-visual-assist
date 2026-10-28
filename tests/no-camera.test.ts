@@ -90,3 +90,13 @@ describe("a person answering a customer who asked for help", () => {
     expect(h.state.session.ownerType).toBe("ai");
   });
 });
+
+describe("answering questions mid-step", () => {
+  it("answers from the approved answers and stays on the step", () => {
+    const h = start(false);
+    const step = h.state.workflow.currentStep;
+    h.send({ type: "customer.utterance", text: "Will restarting the router lose my settings?", confidence: 0.95 });
+    expect(h.state.workflow.currentStep).toBe(step);
+    expect(h.state.transcript.at(-1)!.text).toMatch(/keeps all your settings/);
+  });
+});

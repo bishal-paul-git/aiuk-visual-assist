@@ -189,7 +189,12 @@ export interface WorkflowDefinition {
    * Allowed normalised values per observation type. Model output is validated
    * against this so a reasoning provider can never invent a workflow branch.
    */
-  observationVocabulary?: Record<string, { description: string; values: string[] }>;
+  observationVocabulary?: Record<string, { description: string; values: string[]; /** How to read it reliably: what each value looks like, common traps. Given to the AI with every photo. */ guide?: string }>;
+  /**
+   * Approved answers to questions customers commonly ask mid-call. The AI may
+   * answer only from these (in its own words), then steer back to the step.
+   */
+  knowledge?: { question: string; answer: string }[];
   changeNote: string;
   publishedAt?: ISODateString;
   publishedBy?: string;

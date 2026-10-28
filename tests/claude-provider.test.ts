@@ -85,7 +85,7 @@ describe("Claude provider", () => {
       expectedIntents: ["broadband_issue", "out_of_scope"],
     });
     expect(r.intent).toBe("unknown");
-    expect(create.mock.calls[0][0].output_config.format.schema.properties.intent.enum).toEqual(["broadband_issue", "out_of_scope", "wait", "human_request", "unknown"]);
+    expect(create.mock.calls[0][0].output_config.format.schema.properties.intent.enum).toEqual(["broadband_issue", "out_of_scope", "wait", "human_request", "question", "unknown"]);
   });
 });
 
@@ -96,5 +96,24 @@ describe("sensitive content policy", () => {
     expect(h.state.escalation?.reason).toBe("safety_policy");
     expect(h.state.audit.some((a) => a.eventType === "policy.check" && a.payload.check === "sensitive_content")).toBe(true);
     expect(h.state.workflow.history.map((x) => x.stepKey)).not.toContain("inspect_lights");
+  });
+});
+
+describe("Claude provider: training content", () => {
+  it("sends the reading guide with each photo and the approved answers with each message", async () => {
+    const h = routerHarness("wan_down");
+    h.runCustomer({ maxTurns: 1 });
+    const { client, create } = fakeClient({ intent: "question", customer_issue: null, reply: "About two to three minutes." });
+    const r = await new ClaudeReasoningProvider(client).interpretUtterance({
+      state: h.state,
+      utterance: { ...h.state.transcript[0], text: "how long will a restart take?" },
+      workflow: routerTroubleshootingV3,
+      step: getStep(routerTroubleshootingV3, "guide_power_cycle"),
+      expectedIntents: ["done", "affirm", "negate", "cannot"],
+    });
+    expect(r.intent).toBe("question");
+    const prompt = JSON.stringify(create.mock.calls[0][0].messages);
+    expect(prompt).toContain("How long does a restart take?");
+    expect(prompt).toContain("answer from the approved answers only");
   });
 });

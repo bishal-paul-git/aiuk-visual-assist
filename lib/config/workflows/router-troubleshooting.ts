@@ -27,7 +27,22 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     "Advice on mains electrical wiring or sockets",
     "Promising compensation, credits or engineer appointments",
   ],
+  knowledge: [
+    { question: "How long does a restart take?", answer: "After switching it back on, the router usually takes two to three minutes to connect. The internet light turning steady green or white means it's back." },
+    { question: "What does an orange, amber or red internet light mean?", answer: "It means the router is on but can't reach the internet, so the problem is the connection to the network rather than the Wi-Fi." },
+    { question: "Will restarting the router lose my settings?", answer: "No. Switching it off at the wall and back on keeps all your settings and your Wi-Fi password. Only a factory reset would clear them, and we don't do that." },
+    { question: "Should I press the reset button or pin-hole?", answer: "No, please don't. That wipes the router's settings. A normal restart at the wall is all we need." },
+    { question: "Is it safe to unplug things?", answer: "Yes. The router and its cables are low voltage and safe to unplug and plug back in. If a wall socket or plug looks damaged, scorched or wet, leave it alone and tell us." },
+    { question: "Where is the broadband cable?", answer: "At the back of the router, in the port marked Broadband, DSL, WAN or Internet. It's usually grey or green and goes to the phone or fibre socket on the wall." },
+    { question: "Is my camera being recorded?", answer: "No. Only the still pictures needed for each step are kept with your case, and a member of the team only sees your live camera if you ask for one." },
+    { question: "Why is the Wi-Fi light on but nothing works?", answer: "The Wi-Fi light only shows the router is broadcasting at home. The internet light shows whether it's connected to the network, so that's the one we check." },
+    { question: "Can I speak to a person?", answer: "Yes, any time. Just say so or tap Human help and someone from the team will join, seeing everything we've done so far." },
+  ],
   aiNotes: [
+    "Northline's own router is the Northline Hub 4: black, with four lights down the front labelled Power, Internet, WiFi and Voice, and ports on the back labelled Power, LAN 1, LAN 2 and Broadband (grey cable).",
+    "Customers often show a Wi-Fi extender, TV box or the wall socket by mistake. Report other_device for those rather than reading their lights.",
+    "Photos of LEDs are often affected by glare, a phone torch or a dark room. If a light's colour is washed out, report uncertain and ask for a closer view at an angle, not a guess.",
+    "Older customers may describe lights by position (\"the second light\") instead of name. On the Northline Hub 4 the second light from the top is Internet.",
     "Customers call the router light that shows the internet connection by many names (globe, WAN, broadband, internet). Treat them as the same light.",
     "A light that is lit but very faint in a bright room is usually on; only report off if the whole panel is dark.",
     "Amber or red on the internet light means the router has no connection to the provider; a steady white or green light means connected.",
@@ -41,12 +56,40 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
   startStep: "welcome",
   changeNote: "v3: adds rear-cable checkpoint before power cycle and a line test before escalation.",
   observationVocabulary: {
-    device_identified: { description: "What device is shown", values: ["router", "other_device"] },
-    power_light: { description: "Router power indicator", values: ["on", "off", "amber"] },
-    internet_light: { description: "Router internet/broadband indicator", values: ["on", "off", "red", "amber", "flashing"] },
-    wifi_light: { description: "Router Wi-Fi indicator", values: ["on", "off"] },
-    broadband_cable: { description: "Broadband/DSL/fibre cable seated in its port", values: ["connected", "disconnected"] },
-    power_cable: { description: "Power adapter seated in the router", values: ["connected", "disconnected"] },
+    device_identified: {
+      description: "What device is shown",
+      values: ["router", "other_device"],
+      guide:
+        "A router (also called a hub) is a box, usually white or black, with a row of small status lights or one status light on the front, and cable ports on the back. Report router for any broadband hub, including BT Smart Hub, Sky Hub, Virgin Hub, TalkTalk, Vodafone and Northline Hub 4. Report other_device for a TV box, Wi-Fi extender or booster plug, smart speaker, phone, laptop or games console. A separate small box on the wall (fibre ONT or master socket) is other_device.",
+    },
+    power_light: {
+      description: "Router power indicator",
+      values: ["on", "off", "amber"],
+      guide:
+        "Usually the first light, often with a power symbol. on = steadily lit (green, white or blue). amber = steady orange or yellow. off = no glow at all; if every light on the panel is dark, the power light is off. Do not confuse a reflection of room light on the plastic with a lit LED: a lit LED has a coloured glow around it.",
+    },
+    internet_light: {
+      description: "Router internet/broadband indicator",
+      values: ["on", "off", "red", "amber", "flashing"],
+      guide:
+        "May be labelled Internet, Broadband, WAN, DSL, a globe or an @ sign. on = steady green, white or blue. amber = steady orange or yellow. red = steady red. flashing = blinking in any colour (one photo cannot show blinking: only report flashing if the light looks half-lit or the customer said so; otherwise report the colour you see). off = not lit while other lights are lit. On hubs with a single status light (BT Smart Hub, many Virgin and Sky hubs), report that one light as the internet light: blue or white = on, orange or red = amber or red, purple or green flashing = flashing.",
+    },
+    wifi_light: {
+      description: "Router Wi-Fi indicator",
+      values: ["on", "off"],
+      guide: "Often a fan-shaped Wi-Fi symbol or the letters WLAN. Lit in any colour, steady or flickering, is on.",
+    },
+    broadband_cable: {
+      description: "Broadband/DSL/fibre cable seated in its port",
+      values: ["connected", "disconnected"],
+      guide:
+        "On the back, the port labelled Broadband, DSL, WAN, Internet or Fibre (often grey, green or a different colour from the yellow LAN ports). connected = a cable plug sits fully inside that port with no metal contacts showing. disconnected = the port is empty, or the plug is visibly pulled out or hanging. A cable only in a yellow LAN port does not count as the broadband cable. If you cannot see which port the cable is in, report uncertain.",
+    },
+    power_cable: {
+      description: "Power adapter seated in the router",
+      values: ["connected", "disconnected"],
+      guide: "The small round plug, usually beside the power button. connected = plug fully inserted. disconnected = socket empty or plug visibly out.",
+    },
   },
   publishedAt: "2026-09-02T09:12:00.000Z",
   publishedBy: "Priya Shah",

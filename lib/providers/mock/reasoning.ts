@@ -22,7 +22,20 @@ const PATTERNS: Record<string, RegExp> = {
   negate: /\b(no|nope|not|still|isn'?t|doesn'?t|didn'?t|nothing)\b/i,
   done: /\b(done|finished|did it|all done|restarted|ready|that'?s it|pushed|plugged|it'?s in|clicked|switched)\b/i,
   affirm: /\b(yes|yeah|yep|yup|working|works|sorted|perfect|great|correct|ok|okay|fine|loads|loading)\b/i,
+  question: /\?\s*$|^(how|why|what|where|when|is|will|should|can i|do i)\b/i,
 };
+
+/** The approved answer whose question shares the most words with what was asked. */
+export function bestAnswer(text: string, knowledge: { question: string; answer: string }[] = []): string | undefined {
+  const words = (s: string) => new Set(s.toLowerCase().match(/[a-z]{3,}/g) ?? []);
+  const asked = words(text);
+  let best: { score: number; answer: string } | undefined;
+  for (const k of knowledge) {
+    const score = [...words(k.question)].filter((w) => asked.has(w)).length;
+    if (score > (best?.score ?? 1)) best = { score, answer: k.answer };
+  }
+  return best?.answer;
+}
 
 /** Deterministic, step-aware intent classifier used by the simulated provider. */
 export function classifyUtterance(text: string, expectedIntents: string[]): string {
@@ -39,7 +52,7 @@ export function classifyUtterance(text: string, expectedIntents: string[]): stri
 }
 
 function rank(intent: string): number {
-  return ["out_of_scope", "no_camera", "power_light_off", "internet_light_problem", "internet_light_ok", "cannot", "negate", "broadband_issue", "done", "affirm"].indexOf(intent) + 1 || 99;
+  return ["question", "out_of_scope", "no_camera", "power_light_off", "internet_light_problem", "internet_light_ok", "cannot", "negate", "broadband_issue", "done", "affirm"].indexOf(intent) + 1 || 99;
 }
 
 export function isAfterIntervention(state: SessionState): boolean {
@@ -53,10 +66,14 @@ export function checkpointAttempt(state: SessionState, ve: VisualEvent): number 
 
 export function simulateUtterance(input: UtteranceInput): UtteranceInterpretation {
   const text = input.utterance.text;
-  const intent = classifyUtterance(text, input.expectedIntents);
+  const knowledge = input.workflow.knowledge ?? [];
+  const answer = knowledge.length && PATTERNS.question.test(text.trim()) ? bestAnswer(text, knowledge) : undefined;
+  const intent = answer ? "question" : classifyUtterance(text, input.expectedIntents);
   const issue = intent === "broadband_issue" ? summariseIssue(text) : undefined;
   let reply: string | undefined;
-  if (intent === "wait") {
+  if (answer) {
+    reply = `${answer} Shall we carry on?`;
+  } else if (intent === "wait") {
     reply = "No rush — take your time and let me know when you're ready.";
   } else if (intent === "unknown" && input.step) {
     reply =

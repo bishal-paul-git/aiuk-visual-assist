@@ -108,6 +108,13 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-10-30 — AI training content, positioning
+
+- AI: every item the AI reads from a photo now has a reading guide (labels and symbols, what each value looks like, glare, LAN vs broadband port, single-light hubs such as BT Smart Hub), sent with every photo.
+- AI: nine approved answers (restart time, what amber means, settings kept, don't press reset, safety, where the cable is, camera privacy, Wi-Fi vs internet light, speaking to a person). Customers can now ask a question mid-step and get a correct answer, then carry on.
+- AI: more training notes (Northline Hub 4 layout, devices shown by mistake, glare, lights described by position) and examples for each kind of answer.
+- New: `docs/POSITIONING.md`.
+
 ### 2026-10-30 — Tester feedback round: roles, alerts, sign-in
 
 - Fixed: the waiting-customer alert rang forever for an old request (from 26 Oct) and "Turn off" was not remembered. Now it only alerts for requests from the last 15 minutes, rings at most three reminders per customer, stops when hidden, and stays off once turned off.
