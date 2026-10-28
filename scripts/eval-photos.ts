@@ -16,6 +16,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { getWorkflow } from "@/lib/config/catalog";
+import type { EvidenceInterpretation, ReasoningProvider } from "@/lib/providers/types";
 import { ClaudeReasoningProvider, DEFAULT_MODEL } from "@/lib/providers/claude/reasoning";
 import type { Frame } from "@/lib/qa/evaluation";
 import { runPhotoEvaluation, type PhotoCaseResult } from "@/lib/qa/photo-eval";
@@ -43,6 +44,9 @@ Usage: npm run eval:photos -- --dir <folder> [options]
   --concurrency <N>       Photos analysed at once (default 3)
   --out <path>            Report path without extension (default <dir>/reports/photo-eval-<time>)
   --workflow <id>         Workflow to evaluate against (default wf_router_v3)
+  --remote <url>          Read each photo with a deployed server's live AI (its model, prompt and
+                          settings) instead of calling Claude here. Signs in as the QA reviewer;
+                          set STAFF_PASSWORD if the server asks for one. No API key needed here.
   --dry-run               Check the folder and labels only; no API key needed
   --print-header          Print the labels.csv header row for the workflow and exit
   -h, --help              Show this help
@@ -66,7 +70,12 @@ async function preparePhoto(bytes: Buffer, file: string, sharp: SharpFn | undefi
   }
   let quality = START_QUALITY;
   // rotate() applies the phone's EXIF orientation, so the model sees the photo upright as the camera preview did.
-  const encode = (q: number) => sharp(bytes).rotate().resize({ width: MAX_DIM, height: MAX_DIM, fit: "inside", withoutEnlargement: true }).jpeg({ quality: q }).toBuffer({ resolveWithObject: true });
+  const encode = (q: number) =>
+    sharp(bytes)
+      .rotate()
+      .resize({ width: MAX_DIM, height: MAX_DIM, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: q })
+      .toBuffer({ resolveWithObject: true });
   let out = await encode(quality);
   while (out.data.byteLength > MAX_BYTES && quality > 35) {
     quality -= 12;
@@ -121,6 +130,7 @@ async function main(): Promise<number> {
       concurrency: { type: "string" },
       out: { type: "string" },
       workflow: { type: "string" },
+      remote: { type: "string" },
       "dry-run": { type: "boolean", default: false },
       "print-header": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
@@ -178,7 +188,9 @@ async function main(): Promise<number> {
 
   console.error(`Workflow: ${workflow.name} v${workflow.version}`);
   console.error(`Folder:   ${dir}`);
-  console.error(`Photos:   ${files.length} image file(s); ${labels.length} valid labelled row(s); ${labels.filter((l) => l.found === false).length} labelled but not in the folder`);
+  console.error(
+    `Photos:   ${files.length} image file(s); ${labels.length} valid labelled row(s); ${labels.filter((l) => l.found === false).length} labelled but not in the folder`,
+  );
   if (issues.length) {
     console.error(`\nLabel check: ${errors.length} error(s), ${issues.length - errors.length} warning(s)`);
     printIssues(issues);
@@ -190,7 +202,9 @@ async function main(): Promise<number> {
   if (limit !== undefined) selected = selected.slice(0, limit);
 
   const sharp = await loadSharp();
-  const resize = sharp ? `resized to fit ${MAX_DIM}×${MAX_DIM} px, JPEG (as the app's camera capture)` : "sent as-is (sharp not installed, so photos are not resized like the app does)";
+  const resize = sharp
+    ? `resized to fit ${MAX_DIM}×${MAX_DIM} px, JPEG (as the app's camera capture)`
+    : "sent as-is (sharp not installed, so photos are not resized like the app does)";
 
   if (values["dry-run"]) {
     if (labels.length) {
@@ -218,7 +232,13 @@ async function main(): Promise<number> {
     }
     console.error(`\nImage preparation: ${resize}.`);
     const failed = errors.length > 0 || bad > 0;
-    console.error(failed ? "\nDry run FAILED: fix the errors above." : selected.length ? `\nDry run OK: ${selected.length} photo(s) would be sent to the model.` : "\nDry run OK: the labels are valid, but none of the labelled photos are in the folder yet, so nothing would be sent.");
+    console.error(
+      failed
+        ? "\nDry run FAILED: fix the errors above."
+        : selected.length
+          ? `\nDry run OK: ${selected.length} photo(s) would be sent to the model.`
+          : "\nDry run OK: the labels are valid, but none of the labelled photos are in the folder yet, so nothing would be sent.",
+    );
     return failed ? 1 : 0;
   }
 
@@ -231,11 +251,27 @@ async function main(): Promise<number> {
     return 1;
   }
   loadEnvFiles();
+  if (values.remote) {
+    const provider = await remoteProvider(values.remote.replace(/\/+$/, ""));
+    console.error(`\nSending ${selected.length} photo(s) to the live AI at ${values.remote} (${concurrency} at a time)…\n`);
+    return finish(
+      await runPhotoEvaluation(selected, {
+        provider,
+        workflow,
+        concurrency,
+        loadPhoto: async (l: PhotoLabel) => preparePhoto(await readFile(path.join(dir, l.file)), l.file, sharp),
+        onResult: (r, done, total) => console.error(progressLine(r, done, total)),
+      }),
+    );
+  }
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
     console.error("\nANTHROPIC_API_KEY is not set. Set it in your shell (or .env.local) and run again. Use --dry-run to check labels without a key.");
     return 2;
   }
-  if (!sharp) console.error("\nWarning: sharp is not installed, so photos are sent at full size instead of the app's 960 px frames. Results and cost may differ from live sessions.");
+  if (!sharp)
+    console.error(
+      "\nWarning: sharp is not installed, so photos are sent at full size instead of the app's 960 px frames. Results and cost may differ from live sessions.",
+    );
 
   const model = values.model || process.env.VISUAL_ASSIST_MODEL || DEFAULT_MODEL;
   const provider = new ClaudeReasoningProvider(new Anthropic({ maxRetries: 3 }), { model, effort });
@@ -249,16 +285,67 @@ async function main(): Promise<number> {
     onResult: (r, done, total) => console.error(progressLine(r, done, total)),
   });
 
-  const base = values.out ? path.resolve(values.out.replace(/\.(md|csv)$/i, "")) : path.join(dir, "reports", `photo-eval-${stamp(new Date())}`);
-  await mkdir(path.dirname(base), { recursive: true });
-  const ctx = { folder: dir, effort, checkpoint: values.checkpoint, skippedMissing, resize };
-  await writeFile(`${base}.md`, renderMarkdown(run, ctx));
-  await writeFile(`${base}.csv`, renderCsv(run));
+  return finish(run);
 
-  console.error("");
-  for (const l of summaryLines(run, ctx)) console.error(`• ${l.replace(/\*\*|^_|_$/g, "")}`);
-  console.error(`\nReport: ${base}.md\nDetail: ${base}.csv`);
-  return run.metrics.failed === run.metrics.photos ? 1 : 0;
+  async function finish(run: Awaited<ReturnType<typeof runPhotoEvaluation>>): Promise<number> {
+    const base = values.out ? path.resolve(values.out.replace(/\.(md|csv)$/i, "")) : path.join(dir, "reports", `photo-eval-${stamp(new Date())}`);
+    await mkdir(path.dirname(base), { recursive: true });
+    const ctx = { folder: dir, effort, checkpoint: values.checkpoint, skippedMissing, resize };
+    await writeFile(`${base}.md`, renderMarkdown(run, ctx));
+    await writeFile(`${base}.csv`, renderCsv(run));
+
+    console.error("");
+    for (const l of summaryLines(run, ctx)) console.error(`• ${l.replace(/\*\*|^_|_$/g, "")}`);
+    console.error(`\nReport: ${base}.md\nDetail: ${base}.csv`);
+    return run.metrics.failed === run.metrics.photos ? 1 : 0;
+  }
+}
+
+/** A provider that asks a deployed server's live AI to read each photo (POST /api/qa/photo-check). */
+async function remoteProvider(base: string): Promise<ReasoningProvider & { modelVersion?: string }> {
+  const res = await fetch(`${base}/api/auth/sign-in`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", origin: base },
+    body: JSON.stringify({ userId: "usr_nadia", password: process.env.STAFF_PASSWORD ?? "" }),
+  });
+  const cookie = res.headers.get("set-cookie")?.match(/va_session=[^;]+/)?.[0];
+  if (!res.ok || !cookie) throw new Error(`Could not sign in to ${base} as the QA reviewer (HTTP ${res.status}).`);
+  let model: string | undefined;
+  return {
+    id: "remote-live",
+    simulated: false,
+    get modelVersion() {
+      return model;
+    },
+    async interpretUtterance() {
+      throw new Error("Not used by the photo evaluation");
+    },
+    async interpretEvidence(input) {
+      const started = Date.now();
+      for (let attempt = 0; ; attempt++) {
+        const r = await fetch(`${base}/api/qa/photo-check`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", cookie, origin: base },
+          body: JSON.stringify({
+            workflowId: input.workflow.id,
+            stepKey: input.step?.key,
+            mime: input.frame!.mime,
+            data: Buffer.from(input.frame!.data).toString("base64"),
+          }),
+        });
+        const body = (await r.json().catch(() => ({}))) as EvidenceInterpretation & { error?: string };
+        if (r.ok) {
+          model = body.modelVersion;
+          return { ...body, latencyMs: body.latencyMs ?? Date.now() - started };
+        }
+        if (attempt < 2 && (r.status === 502 || r.status === 503 || r.status === 429)) {
+          await new Promise((ok) => setTimeout(ok, 3000 * (attempt + 1)));
+          continue;
+        }
+        throw new Error(body.error ?? `Photo check failed (HTTP ${r.status})`);
+      }
+    },
+  };
 }
 
 main().then(

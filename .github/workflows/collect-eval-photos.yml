@@ -1,0 +1,33 @@
+name: Collect router photos (Wikimedia Commons)
+
+# Downloads freely licensed router photos for the photo evaluation and
+# commits them, with attribution, to the eval-photos branch (never main).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [scripts/collect-commons-photos.mjs]
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download photos
+        run: node scripts/collect-commons-photos.mjs eval/router-photos/commons
+      - name: Commit to the eval-photos branch
+        run: |
+          git config user.name "photo-collector"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout -B eval-photos
+          git add -f eval/router-photos/commons
+          git commit -m "Router photos from Wikimedia Commons for evaluation (see ATTRIBUTION.csv)" || echo "nothing new"
+          git push -f origin eval-photos
