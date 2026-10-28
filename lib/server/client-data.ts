@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { AUTOMATED_CHECK_LABEL } from "@/lib/domain/labels";
 import { connection } from "next/server";
 import { getRuntime } from "./runtime";
 import { requirePageUser } from "./auth";
@@ -47,7 +48,8 @@ export const clientScope = cache(async (next: string, org?: string): Promise<Cli
     previewing: Boolean(user && isPlatformRole(user.role)),
     rt,
     states: () => rt.states({ tenantId: tenant.id }),
-    summaries: () => rt.summaries({ tenantId: tenant.id }),
+    // The automated production check's own test conversations are not the client's.
+    summaries: () => rt.summaries({ tenantId: tenant.id }).filter((s) => s.customerLabel !== AUTOMATED_CHECK_LABEL),
     allows: (permission) => (user ? can(user, permission, { tenantId: tenant.id }) : true),
   };
 });

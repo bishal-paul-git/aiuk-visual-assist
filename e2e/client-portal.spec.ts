@@ -11,7 +11,7 @@ test.use({
 
 async function logIn(page: import("@playwright/test").Page) {
   await page.goto("/client/sign-in/");
-  await expect(page.getByLabel("Email")).toHaveValue("demo@northline.example");
+  await expect(page.getByLabel("Email")).toHaveValue("demo@xtelecom.example");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await expect(page).toHaveURL(/\/client\/?$/);
   await expect(page.getByRole("heading", { name: "Try Visual Assist" })).toBeVisible();

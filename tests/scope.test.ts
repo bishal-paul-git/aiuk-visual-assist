@@ -49,7 +49,7 @@ describe("data scope", () => {
 
   it("labels the scope for the header", () => {
     expect(scopeLabel(scopeFor(james))).toBe("All clients");
-    expect(scopeLabel(scopeFor(priya))).toBe("Northline Broadband");
+    expect(scopeLabel(scopeFor(priya))).toBe("X Telecom");
   });
 
   it("filters any tenant-owned rows", () => {

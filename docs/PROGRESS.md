@@ -108,6 +108,12 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-10-30 — Demo brand "X Telecom"; clean start; photo evaluation
+
+- The demo client is now called **X Telecom** everywhere testers look (portal, customer screen, AI's greeting, router name "X Telecom Hub 4"). The trial login is demo@xtelecom.example (internal id unchanged).
+- All earlier test conversations were deleted, so the portal starts empty. The production check's own test conversations are labelled and hidden from the client portal.
+- Photo evaluation: real router photos are collected from Wikimedia Commons (freely licensed, attributed) on the `eval-photos` branch and read by the live AI through `/api/qa/photo-check`.
+
 ### 2026-10-30 — Verified on the live server; stale-workflow fix
 
 - Found: the live server was running a copy of the workflows saved in the database on 25 Oct, so the camera-free route, approved answers, reading guides and training notes never reached it. Fixed: built-in workflows nobody has edited on the platform now always come from the code.

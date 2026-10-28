@@ -32,9 +32,20 @@ const TERMS = [
 ];
 const UA = "VisualAssistPhotoEval/1.0 (evaluation of a support assistant; contact via GitHub bishal-paul-git/aiuk-visual-assist)";
 
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+/** GET with polite retries: Commons answers 429 when asked too fast. */
+async function get(url) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const r = await fetch(url, { headers: { "User-Agent": UA } });
+    if (r.status !== 429 && r.status < 500) return r;
+    await sleep(Number(r.headers.get("retry-after")) * 1000 || 5000 * (attempt + 1));
+  }
+  throw new Error(`Gave up on ${url}`);
+}
+
 async function api(params) {
-  const url = `https://commons.wikimedia.org/w/api.php?${new URLSearchParams({ format: "json", origin: "*", ...params })}`;
-  const r = await fetch(url, { headers: { "User-Agent": UA } });
+  const r = await get(`https://commons.wikimedia.org/w/api.php?${new URLSearchParams({ format: "json", origin: "*", ...params })}`);
   if (!r.ok) throw new Error(`Commons API ${r.status}`);
   return r.json();
 }
@@ -44,7 +55,9 @@ const seen = new Set();
 const rows = [["file", "search", "title", "author", "licence", "source"]];
 let n = 0;
 for (const term of TERMS) {
-  const res = await api({
+  let res;
+  try {
+    res = await api({
     action: "query",
     generator: "search",
     gsrsearch: `${term} filetype:bitmap`,
@@ -53,7 +66,11 @@ for (const term of TERMS) {
     prop: "imageinfo",
     iiprop: "url|mime|extmetadata|size",
     iiurlwidth: "1280",
-  });
+    });
+  } catch (e) {
+    console.log(`${term}: skipped (${e.message})`);
+    continue;
+  }
   const pages = Object.values(res.query?.pages ?? {});
   let taken = 0;
   for (const p of pages) {
@@ -63,8 +80,8 @@ for (const term of TERMS) {
     const meta = info.extmetadata ?? {};
     const licence = meta.LicenseShortName?.value ?? "";
     if (!/CC|Public domain|PD|GFDL/i.test(licence)) continue;
-    const r = await fetch(info.thumburl ?? info.url, { headers: { "User-Agent": UA } });
-    if (!r.ok) continue;
+    const r = await get(info.thumburl ?? info.url).catch(() => null);
+    if (!r?.ok) continue;
     const buf = Buffer.from(await r.arrayBuffer());
     n += 1;
     const file = `c${String(n).padStart(3, "0")}.${info.mime === "image/png" ? "png" : "jpg"}`;
@@ -73,7 +90,7 @@ for (const term of TERMS) {
     taken += 1;
     const author = (meta.Artist?.value ?? "").replace(/<[^>]+>/g, "").trim();
     rows.push([file, term, p.title, author, licence, info.descriptionurl ?? ""]);
-    await new Promise((ok) => setTimeout(ok, 300));
+    await sleep(1200);
   }
   console.log(`${term}: ${taken}`);
 }

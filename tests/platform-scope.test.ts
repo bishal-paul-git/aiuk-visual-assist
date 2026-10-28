@@ -47,7 +47,7 @@ describe("platformScope", () => {
     signIn("usr_priya");
     const p = await platformScope();
     expect(p.tenantId).toBe("tnt_northline");
-    expect(p.label).toBe("Northline Broadband");
+    expect(p.label).toBe("X Telecom");
     expect(p.allClients).toBe(false);
     expect(p.summaries().every((s) => s.tenantId === "tnt_northline")).toBe(true);
 

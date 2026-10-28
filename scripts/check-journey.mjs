@@ -16,7 +16,7 @@ if (!base) {
   console.error("Usage: npm run check:journey -- https://your-server.example");
   process.exit(2);
 }
-const email = process.env.TRIAL_LOGIN_EMAIL ?? "demo@northline.example";
+const email = process.env.TRIAL_LOGIN_EMAIL ?? "demo@xtelecom.example";
 const password = process.env.TRIAL_LOGIN_PASSWORD ?? "VisualAssist-Trial";
 
 const results = [];
@@ -70,6 +70,8 @@ try {
     tenantId: "tnt_northline",
     scenario: live ? "live" : "wan_down",
     channel: "secure_link",
+    // Must match AUTOMATED_CHECK_LABEL (lib/domain/labels.ts): hidden from the client portal.
+    customerLabel: "Automated production check",
   });
   if (created.status !== 200 && created.status !== 201) throw new Error(`Could not start a conversation (HTTP ${created.status}: ${created.body?.error ?? ""})`);
   ({ id, token } = created.body);

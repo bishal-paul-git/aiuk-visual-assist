@@ -162,7 +162,7 @@ export function scenarioObservations(sc: ScenarioDefinition, f: FrameContext): O
           {
             observationType: "device_identified",
             value: "router",
-            observationText: "Northline Hub 4 router identified (front panel)",
+            observationText: "X Telecom Hub 4 router identified (front panel)",
             confidence: 0.92,
             status: "confirmed_visible",
             requiresConfirmation: false,
@@ -193,7 +193,7 @@ export function scenarioObservations(sc: ScenarioDefinition, f: FrameContext): O
         {
           observationType: "device_identified",
           value: "router",
-          observationText: "Northline Hub 4 router identified (front panel)",
+          observationText: "X Telecom Hub 4 router identified (front panel)",
           confidence: 0.94,
           status: "confirmed_visible",
           requiresConfirmation: false,

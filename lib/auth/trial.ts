@@ -10,7 +10,7 @@
  */
 
 export const TRIAL_USER_ID = "usr_demo";
-export const DEFAULT_TRIAL_EMAIL = "demo@northline.example";
+export const DEFAULT_TRIAL_EMAIL = "demo@xtelecom.example";
 export const DEFAULT_TRIAL_PASSWORD = "VisualAssist-Trial";
 /** Sessions the trial account may start per day, on the whole server. Guards AI and SMS spend. */
 export const DEFAULT_TRIAL_MAX_SESSIONS_PER_DAY = 40;

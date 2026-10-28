@@ -135,7 +135,7 @@ function defaultClaims(nonce: string, extra: JWTPayload = {}): JWTPayload {
     nonce,
     tid: ENTRA_TID,
     name: "Robin Taylor",
-    email: "robin.taylor@northline.example",
+    email: "robin.taylor@xtelecom.example",
     roles: ["VisualAssist.Agent"],
     amr: ["pwd", "mfa"],
     ...extra,
@@ -172,7 +172,7 @@ describe("OIDC sign-in", () => {
     if (!r.ok) return;
     expect(r.subject).toBe(jitUserId(ISSUER, "entra-oid-abc"));
     const user = h.idp.resolveUser(r.subject);
-    expect(user).toMatchObject({ role: "agent", tenantId: "tnt_northline", name: "Robin Taylor", email: "robin.taylor@northline.example", status: "active" });
+    expect(user).toMatchObject({ role: "agent", tenantId: "tnt_northline", name: "Robin Taylor", email: "robin.taylor@xtelecom.example", status: "active" });
     expect(r.idToken).toMatch(/^ey/);
 
     // Token exchange: client_secret_basic, PKCE verifier, the same redirect URI.
@@ -187,7 +187,7 @@ describe("OIDC sign-in", () => {
 
   it("matches a catalog user by email and keeps their id", async () => {
     const h = harness();
-    const r = await h.signIn({ claims: (nonce) => defaultClaims(nonce, { email: "Tom.Hughes@northline.example", roles: ["VisualAssist.Supervisor"] }) });
+    const r = await h.signIn({ claims: (nonce) => defaultClaims(nonce, { email: "Tom.Hughes@xtelecom.example", roles: ["VisualAssist.Supervisor"] }) });
     expect(r.ok && r.subject).toBe("usr_tom");
     expect(h.idp.resolveUser("usr_tom")).toMatchObject({ role: "supervisor", tenantId: "tnt_northline", teamId: "team_nl_l1", name: "Tom Hughes" });
   });
@@ -265,14 +265,14 @@ describe("OIDC sign-in", () => {
   });
 
   it("denies a user whose roles do not map to an app role", async () => {
-    const r = await harness().signIn({ claims: (nonce) => defaultClaims(nonce, { roles: ["Finance.Reader"], email: "someone@northline.example" }) });
+    const r = await harness().signIn({ claims: (nonce) => defaultClaims(nonce, { roles: ["Finance.Reader"], email: "someone@xtelecom.example" }) });
     expect(r).toMatchObject({ ok: false, code: "no_role" });
     expect(!r.ok && r.reason).toMatch(/Finance\.Reader/);
     expect(oidcDirectory().size).toBe(0);
   });
 
   it("denies a user with no role claim at all", async () => {
-    const r = await harness().signIn({ claims: (nonce) => defaultClaims(nonce, { roles: undefined, email: "someone@northline.example" }) });
+    const r = await harness().signIn({ claims: (nonce) => defaultClaims(nonce, { roles: undefined, email: "someone@xtelecom.example" }) });
     expect(r).toMatchObject({ ok: false, code: "no_role" });
   });
 
@@ -360,7 +360,7 @@ describe("OIDC claim mapping", () => {
   });
 
   it("falls back to the matched catalog user's role and tenant", () => {
-    const r = mapClaimsToUser({ sub: "x", email: "priya.shah@northline.example" }, config({ tenantClaim: undefined }));
+    const r = mapClaimsToUser({ sub: "x", email: "priya.shah@xtelecom.example" }, config({ tenantClaim: undefined }));
     expect(r).toMatchObject({
       ok: true,
       source: "catalog",
@@ -371,14 +371,14 @@ describe("OIDC claim mapping", () => {
   });
 
   it("lets IdP role claims override the catalog role", () => {
-    const r = mapClaimsToUser({ sub: "x", email: "sarah.jennings@northline.example", roles: ["VisualAssist.Supervisor"], tid: ENTRA_TID }, config());
+    const r = mapClaimsToUser({ sub: "x", email: "sarah.jennings@xtelecom.example", roles: ["VisualAssist.Supervisor"], tid: ENTRA_TID }, config());
     expect(r).toMatchObject({ ok: true, user: { id: "usr_sarah", role: "supervisor" } });
   });
 
   it("refuses inactive catalog users and does not match unverified emails", () => {
     expect(mapClaimsToUser({ sub: "x", email: "lena.morris@brightwater.example" }, config())).toMatchObject({ ok: false, code: "inactive" });
     // Unverified email: no catalog match, so no catalog role to fall back on.
-    expect(mapClaimsToUser({ sub: "x", email: "priya.shah@northline.example", email_verified: false }, config())).toMatchObject({ ok: false, code: "no_role" });
+    expect(mapClaimsToUser({ sub: "x", email: "priya.shah@xtelecom.example", email_verified: false }, config())).toMatchObject({ ok: false, code: "no_role" });
   });
 });
 

@@ -116,7 +116,7 @@ export function renderRouterSvg(scene: RouterScene, outWidth = 640, outHeight = 
       <g transform="translate(${close ? 40 : 195} ${close ? 60 : 40})">
         <rect x="0" y="30" width="250" height="330" rx="26" fill="url(#body)"/>
         <rect x="10" y="40" width="40" height="310" rx="18" fill="#FFFFFF" opacity="0.04"/>
-        <text x="40" y="150" font-family="Helvetica, Arial" font-size="40" font-weight="700" fill="#2E343D" transform="rotate(-8 40 150)">north</text>
+        <text x="40" y="150" font-family="Helvetica, Arial" font-size="40" font-weight="700" fill="#2E343D" transform="rotate(-8 40 150)">xtel</text>
         ${lights}
       </g>
     </g>`;

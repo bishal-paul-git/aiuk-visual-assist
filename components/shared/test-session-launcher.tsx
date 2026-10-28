@@ -24,7 +24,7 @@ export function TestSessionLauncher({
   variant = "primary",
   tenantId = "tnt_northline",
   workflowKey = "router-troubleshooting",
-  workflowName = "Northline · Router Troubleshooting",
+  workflowName = "X Telecom · Router Troubleshooting",
   liveOnly = false,
 }: {
   variant?: "primary" | "navy";

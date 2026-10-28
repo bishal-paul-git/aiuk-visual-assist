@@ -17,7 +17,7 @@ async function logInAsTrialTester(page: Page) {
   await page.getByRole("link", { name: "Try it now" }).first().click();
   await page.waitForURL(/\/client\/sign-in/);
   // Already filled in: the tester only clicks Log in.
-  await expect(page.getByLabel("Email")).toHaveValue("demo@northline.example");
+  await expect(page.getByLabel("Email")).toHaveValue("demo@xtelecom.example");
   await expect(page.getByLabel("Password")).not.toHaveValue("");
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/client");
@@ -231,7 +231,7 @@ test.describe("server edition: client portal access", () => {
     await page.getByRole("button", { name: /James Carter/ }).click();
     await page.waitForURL((u) => u.pathname === "/client");
     await expect(page.getByTestId("portal-preview")).toBeVisible();
-    await expect(page.getByTestId("client-name")).toHaveText(/Northline/);
+    await expect(page.getByTestId("client-name")).toHaveText(/X Telecom/);
     await page.goto("/client?org=tnt_harbour");
     await expect(page.getByTestId("client-name")).toHaveText(/Harbour/);
     await expect(page.getByRole("link", { name: "Admin portal" })).toBeVisible();

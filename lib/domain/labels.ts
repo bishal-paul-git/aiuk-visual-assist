@@ -71,3 +71,6 @@ export function humanize(key: string): string {
 export function demoCustomerLabel(): string {
   return `Account ••${String(1000 + Math.floor(Math.random() * 9000))}`;
 }
+
+/** Customer label of the automated production check's test conversations (scripts/check-journey.mjs). */
+export const AUTOMATED_CHECK_LABEL = "Automated production check";

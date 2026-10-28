@@ -52,12 +52,12 @@ describe("transcript redaction in the orchestrator", () => {
     h.send({ type: "human.request_capture", prompt: "Show me the label with account number 12345678" }, AGENT);
     expect(h.state.evidenceRequest?.prompt).toBe(`Show me the label with account number ${M.account_number}`);
     expect(h.state.instruction.text).toBe(`Show me the label with account number ${M.account_number}`);
-    const customer = toCustomerView(h.state, { name: "Northline", color: "#000" }, "retained_evidence");
+    const customer = toCustomerView(h.state, { name: "X Telecom", color: "#000" }, "retained_evidence");
     expect(JSON.stringify(customer)).not.toContain("sam@example.com");
     const agent = toAgentView(h.state, getWorkflow("wf_router_v3")!, {
       live: true,
       previewAvailable: false,
-      tenantName: "Northline",
+      tenantName: "X Telecom",
       allowedHumanTools: [],
       returnToAiAllowed: { allowed: false, reason: "test" },
       simulatedProvider: true,

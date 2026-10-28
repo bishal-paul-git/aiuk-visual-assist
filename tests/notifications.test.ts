@@ -130,7 +130,7 @@ describe("notification service", () => {
     ]);
     const smsBody = new URLSearchParams(fetchMock.mock.calls.find((c) => String(c[0]).includes("twilio"))![1].body).get("Body")!;
     expect(smsBody).toContain(link);
-    expect(smsBody).toContain("Northline");
+    expect(smsBody).toContain("X Telecom");
 
     const state = rt.snapshot(id)!.state;
     expect(state.seq).toBe(seq + 2);

@@ -11,10 +11,10 @@ import { boilerFaultV1, homeDamageV1, routerTroubleshootingV2 } from "./workflow
 export const tenants: Tenant[] = [
   {
     id: "tnt_northline",
-    name: "Northline Broadband",
+    name: "X Telecom",
     sector: "telecommunications",
     status: "active",
-    brand: { displayName: "Northline", primaryColor: "#1D5BD8", supportLine: "0800 046 1100" },
+    brand: { displayName: "X Telecom", primaryColor: "#1D5BD8", supportLine: "0800 046 1100" },
     region: "uk-south",
     retention: { evidenceMode: "retained_evidence", evidenceRetentionDays: 30, transcriptRetentionDays: 90, auditRetentionDays: 730 },
     featureFlags: { visual_assist: true, ai_copilot_after_takeover: true, sms_entry: true, qr_entry: true, voice_only_fallback: true },
@@ -56,7 +56,7 @@ export const policies: Policy[] = (gp.__aiukPolicies ??= [
   {
     id: "pol_northline_standard",
     tenantId: "tnt_northline",
-    name: "Northline Standard Support",
+    name: "X Telecom Standard Support",
     version: 4,
     status: "active",
     changeNote: "v4: account credits are regulated and human only; remote factory reset denied.",
@@ -151,7 +151,7 @@ export const agents: AgentConfig[] = [
   {
     id: "agt_northline_router",
     tenantId: "tnt_northline",
-    name: "Northline Broadband Assistant",
+    name: "X Telecom Assistant",
     model: { provider: "mock", model: "aiuk-reasoning-sim-1", visionModel: "aiuk-vision-sim-1" },
     voice: { provider: "browser", voiceId: "en-GB-default", speakingRate: 1 },
     language: { primary: "en-GB", supported: ["en-GB"] },
@@ -240,12 +240,12 @@ export const teams: HumanTeam[] = [
 
 export const users: User[] = [
   // Trial account for client testers (lib/auth/trial.ts): a supervisor, so one login can play both the customer's side and the agent's.
-  { id: "usr_demo", tenantId: "tnt_northline", role: "supervisor", name: "Demo Tester", email: "demo@northline.example", status: "active", teamId: "team_nl_l1" },
-  { id: "usr_sarah", tenantId: "tnt_northline", role: "agent", name: "Sarah Jennings", email: "sarah.jennings@northline.example", status: "active", teamId: "team_nl_l1" },
-  { id: "usr_marcus", tenantId: "tnt_northline", role: "agent", name: "Marcus Webb", email: "marcus.webb@northline.example", status: "active", teamId: "team_nl_l2" },
-  { id: "usr_aisha", tenantId: "tnt_northline", role: "agent", name: "Aisha Khan", email: "aisha.khan@northline.example", status: "active", teamId: "team_nl_l1" },
-  { id: "usr_tom", tenantId: "tnt_northline", role: "supervisor", name: "Tom Hughes", email: "tom.hughes@northline.example", status: "active", teamId: "team_nl_l1" },
-  { id: "usr_priya", tenantId: "tnt_northline", role: "client_admin", name: "Priya Shah", email: "priya.shah@northline.example", status: "active" },
+  { id: "usr_demo", tenantId: "tnt_northline", role: "supervisor", name: "Demo Tester", email: "demo@xtelecom.example", status: "active", teamId: "team_nl_l1" },
+  { id: "usr_sarah", tenantId: "tnt_northline", role: "agent", name: "Sarah Jennings", email: "sarah.jennings@xtelecom.example", status: "active", teamId: "team_nl_l1" },
+  { id: "usr_marcus", tenantId: "tnt_northline", role: "agent", name: "Marcus Webb", email: "marcus.webb@xtelecom.example", status: "active", teamId: "team_nl_l2" },
+  { id: "usr_aisha", tenantId: "tnt_northline", role: "agent", name: "Aisha Khan", email: "aisha.khan@xtelecom.example", status: "active", teamId: "team_nl_l1" },
+  { id: "usr_tom", tenantId: "tnt_northline", role: "supervisor", name: "Tom Hughes", email: "tom.hughes@xtelecom.example", status: "active", teamId: "team_nl_l1" },
+  { id: "usr_priya", tenantId: "tnt_northline", role: "client_admin", name: "Priya Shah", email: "priya.shah@xtelecom.example", status: "active" },
   { id: "usr_owen", tenantId: "tnt_brightwater", role: "client_admin", name: "Owen Price", email: "owen.price@brightwater.example", status: "active" },
   { id: "usr_lena", tenantId: "tnt_brightwater", role: "agent", name: "Lena Morris", email: "lena.morris@brightwater.example", status: "invited", teamId: "team_bw_heating" },
   { id: "usr_grace", tenantId: "tnt_harbour", role: "client_admin", name: "Grace Okafor", email: "grace.okafor@harbour.example", status: "active" },
@@ -268,7 +268,7 @@ export interface Integration {
 
 export const integrations: Integration[] = [
   { id: "int_nl_crm", tenantId: "tnt_northline", name: "Customer CRM", category: "crm", provider: "Salesforce Service Cloud", status: "sandbox", tools: ["update_case", "create_ticket"], lastSyncAt: "2026-10-11T08:40:00.000Z", p95LatencyMs: 640, errorRate24h: 0.004 },
-  { id: "int_nl_linetest", tenantId: "tnt_northline", name: "Line Diagnostics", category: "network_diagnostics", provider: "Northline NetOps API", status: "sandbox", tools: ["line_test"], lastSyncAt: "2026-10-11T08:42:00.000Z", p95LatencyMs: 2300, errorRate24h: 0.011 },
+  { id: "int_nl_linetest", tenantId: "tnt_northline", name: "Line Diagnostics", category: "network_diagnostics", provider: "X Telecom NetOps API", status: "sandbox", tools: ["line_test"], lastSyncAt: "2026-10-11T08:42:00.000Z", p95LatencyMs: 2300, errorRate24h: 0.011 },
   { id: "int_nl_fsm", tenantId: "tnt_northline", name: "Engineer Scheduling", category: "field_service", provider: "Field Service Platform", status: "not_configured", tools: ["book_engineer"] },
   { id: "int_nl_sms", tenantId: "tnt_northline", name: "SMS Session Links", category: "notifications", provider: "SMS Gateway", status: "sandbox", tools: ["send_sms_summary"], lastSyncAt: "2026-10-11T08:12:00.000Z", p95LatencyMs: 410, errorRate24h: 0 },
   { id: "int_bw_fsm", tenantId: "tnt_brightwater", name: "Engineer Booking", category: "field_service", provider: "Brightwater Workforce", status: "not_configured", tools: ["book_engineer"] },

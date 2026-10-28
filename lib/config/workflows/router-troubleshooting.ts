@@ -39,10 +39,10 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     { question: "Can I speak to a person?", answer: "Yes, any time. Just say so or tap Human help and someone from the team will join, seeing everything we've done so far." },
   ],
   aiNotes: [
-    "Northline's own router is the Northline Hub 4: black, with four lights down the front labelled Power, Internet, WiFi and Voice, and ports on the back labelled Power, LAN 1, LAN 2 and Broadband (grey cable).",
+    "X Telecom's own router is the X Telecom Hub 4: black, with four lights down the front labelled Power, Internet, WiFi and Voice, and ports on the back labelled Power, LAN 1, LAN 2 and Broadband (grey cable).",
     "Customers often show a Wi-Fi extender, TV box or the wall socket by mistake. Report other_device for those rather than reading their lights.",
     "Photos of LEDs are often affected by glare, a phone torch or a dark room. If a light's colour is washed out, report uncertain and ask for a closer view at an angle, not a guess.",
-    "Older customers may describe lights by position (\"the second light\") instead of name. On the Northline Hub 4 the second light from the top is Internet.",
+    "Older customers may describe lights by position (\"the second light\") instead of name. On the X Telecom Hub 4 the second light from the top is Internet.",
     "Customers call the router light that shows the internet connection by many names (globe, WAN, broadband, internet). Treat them as the same light.",
     "A light that is lit but very faint in a bright room is usually on; only report off if the whole panel is dark.",
     "Amber or red on the internet light means the router has no connection to the provider; a steady white or green light means connected.",
@@ -60,7 +60,7 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
       description: "What device is shown",
       values: ["router", "other_device"],
       guide:
-        "A router (also called a hub) is a box, usually white or black, with a row of small status lights or one status light on the front, and cable ports on the back. Report router for any broadband hub, including BT Smart Hub, Sky Hub, Virgin Hub, TalkTalk, Vodafone and Northline Hub 4. Report other_device for a TV box, Wi-Fi extender or booster plug, smart speaker, phone, laptop or games console. A separate small box on the wall (fibre ONT or master socket) is other_device.",
+        "A router (also called a hub) is a box, usually white or black, with a row of small status lights or one status light on the front, and cable ports on the back. Report router for any broadband hub, including BT Smart Hub, Sky Hub, Virgin Hub, TalkTalk, Vodafone and X Telecom Hub 4. Report other_device for a TV box, Wi-Fi extender or booster plug, smart speaker, phone, laptop or games console. A separate small box on the wall (fibre ONT or master socket) is other_device.",
     },
     power_light: {
       description: "Router power indicator",
@@ -99,7 +99,7 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
       type: "start",
       title: "Welcome",
       instruction:
-        "Hi, I'm the Northline visual assistant. I can see what your camera shows, so you can show me the problem rather than describe it.",
+        "Hi, I'm the X Telecom visual assistant. I can see what your camera shows, so you can show me the problem rather than describe it.",
       customerPrompt: "Connected to your visual assistant",
       next: [{ when: { kind: "always" }, to: "intake", label: "Begin" }],
     },
