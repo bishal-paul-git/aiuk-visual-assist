@@ -108,6 +108,11 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-10-30 — Verified on the live server; stale-workflow fix
+
+- Found: the live server was running a copy of the workflows saved in the database on 25 Oct, so the camera-free route, approved answers, reading guides and training notes never reached it. Fixed: built-in workflows nobody has edited on the platform now always come from the code.
+- New: a production check on GitHub (`.github/workflows/production-check.yml`) after every deploy and every morning. It checks what is switched on and runs one real conversation with the real AI. First passing run: login, real AI understands the problem, no-camera description ("the second light is orange" → cable check), an approved answer to a question, Human help, agent joins and greets, tidy-up.
+
 ### 2026-10-30 — AI training content, positioning
 
 - AI: every item the AI reads from a photo now has a reading guide (labels and symbols, what each value looks like, glare, LAN vs broadband port, single-light hubs such as BT Smart Hub), sent with every photo.
