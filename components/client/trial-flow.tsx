@@ -3,15 +3,30 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bot, CheckCircle2, Circle, Copy, ExternalLink, FlaskConical, Headset, Loader2, MessageSquare, Smartphone, Sparkles, ThumbsDown, ThumbsUp, User as UserIcon } from "lucide-react";
+import {
+  Bot,
+  CheckCircle2,
+  Circle,
+  PlayCircle,
+  Copy,
+  ExternalLink,
+  FlaskConical,
+  Headset,
+  Loader2,
+  MessageSquare,
+  Smartphone,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  User as UserIcon,
+} from "lucide-react";
 import QRCode from "qrcode";
 import { checklistFor } from "@/lib/session/trial-checklist";
 import { useIdentity } from "@/lib/client/identity";
 import { SCENARIOS } from "@/lib/providers/mock/scenarios";
-import { BASE_PATH, STATIC_DEMO, getTransport, type LinkDelivery } from "@/lib/client/transport";
+import { BASE_PATH, getTransport, type LinkDelivery } from "@/lib/client/transport";
 import type { AgentView } from "@/lib/session/projections";
 import { coachFor } from "@/lib/session/trial-coach";
-import { normalisePhone } from "@/lib/notifications/validate";
 import { buttonClass, cx } from "@/components/ui/primitives";
 
 interface Created {
@@ -22,6 +37,8 @@ interface Created {
 }
 
 type Mode = "live" | "guided";
+/** What the tester chose to try. */
+type Goal = "customer" | "both";
 
 /**
  * The heart of the client trial: start one conversation, then play both sides
@@ -34,7 +51,6 @@ export function TrialFlow({
   workflowName,
   hasExamples,
   liveAi,
-  sms,
   canStart,
   reportHref,
 }: {
@@ -45,28 +61,23 @@ export function TrialFlow({
   hasExamples: boolean;
   /** Real AI is switched on for this server (always false in the online demo). */
   liveAi: boolean;
-  /** Text messages are switched on. */
-  sms: boolean;
+  /** Text messages are switched on (not offered in the trial: testers open the link themselves). */
+  sms?: boolean;
   canStart: boolean;
   /** Where the full record of a session lives, e.g. `/client/sessions`. */
   reportHref: string;
 }) {
   const [mode, setMode] = useState<Mode>(liveAi || !hasExamples ? "live" : "guided");
   const [example, setExample] = useState(SCENARIOS[0].key);
-  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [created, setCreated] = useState<Created>();
+  const [goal, setGoal] = useState<Goal>();
   const router = useRouter();
 
-  async function start() {
+  async function start(g: Goal) {
+    setGoal(g);
     setError(undefined);
-    const deliverTo: { sms?: string } = {};
-    if (!STATIC_DEMO && sms && phone.trim()) {
-      const p = normalisePhone(phone);
-      if (!p) return setError("Enter the mobile number with its country code, for example +44 7700 900123.");
-      deliverTo.sms = p;
-    }
     setBusy(true);
     try {
       const t = await getTransport();
@@ -74,8 +85,7 @@ export function TrialFlow({
         workflowKey,
         tenantId,
         scenario: mode === "live" ? "live" : example,
-        channel: deliverTo.sms ? "sms" : "secure_link",
-        ...(deliverTo.sms ? { deliverTo } : {}),
+        channel: "secure_link",
       });
       if (!r.ok) throw new Error(r.error);
       setCreated(r);
@@ -89,75 +99,121 @@ export function TrialFlow({
   }
 
   if (!canStart) return null;
-  if (created) return <TwoSides created={created} reportHref={reportHref} onAgain={() => setCreated(undefined)} />;
+  if (created) return <TwoSides created={created} reportHref={reportHref} customerOnly={goal === "customer"} onAgain={() => setCreated(undefined)} />;
+
+  const demoHref = (as?: "agent") => `${BASE_PATH}/demo/?play=wan_down${as ? `&as=${as}` : ""}`;
 
   return (
-    <section className="rounded-xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="start-title">
+    <section aria-labelledby="start-title">
       <h2 id="start-title" className="text-lg font-semibold text-ink">
-        Start a conversation
+        What would you like to try?
       </h2>
-      <p className="mt-1 text-sm text-ink-2">
-        You&apos;ll be both people in it: the customer who needs help, and the agent who steps in. Pick how the AI should see the problem. <span className="text-muted">({workflowName})</span>
-      </p>
+      <p className="mt-1 text-sm text-ink-2">Pick one. You can come back and try another at any time. ({workflowName})</p>
 
-      <fieldset className="mt-4">
-        <legend className="sr-only">How should the AI see the problem?</legend>
-        <div className="grid gap-3 md:grid-cols-2">
-          <ModeCard
-            checked={mode === "live"}
-            disabled={!liveAi}
-            onSelect={() => setMode("live")}
-            icon={<Sparkles className="size-4 text-brand" aria-hidden />}
-            title="Real AI with a real camera"
-            body={
-              liveAi
-                ? "Use your phone's camera and voice. The AI genuinely looks at what you show it, so try your own router, a blurry shot, or something that isn't a router at all."
-                : "Not switched on in this version of the trial."
-            }
-          />
-          {hasExamples && (
-            <ModeCard
-              checked={mode === "guided"}
-              onSelect={() => setMode("guided")}
-              icon={<FlaskConical className="size-4 text-brand" aria-hidden />}
-              title="Guided example (no camera needed)"
-              body="A ready-made story. The AI's answers are pre-written and a practice camera stands in for a real one, so you can see every outcome, including the hand-over to a person."
-            />
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <GoalCard
+          testId="goal-watch"
+          icon={<PlayCircle className="size-5" aria-hidden />}
+          title="Watch a full demo"
+          tag="2 minutes · nothing to do"
+          body="A pretend customer and a support agent play a whole call by themselves, with voices: the AI looks at the router, can't fix it, and hands over to a person who books an engineer."
+        >
+          <a href={demoHref()} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
+            <PlayCircle className="size-4" aria-hidden /> Watch the demo
+          </a>
+        </GoalCard>
+
+        <GoalCard
+          testId="goal-agent"
+          icon={<Headset className="size-5" aria-hidden />}
+          title="Be the support agent"
+          tag="5 minutes · laptop"
+          body="A pretend customer calls in and talks to the AI by themselves. When they ask for a person, you get the alert and take the call: join, see their camera, message them, book an engineer, finish."
+        >
+          <a href={demoHref("agent")} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
+            <Headset className="size-4" aria-hidden /> Take a call
+          </a>
+        </GoalCard>
+
+        <GoalCard
+          testId="goal-customer"
+          icon={<Smartphone className="size-5" aria-hidden />}
+          title="Be the customer"
+          tag="5 minutes · your phone"
+          body={
+            liveAi
+              ? "Show a real router (or anything) to your phone camera and talk to the real AI. It guides you step by step, and you can ask for a person at any time."
+              : "Use your phone as the customer. The AI guides you through a ready-made router problem."
+          }
+        >
+          <button type="button" className={buttonClass("primary")} disabled={busy} onClick={() => void start("customer")}>
+            {busy && goal === "customer" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Smartphone className="size-4" aria-hidden />} Start as the
+            customer
+          </button>
+        </GoalCard>
+
+        <GoalCard
+          testId="goal-both"
+          icon={<Sparkles className="size-5" aria-hidden />}
+          title="Play both sides"
+          tag="10 minutes · phone and laptop"
+          body="The full test: you're the customer on your phone and the support agent on your laptop, in the same live call."
+        >
+          <button type="button" className={buttonClass("secondary")} disabled={busy} onClick={() => void start("both")}>
+            {busy && goal === "both" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null} Start both sides
+          </button>
+        </GoalCard>
+      </div>
+
+      {(liveAi || hasExamples) && (
+        <details className="mt-3 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+          <summary className="cursor-pointer text-[13px] font-medium text-ink-2 select-none">
+            For “Be the customer” and “Play both sides”: {mode === "live" ? "real AI with a real camera" : "a ready-made example"} (change)
+          </summary>
+          <fieldset className="mt-3">
+            <legend className="sr-only">How should the AI see the problem?</legend>
+            <div className="grid gap-3 md:grid-cols-2">
+              <ModeCard
+                checked={mode === "live"}
+                disabled={!liveAi}
+                onSelect={() => setMode("live")}
+                icon={<Sparkles className="size-4 text-brand" aria-hidden />}
+                title="Real AI with a real camera"
+                body={
+                  liveAi
+                    ? "The AI genuinely looks at what you show it: try your own router, a blurry shot, or something that isn't a router at all."
+                    : "Not switched on in this version of the trial."
+                }
+              />
+              {hasExamples && (
+                <ModeCard
+                  checked={mode === "guided"}
+                  onSelect={() => setMode("guided")}
+                  icon={<FlaskConical className="size-4 text-brand" aria-hidden />}
+                  title="Ready-made example (no camera needed)"
+                  body="A practice camera shows a router and the AI's answers are pre-written, so every outcome can be seen."
+                />
+              )}
+            </div>
+          </fieldset>
+          {mode === "guided" && hasExamples && (
+            <label className="mt-3 block max-w-xl">
+              <span className="mb-1 block text-sm font-medium text-ink">Which example?</span>
+              <select
+                value={example}
+                onChange={(e) => setExample(e.target.value)}
+                className="h-10 w-full rounded-md border border-line-strong bg-surface px-2 text-sm"
+              >
+                {SCENARIOS.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-muted">{SCENARIOS.find((s) => s.key === example)?.expectedOutcome}</span>
+            </label>
           )}
-        </div>
-      </fieldset>
-
-      {mode === "guided" && hasExamples && (
-        <label className="mt-4 block max-w-xl">
-          <span className="mb-1 block text-sm font-medium text-ink">Which example?</span>
-          <select value={example} onChange={(e) => setExample(e.target.value)} className="h-10 w-full rounded-md border border-line-strong bg-surface px-2 text-sm">
-            {SCENARIOS.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <span className="mt-1 block text-xs text-muted">{SCENARIOS.find((s) => s.key === example)?.expectedOutcome}</span>
-        </label>
-      )}
-
-      {!STATIC_DEMO && (
-        <label className="mt-4 block max-w-xl">
-          <span className="mb-1 block text-sm font-medium text-ink">
-            Text the customer link to a phone <span className="font-normal text-muted">(optional)</span>
-          </span>
-          <input
-            type="tel"
-            inputMode="tel"
-            autoComplete="off"
-            placeholder="+44 7700 900123"
-            value={phone}
-            disabled={!sms}
-            onChange={(e) => setPhone(e.target.value)}
-            className="h-10 w-full rounded-md border border-line-strong bg-surface px-3 text-sm disabled:opacity-60"
-          />
-          <span className="mt-1 block text-xs text-muted">{sms ? "The customer gets a text with a secure link. They tap it and they're in." : "Text messages aren't switched on in this trial. You'll get a link to open yourself."}</span>
-        </label>
+        </details>
       )}
 
       {error && (
@@ -165,18 +221,61 @@ export function TrialFlow({
           {error}
         </p>
       )}
-      <div className="mt-5">
-        <button type="button" className={cx(buttonClass("primary"), "h-11 px-6 text-[15px]")} disabled={busy} onClick={start}>
-          {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null} {busy ? "Starting…" : "Start the conversation"}
-        </button>
-      </div>
     </section>
   );
 }
 
-function ModeCard({ checked, disabled, onSelect, icon, title, body }: { checked: boolean; disabled?: boolean; onSelect: () => void; icon: React.ReactNode; title: string; body: string }) {
+function GoalCard({
+  testId,
+  icon,
+  title,
+  tag,
+  body,
+  children,
+}: {
+  testId: string;
+  icon: React.ReactNode;
+  title: string;
+  tag: string;
+  body: string;
+  children: React.ReactNode;
+}) {
   return (
-    <label className={cx("flex gap-3 rounded-lg border p-3.5", disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer", checked ? "border-brand bg-brand-soft" : "border-line hover:bg-surface-2")}>
+    <article className="flex flex-col rounded-xl border border-line bg-surface p-5" data-testid={testId}>
+      <p className="flex items-center gap-2 text-brand">
+        {icon}
+        <span className="text-[11px] font-semibold tracking-wide text-ink-2 uppercase">{tag}</span>
+      </p>
+      <h3 className="mt-2 text-[17px] font-semibold text-ink">{title}</h3>
+      <p className="mt-1 flex-1 text-[14px] leading-relaxed text-ink-2">{body}</p>
+      <div className="mt-4 flex flex-wrap gap-2">{children}</div>
+    </article>
+  );
+}
+
+function ModeCard({
+  checked,
+  disabled,
+  onSelect,
+  icon,
+  title,
+  body,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+}) {
+  return (
+    <label
+      className={cx(
+        "flex gap-3 rounded-lg border p-3.5",
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+        checked ? "border-brand bg-brand-soft" : "border-line hover:bg-surface-2",
+      )}
+    >
       <input type="radio" name="trial-mode" checked={checked} disabled={disabled} onChange={onSelect} className="mt-1 accent-brand" />
       <span className="min-w-0">
         <span className="flex items-center gap-1.5 text-[14px] font-semibold text-ink">
@@ -189,13 +288,22 @@ function ModeCard({ checked, disabled, onSelect, icon, title, body }: { checked:
 }
 
 const SPEAKER: Record<string, { label: string; icon: React.ReactNode }> = {
-  customer: { label: "Customer", icon: <UserIcon className="size-3.5" aria-hidden /> },
+  customer: {
+    label: "Customer",
+    icon: <UserIcon className="size-3.5" aria-hidden />,
+  },
   ai: { label: "AI", icon: <Bot className="size-3.5" aria-hidden /> },
-  human_agent: { label: "Agent", icon: <Headset className="size-3.5" aria-hidden /> },
-  system: { label: "Update", icon: <MessageSquare className="size-3.5" aria-hidden /> },
+  human_agent: {
+    label: "Agent",
+    icon: <Headset className="size-3.5" aria-hidden />,
+  },
+  system: {
+    label: "Update",
+    icon: <MessageSquare className="size-3.5" aria-hidden />,
+  },
 };
 
-function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHref: string; onAgain: () => void }) {
+function TwoSides({ created, reportHref, customerOnly, onAgain }: { created: Created; reportHref: string; customerOnly?: boolean; onAgain: () => void }) {
   const [view, setView] = useState<AgentView>();
   const [copied, setCopied] = useState(false);
 
@@ -205,7 +313,11 @@ function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHr
     void getTransport().then((t) => {
       if (cancelled) return;
       void t.agentSnapshot(created.id).then((v) => !cancelled && v && setView(v));
-      off = t.subscribeAgent(created.id, (v) => !cancelled && setView(v), () => undefined);
+      off = t.subscribeAgent(
+        created.id,
+        (v) => !cancelled && setView(v),
+        () => undefined,
+      );
     });
     return () => {
       cancelled = true;
@@ -243,13 +355,19 @@ function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHr
         data-step={step.key}
       >
         <p className="text-[11px] font-semibold tracking-wide text-ink-2 uppercase">
-          {step.actor === "customer" ? "Next: on the customer screen" : step.actor === "agent" ? "Next: on the agent screen" : step.tone === "done" ? "Done" : "One moment"}
+          {step.actor === "customer"
+            ? "Next: on the customer screen"
+            : step.actor === "agent"
+              ? "Next: on the agent screen"
+              : step.tone === "done"
+                ? "Done"
+                : "One moment"}
         </p>
         <p className="mt-0.5 text-[16px] font-semibold text-ink">{step.title}</p>
         <p className="mt-1 text-[14px] leading-relaxed text-ink-2">{step.detail}</p>
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className={cx("mt-4 grid gap-4", !customerOnly && "md:grid-cols-2")}>
         <SideCard
           active={step.actor === "customer"}
           icon={<Smartphone className="size-5" aria-hidden />}
@@ -273,27 +391,46 @@ function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHr
           </button>
           {sent && (
             <p className="basis-full text-xs text-ink-2">
-              {sent.ok ? (sent.simulated ? `Text to ${sent.to} was recorded, not sent (texting isn't switched on).` : `Link texted to ${sent.to}.`) : `The text to ${sent.to} didn't send: ${sent.error ?? "unknown error"}. Use the link instead.`}
+              {sent.ok
+                ? sent.simulated
+                  ? `Text to ${sent.to} was recorded, not sent (texting isn't switched on).`
+                  : `Link texted to ${sent.to}.`
+                : `The text to ${sent.to} didn't send: ${sent.error ?? "unknown error"}. Use the link instead.`}
             </p>
           )}
           <PhoneQr link={link} />
           <p className="basis-full text-xs text-muted">
-            {live ? "Scan the code with your phone's camera to open it there. On a laptop with no camera, choose voice only or type instead." : "Scan the code with your phone's camera. Using a guided example? Tap “Use demo camera” when asked."}
+            {live
+              ? "Scan the code with your phone's camera to open it there. On a laptop with no camera, choose voice only or type instead."
+              : "Scan the code with your phone's camera. Using a guided example? Tap “Use demo camera” when asked."}
           </p>
         </SideCard>
 
-        <SideCard
-          active={step.actor === "agent"}
-          icon={<Headset className="size-5" aria-hidden />}
-          eyebrow="Side 2"
-          title="Be the human agent"
-          body="This is what your support agent sees: the customer's live camera, the conversation, what the AI saw, and the buttons to join, take over and help."
-        >
-          <a href={agentHref} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
-            <ExternalLink className="size-4" aria-hidden /> Open agent screen
-          </a>
-          <p className="basis-full text-xs text-muted">Open it next to the customer view. When the customer asks for a person you hear an alert: press Join session and you are straight in. You can also Join and Take over at any time.</p>
-        </SideCard>
+        {customerOnly ? (
+          <p className="rounded-lg border border-line bg-surface px-4 py-3 text-[13px] text-ink-2">
+            Want a person to answer when you tap Human help? Ask a colleague to open the{" "}
+            <a href={agentHref} target="_blank" rel="noreferrer" className="font-medium text-brand hover:underline">
+              agent screen
+            </a>{" "}
+            (or open it yourself on another device). It chimes when you ask.
+          </p>
+        ) : (
+          <SideCard
+            active={step.actor === "agent"}
+            icon={<Headset className="size-5" aria-hidden />}
+            eyebrow="Side 2"
+            title="Be the human agent"
+            body="This is what your support agent sees: the customer's live camera, the conversation, what the AI saw, and the buttons to join, take over and help."
+          >
+            <a href={agentHref} target="_blank" rel="noreferrer" className={buttonClass("primary")}>
+              <ExternalLink className="size-4" aria-hidden /> Open agent screen
+            </a>
+            <p className="basis-full text-xs text-muted">
+              Open it next to the customer view. When the customer asks for a person you hear an alert: press Join session and you are straight in. You can also
+              Join and Take over at any time.
+            </p>
+          </SideCard>
+        )}
       </div>
 
       <Checklist state={view?.state} />
@@ -324,7 +461,11 @@ function TwoSides({ created, reportHref, onAgain }: { created: Created; reportHr
         </div>
       </div>
 
-      <Feedback sessionId={created.id} reference={view?.state.session.reference} ended={view?.state.session.status === "completed" || view?.state.session.status === "failed"} />
+      <Feedback
+        sessionId={created.id}
+        reference={view?.state.session.reference}
+        ended={view?.state.session.status === "completed" || view?.state.session.status === "failed"}
+      />
     </section>
   );
 }
@@ -334,7 +475,13 @@ function PhoneQr({ link }: { link: string }) {
   const [src, setSrc] = useState<string>();
   useEffect(() => {
     let live = true;
-    void QRCode.toDataURL(link, { margin: 1, width: 240, errorCorrectionLevel: "M" }).then((d) => live && setSrc(d)).catch(() => undefined);
+    void QRCode.toDataURL(link, {
+      margin: 1,
+      width: 240,
+      errorCorrectionLevel: "M",
+    })
+      .then((d) => live && setSrc(d))
+      .catch(() => undefined);
     return () => {
       live = false;
     };
@@ -342,7 +489,14 @@ function PhoneQr({ link }: { link: string }) {
   if (!src) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt="QR code: scan with your phone to open the customer view" width={120} height={120} className="basis-full rounded-md border border-line sm:basis-auto" data-testid="phone-qr" />
+    <img
+      src={src}
+      alt="QR code: scan with your phone to open the customer view"
+      width={120}
+      height={120}
+      className="basis-full rounded-md border border-line sm:basis-auto"
+      data-testid="phone-qr"
+    />
   );
 }
 
@@ -365,7 +519,11 @@ function Checklist({ state }: { state: AgentView["state"] | undefined }) {
       <ul className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         {items.map((i) => (
           <li key={i.key} className="flex gap-2 text-[13px]" data-done={i.done ? "true" : "false"}>
-            {i.done ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-label="Done" /> : <Circle className="mt-0.5 size-4 shrink-0 text-line-strong" aria-label="Not yet" />}
+            {i.done ? (
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-label="Done" />
+            ) : (
+              <Circle className="mt-0.5 size-4 shrink-0 text-line-strong" aria-label="Not yet" />
+            )}
             <span className="min-w-0">
               <span className={cx("block", i.done ? "text-ink" : "font-medium text-ink")}>{i.label}</span>
               {!i.done && i === next && <span className="block text-xs text-ink-2">{i.how}</span>}
@@ -403,23 +561,48 @@ function Feedback({ sessionId, reference, ended }: { sessionId: string; referenc
         </p>
       ) : (
         <>
-          <p className="mt-1 text-[13px] text-ink-2">Tell us anything that was unclear, wrong or slow. It&apos;s saved with this conversation, so we can see exactly what happened.</p>
+          <p className="mt-1 text-[13px] text-ink-2">
+            Tell us anything that was unclear, wrong or slow. It&apos;s saved with this conversation, so we can see exactly what happened.
+          </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" aria-pressed={verdict === "good"} onClick={() => setVerdict("good")} className={cx(buttonClass("secondary"), verdict === "good" && "border-ok bg-ok-soft")}>
+            <button
+              type="button"
+              aria-pressed={verdict === "good"}
+              onClick={() => setVerdict("good")}
+              className={cx(buttonClass("secondary"), verdict === "good" && "border-ok bg-ok-soft")}
+            >
               <ThumbsUp className="size-4" aria-hidden /> It worked well
             </button>
-            <button type="button" aria-pressed={verdict === "problem"} onClick={() => setVerdict("problem")} className={cx(buttonClass("secondary"), verdict === "problem" && "border-danger bg-danger-soft")}>
+            <button
+              type="button"
+              aria-pressed={verdict === "problem"}
+              onClick={() => setVerdict("problem")}
+              className={cx(buttonClass("secondary"), verdict === "problem" && "border-danger bg-danger-soft")}
+            >
               <ThumbsDown className="size-4" aria-hidden /> I found a problem
             </button>
           </div>
           {verdict && (
             <>
               <label className="mt-3 block">
-                <span className="mb-1 block text-xs font-medium text-ink">{verdict === "problem" ? "What happened, and what did you expect?" : "Anything to add? (optional)"}</span>
-                <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1500} className="w-full rounded-md border border-line-strong bg-surface p-2 text-sm" />
+                <span className="mb-1 block text-xs font-medium text-ink">
+                  {verdict === "problem" ? "What happened, and what did you expect?" : "Anything to add? (optional)"}
+                </span>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  rows={3}
+                  maxLength={1500}
+                  className="w-full rounded-md border border-line-strong bg-surface p-2 text-sm"
+                />
               </label>
               <div className="mt-2 flex items-center gap-3">
-                <button type="button" className={buttonClass("primary")} disabled={state === "sending" || (verdict === "problem" && !text.trim())} onClick={send}>
+                <button
+                  type="button"
+                  className={buttonClass("primary")}
+                  disabled={state === "sending" || (verdict === "problem" && !text.trim())}
+                  onClick={send}
+                >
                   {state === "sending" ? "Saving…" : "Send feedback"}
                 </button>
                 {state === "error" && <span className="text-xs text-danger">That didn&apos;t save. Please try again.</span>}
@@ -432,9 +615,26 @@ function Feedback({ sessionId, reference, ended }: { sessionId: string; referenc
   );
 }
 
-function SideCard({ active, icon, eyebrow, title, body, children }: { active: boolean; icon: React.ReactNode; eyebrow: string; title: string; body: string; children: React.ReactNode }) {
+function SideCard({
+  active,
+  icon,
+  eyebrow,
+  title,
+  body,
+  children,
+}: {
+  active: boolean;
+  icon: React.ReactNode;
+  eyebrow: string;
+  title: string;
+  body: string;
+  children: React.ReactNode;
+}) {
   return (
-    <article className={cx("flex flex-col rounded-xl border bg-surface p-5", active ? "border-brand ring-2 ring-brand/20" : "border-line")} data-active={active ? "true" : "false"}>
+    <article
+      className={cx("flex flex-col rounded-xl border bg-surface p-5", active ? "border-brand ring-2 ring-brand/20" : "border-line")}
+      data-active={active ? "true" : "false"}
+    >
       <p className="flex items-center gap-2 text-[11px] font-semibold tracking-wide text-brand uppercase">
         {icon} {eyebrow}
         {active && <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] text-white normal-case">Your turn</span>}

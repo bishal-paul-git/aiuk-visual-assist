@@ -8,7 +8,13 @@ import { Logo } from "@/components/brand/logo";
 import { buttonClass, cx } from "@/components/ui/primitives";
 import { tenants } from "@/lib/config/catalog";
 import { demoUsers } from "@/lib/auth/identity";
-import { ROLE_NAMES, isPlatformRole, permissionPhrase, PERMISSION_LABELS, type Permission } from "@/lib/auth/rbac";
+import { ROLE_NAMES, isPlatformRole, needsStaffPassword, permissionPhrase, PERMISSION_LABELS, type Permission } from "@/lib/auth/rbac";
+
+const ROLE_HINT: Partial<Record<string, string>> = {
+  agent: "Support agent: answers customers",
+  supervisor: "Supervisor: watches the team and can answer customers",
+  client_admin: "Client admin: settings",
+};
 import { DEFAULT_TRIAL_EMAIL, DEFAULT_TRIAL_PASSWORD, TRIAL_USER_ID } from "@/lib/auth/trial";
 import { setDemoIdentity, signInDemo, ssoSignInUrl, useIdentity, type SignInMethods } from "@/lib/client/identity";
 import { BASE_PATH, STATIC_DEMO } from "@/lib/paths";
@@ -187,9 +193,10 @@ function ClientSignIn({ prefill, methods: initial }: { prefill?: TrialPrefill; m
             <details className="mt-5 border-t border-line pt-4 text-sm">
               <summary className="cursor-pointer text-xs font-medium text-ink-2 select-none">Log in as someone else from your team</summary>
               <div className="mt-3 space-y-3">
-                {methods.staffPassword && (
+                <p className="text-xs text-ink-2">One click, no password. Each person shows what that role sees.</p>
+                {methods.staffPassword && others.some((u) => needsStaffPassword(u.role)) && (
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-ink">Team password</span>
+                    <span className="mb-1 block text-xs font-medium text-ink">Staff password (admins only)</span>
                     <input type="password" autoComplete="off" value={staffPassword} onChange={(e) => setStaffPassword(e.target.value)} className="h-9 w-full rounded-md border border-line-strong bg-surface px-2 text-sm" />
                   </label>
                 )}
@@ -209,7 +216,8 @@ function ClientSignIn({ prefill, methods: initial }: { prefill?: TrialPrefill; m
                               className={cx("flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-surface-2 disabled:opacity-60", identity.status === "signed_in" && identity.user.id === u.id && "bg-brand-soft/40")}
                             >
                               <span>
-                                {u.name} <span className="text-muted">· {ROLE_NAMES[u.role]}</span>
+                                {u.name} <span className="text-muted">· {ROLE_HINT[u.role] ?? ROLE_NAMES[u.role]}</span>
+                                {methods.staffPassword && needsStaffPassword(u.role) && <span className="ml-1 rounded bg-surface-2 px-1 text-[10px] font-semibold text-ink-2">Admin · password</span>}
                               </span>
                               <span className="flex items-center gap-1 font-medium text-brand">
                                 {busy === u.id ? "Signing in…" : "Continue"} <ArrowRight className="size-3" aria-hidden />

@@ -8,7 +8,7 @@ import { Logo } from "@/components/brand/logo";
 import { Badge, Panel, buttonClass, cx } from "@/components/ui/primitives";
 import { tenantName } from "@/lib/config/catalog";
 import { demoUsers } from "@/lib/auth/identity";
-import { PERMISSION_LABELS, ROLES, ROLE_NAMES, ROLE_PERMISSIONS, homePathFor, isPlatformRole, permissionPhrase, type Permission } from "@/lib/auth/rbac";
+import { PERMISSION_LABELS, ROLES, ROLE_NAMES, ROLE_PERMISSIONS, homePathFor, isPlatformRole, permissionPhrase, type Permission, needsStaffPassword } from "@/lib/auth/rbac";
 import { loadSignInMethods, signInDemo, ssoSignInUrl, useIdentity, type SignInMethods } from "@/lib/client/identity";
 import { BASE_PATH, STATIC_DEMO } from "@/lib/paths";
 
@@ -177,7 +177,7 @@ function SignIn() {
             <div className="mt-4 flex items-start gap-2 rounded-lg border border-line bg-surface px-4 py-3 text-xs text-ink-2">
               <Info className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
               <p>
-                This is a demonstration: there are no passwords.{" "}
+                {methods?.staffPassword ? "This is a demonstration. Pick anyone to sign in with one click; only the admin accounts (marked Admin) need the staff password." : "This is a demonstration: there are no passwords."}{" "}
                 {STATIC_DEMO
                   ? "In this browser-only demo your choice is kept on this device; you can also switch identity from the header."
                   : "Your session is kept in a signed, HttpOnly cookie for 8 hours."}{" "}
@@ -188,7 +188,9 @@ function SignIn() {
 
             {methods?.staffPassword && (
               <label className="mt-4 block max-w-sm">
-                <span className="mb-1 block text-sm font-medium text-ink">Staff password</span>
+                <span className="mb-1 block text-sm font-medium text-ink">
+                  Staff password <span className="font-normal text-muted">(admin accounts only)</span>
+                </span>
                 <input
                   type="password"
                   autoComplete="off"
@@ -234,6 +236,9 @@ function SignIn() {
                               <span className="min-w-0">
                                 <span className="block text-sm font-medium text-ink">
                                   {u.name} {current && <span className="text-xs font-normal text-muted">· signed in</span>}
+                                  {methods?.staffPassword && needsStaffPassword(u.role) && (
+                                    <span className="ml-1.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-ink-2">Admin · needs staff password</span>
+                                  )}
                                 </span>
                                 <span className="block truncate text-xs text-muted">
                                   {tenantName(u.tenantId)} · {u.email}

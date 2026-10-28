@@ -20,7 +20,7 @@ async function logIn(page: import("@playwright/test").Page) {
 test.describe("client trial (static demo)", () => {
   test("log in with the filled-in details, start a conversation and follow it from both sides", async ({ page, context }) => {
     await logIn(page);
-    await page.getByRole("button", { name: "Start the conversation" }).click();
+    await page.getByRole("button", { name: "Start both sides" }).click();
     const coach = page.getByTestId("trial-coach");
     await expect(coach).toHaveAttribute("data-step", "waiting_customer");
 

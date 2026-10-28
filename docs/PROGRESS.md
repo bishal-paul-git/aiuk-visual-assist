@@ -108,6 +108,13 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-10-30 — Tester feedback round: roles, alerts, sign-in
+
+- Fixed: the waiting-customer alert rang forever for an old request (from 26 Oct) and "Turn off" was not remembered. Now it only alerts for requests from the last 15 minutes, rings at most three reminders per customer, stops when hidden, and stays off once turned off.
+- Fixed: picking a team member on the sign-in pages asked for the staff password. Now agents, supervisors and reviewers sign in with one click; only admin accounts (marked "Admin") need it.
+- New: the trial page asks "What would you like to try?" with four choices: Watch a full demo (both sides play themselves, with voices), Be the support agent (a pretend customer calls in and you take the call), Be the customer, and Play both sides. The confusing "text the link to a phone" box is gone.
+- New: in demos the pretend customer speaks in its own voice (George), so you hear both sides of the call.
+
 ### 2026-10-29 — Testing guided inside the product
 
 - The trial page now guides the test itself, so testers need no document:

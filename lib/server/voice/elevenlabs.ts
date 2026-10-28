@@ -15,7 +15,8 @@ export function elevenLabsConfigured(env: Record<string, string | undefined> = p
  * customer never hears it change. ELEVENLABS_VOICE_ID overrides it. The role
  * is kept so separate agent voices can come back later if wanted.
  */
-export function voiceIdFor(_role: VoiceRole, env: Record<string, string | undefined> = process.env): string {
+export function voiceIdFor(role: VoiceRole, env: Record<string, string | undefined> = process.env): string {
+  if (role === "customer") return env.ELEVENLABS_CUSTOMER_VOICE_ID || VOICES.customer.id;
   return env.ELEVENLABS_VOICE_ID || VOICES.assistant.id;
 }
 
@@ -24,6 +25,7 @@ let stuckFallback: string | null = null;
 
 /** Voices to try, best first: the one voice, then (only if the plan refuses it) one stock British voice. */
 export function voiceCandidates(role: VoiceRole, env: Record<string, string | undefined> = process.env): string[] {
+  if (role === "customer") return [voiceIdFor(role, env)];
   if (stuckFallback) return [stuckFallback];
   return [...new Set([voiceIdFor(role, env), FALLBACK_VOICES.assistant])];
 }

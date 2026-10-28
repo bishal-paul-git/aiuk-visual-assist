@@ -84,14 +84,16 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
     window.addEventListener("pointerdown", once, { once: true });
     return () => window.removeEventListener("pointerdown", once);
   }, [unlockVoice]);
+  const demoPlay = useAutoplay();
   const lastSpoken = useRef<string | null>(initial.transcript.at(-1)?.id ?? null);
   useEffect(() => {
     if (phase !== "live") return;
     const idx = view.transcript.findIndex((t) => t.id === lastSpoken.current);
-    const fresh = view.transcript.slice(idx + 1).filter((t) => t.speaker === "ai" || t.speaker === "human_agent");
+    // In a played demo the pretend customer speaks too (its own voice), so the viewer hears both sides.
+    const fresh = view.transcript.slice(idx + 1).filter((t) => t.speaker === "ai" || t.speaker === "human_agent" || (demoPlay && t.speaker === "customer"));
     if (view.transcript.length) lastSpoken.current = view.transcript.at(-1)!.id;
     for (const t of fresh) speaker.speak({ text: t.text, speaker: t.speaker, speakerName: t.speakerName });
-  }, [view.transcript, phase, speaker]);
+  }, [view.transcript, phase, speaker, demoPlay]);
 
   const onFinal = useCallback(
     (text: string, confidence: number) => {

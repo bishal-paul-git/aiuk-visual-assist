@@ -105,6 +105,15 @@ export function isPlatformRole(role: UserRole): boolean {
   return PLATFORM_ROLES.includes(role);
 }
 
+/**
+ * Demo accounts that can change settings (admins). With STAFF_SIGNIN_PASSWORD
+ * set, only these need it; agents, supervisors and reviewers sign in with one
+ * click so testers can try every role.
+ */
+export function needsStaffPassword(role: UserRole): boolean {
+  return role === "aiuk_admin" || role === "client_admin";
+}
+
 export function permissionsFor(user: Subject | null | undefined): Permission[] {
   if (!user || user.status !== "active") return [];
   return [...ROLE_PERMISSIONS[user.role]];

@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { toPublicUser } from "@/lib/auth/identity";
 import { OIDC_TX_COOKIE, OIDC_TX_TTL_SEC } from "@/lib/auth/oidc";
-import { homePathFor } from "@/lib/auth/rbac";
+import { homePathFor, needsStaffPassword } from "@/lib/auth/rbac";
+import { users } from "@/lib/config/catalog";
 import { recordSecurityEvent } from "@/lib/auth/security-log";
 import { authError, isSecureRequest, publicBaseUrl, safeNextPath, startSession } from "@/lib/server/auth";
 import { identityProviders } from "@/lib/server/identity-provider";
@@ -50,14 +51,15 @@ export async function POST(request: Request) {
   if (!demo) return authError(403, "Demo sign-in is disabled; use single sign-on");
   const body = await readJson(request, 4_000);
   const userId = str(body?.userId, 80) ?? undefined;
-  // With STAFF_SIGNIN_PASSWORD set, picking an account needs the password (the trial account has its own login).
-  if (staffPasswordRequired() && userId !== TRIAL_USER_ID) {
+  // With STAFF_SIGNIN_PASSWORD set, picking an admin account needs the password. Agents, supervisors and reviewers don't.
+  const picked = users.find((u) => u.id === userId);
+  if (staffPasswordRequired() && userId !== TRIAL_USER_ID && (!picked || needsStaffPassword(picked.role))) {
     const client = `staff:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local"}`;
     if (trialFailures.blocked(client)) return Response.json({ error: "Too many attempts. Please wait a few minutes and try again." }, { status: 429 });
     if (!checkStaffPassword(str(body?.password, 200) ?? "")) {
       trialFailures.record(client);
       recordSecurityEvent({ eventType: "security.sign_in_failed", payload: { provider: demo.id, attemptedUserId: userId ?? null, reason: "staff_password" } });
-      return Response.json({ error: "Enter the staff password to continue." }, { status: 401 });
+      return Response.json({ error: "Admin accounts need the staff password. To test, pick an agent, supervisor or reviewer instead: they need no password." }, { status: 401 });
     }
   }
   const result = await demo.completeSignIn({ userId });

@@ -41,8 +41,8 @@ test.describe("server edition: the client trial, start to finish", () => {
       await logInAsTrialTester(a);
 
       // --- Start a conversation -------------------------------------------------
-      await expect(a.getByRole("heading", { name: "Start a conversation" })).toBeVisible();
-      await a.getByRole("button", { name: "Start the conversation" }).click();
+      await expect(a.getByRole("heading", { name: "What would you like to try?" })).toBeVisible();
+      await a.getByRole("button", { name: "Start both sides" }).click();
       const coach = a.getByTestId("trial-coach");
       await expect(coach).toHaveAttribute("data-step", "waiting_customer");
       const customerHref = await a.getByRole("link", { name: "Open customer view" }).getAttribute("href");
@@ -161,7 +161,7 @@ test.describe("server edition: handing back to the AI", () => {
     const customer = await phoneContext.newPage();
     try {
       await logInAsTrialTester(a);
-      await a.getByRole("button", { name: "Start the conversation" }).click();
+      await a.getByRole("button", { name: "Start both sides" }).click();
       const coach = a.getByTestId("trial-coach");
       await expect(coach).toHaveAttribute("data-step", "waiting_customer");
       const customerHref = await a.getByRole("link", { name: "Open customer view" }).getAttribute("href");

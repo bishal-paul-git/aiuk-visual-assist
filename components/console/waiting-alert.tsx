@@ -11,6 +11,10 @@ import { consolePath } from "@/lib/client/transport";
 import { cx } from "@/components/ui/primitives";
 
 const PREF_KEY = "va_alert_sound";
+/** A request older than this is not alerted on (it is still in the live queue). */
+const FRESH_MS = 15 * 60_000;
+/** Reminder chimes per waiting customer, then silence. */
+const MAX_REMINDERS = 3;
 
 /** Two rising tones, played with Web Audio so no sound file is needed. Repeats until someone joins. */
 function chime(ctx: AudioContext) {
@@ -40,11 +44,24 @@ export function WaitingAlert({ variant = "light" }: { variant?: "light" | "navy"
   const { data: all } = useLiveSessions([]);
   const id = useIdentity();
   const scope = id.status === "signed_in" ? tenantScope({ ...id.user, status: "active" }) : undefined;
-  const waiting = all.filter((s) => s.status === "escalated" && (!scope || s.tenantId === scope));
+  // Only customers who asked recently: an old, abandoned request must never ring forever.
+  const nowMs = Date.now();
+  const waiting = all.filter(
+    (s) => s.status === "escalated" && (!scope || s.tenantId === scope) && nowMs - Date.parse(s.escalation?.requestedAt ?? s.createdAt) < FRESH_MS,
+  );
   const [soundOn, setSoundOn] = useState(false);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const ctxRef = useRef<AudioContext | null>(null);
   const seen = useRef<Set<string> | null>(null);
+
+  const disable = () => {
+    setSoundOn(false);
+    try {
+      localStorage.setItem(PREF_KEY, "0");
+    } catch {
+      /* private mode */
+    }
+  };
 
   const enable = async () => {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -94,27 +111,34 @@ export function WaitingAlert({ variant = "light" }: { variant?: "light" | "navy"
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
 
-  // Keep reminding while someone waits.
+  // Remind a few times while someone waits, then stop. Hidden customers are not reminded about.
+  const reminders = useRef<Record<string, number>>({});
+  const loud = waiting.filter((s) => !dismissed.includes(s.id)).map((s) => s.id).join(",");
   useEffect(() => {
-    if (!ids || !soundOn) return;
-    const t = setInterval(() => ctxRef.current && chime(ctxRef.current), 15_000);
+    if (!loud || !soundOn) return;
+    const t = setInterval(() => {
+      const due = loud.split(",").filter((x) => (reminders.current[x] ?? 0) < MAX_REMINDERS);
+      if (!due.length || !ctxRef.current) return;
+      for (const x of due) reminders.current[x] = (reminders.current[x] ?? 0) + 1;
+      chime(ctxRef.current);
+    }, 20_000);
     return () => clearInterval(t);
-  }, [ids, soundOn]);
+  }, [loud, soundOn]);
 
   // Flash the tab title so a background tab is noticed.
   useEffect(() => {
-    if (!ids) return;
+    if (!loud) return;
     const original = document.title;
     let on = false;
     const t = setInterval(() => {
       on = !on;
-      document.title = on ? `🔔 Customer waiting (${ids.split(",").length})` : original;
+      document.title = on ? `🔔 Customer waiting (${loud.split(",").length})` : original;
     }, 1000);
     return () => {
       clearInterval(t);
       document.title = original;
     };
-  }, [ids]);
+  }, [loud]);
 
   // Not while already looking at that customer's session.
   const path = usePathname();
@@ -130,7 +154,7 @@ export function WaitingAlert({ variant = "light" }: { variant?: "light" | "navy"
     <>
       <button
         type="button"
-        onClick={() => (soundOn ? setSoundOn(false) : void enable())}
+        onClick={() => (soundOn ? disable() : void enable())}
         className={cx(
           "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium",
           variant === "navy" ? "text-white hover:bg-white/10" : "border border-line text-ink hover:bg-surface-2",

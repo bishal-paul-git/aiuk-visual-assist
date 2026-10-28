@@ -11,7 +11,19 @@ import { BASE_PATH, getTransport, STATIC_DEMO, type Transport } from "@/lib/clie
 import { DESKTOP_QUERY, useMediaQuery } from "@/lib/client/use-media-query";
 import { direct, reachedStages, STAGES, type DirectorDecision, type WalkthroughStage } from "@/lib/demo/walkthrough";
 
-type Run = { id: string; scenario: string; customer: string; console: string; autoplay: boolean };
+type Run = { id: string; scenario: string; customer: string; console: string; autoplay: boolean; playAs: PlayAs };
+/** "watch": both sides play themselves. "agent": the customer plays itself and the viewer is the agent. */
+type PlayAs = "watch" | "agent";
+
+/** What the viewer, playing the agent, should do for each scripted agent move. */
+function agentTurn(key: string): string {
+  if (key === "join") return "Your turn. The customer wants a person: on the agent screen, press Join session. You're in charge at once and the customer hears your hello.";
+  if (key === "take_over") return "Your turn: press Take over on the agent screen.";
+  if (key === "action:book_engineer") return "Your turn. The line test found a fault: under Business actions, choose Book engineer and run it.";
+  if (key.startsWith("action:")) return "Your turn: under Business actions, raise a ticket for the customer.";
+  if (key === "end") return "Your turn: press End, then Resolved, to finish.";
+  return "Your turn on the agent screen.";
+}
 type Pane = "customer" | "agent";
 
 /** Featured stories on the intro screen; every other scenario is under "More". */
@@ -70,7 +82,7 @@ export default function DemoStage() {
     if (hint === p) setHint(undefined);
   }
 
-  async function start(key: string, autoplay: boolean) {
+  async function start(key: string, autoplay: boolean, playAs: PlayAs = "watch") {
     setBusy(true);
     setError(undefined);
     setScenario(key);
@@ -86,7 +98,9 @@ export default function DemoStage() {
       customer: `${BASE_PATH}${autoplay ? withQuery(r.customerPath, "autoplay=1") : r.customerPath}`,
       console: `${BASE_PATH}${r.consolePath}`,
       autoplay,
+      playAs,
     });
+    if (playAs === "agent") setPane("agent");
   }
 
   // Deep link: /demo/?play=<scenario>
@@ -95,8 +109,9 @@ export default function DemoStage() {
     startRef.current = start;
   });
   useEffect(() => {
-    const key = new URLSearchParams(window.location.search).get("play");
-    if (key && SCENARIOS.some((s) => s.key === key)) void startRef.current(key, true);
+    const q = new URLSearchParams(window.location.search);
+    const key = q.get("play");
+    if (key && SCENARIOS.some((s) => s.key === key)) void startRef.current(key, true, q.get("as") === "agent" ? "agent" : "watch");
   }, []);
 
   async function reset() {
@@ -162,7 +177,7 @@ export default function DemoStage() {
                 reached={walkthrough.reached}
                 paused={walkthrough.paused}
                 onToggle={walkthrough.toggle}
-                onReplay={() => void start(run.scenario, true)}
+                onReplay={() => void start(run.scenario, true, run.playAs)}
                 onBack={() => setRun(undefined)}
                 recordHref={run.console}
               />
@@ -171,7 +186,7 @@ export default function DemoStage() {
                 decision={walkthrough.decision}
                 reached={walkthrough.reached}
                 paused={walkthrough.paused}
-                onReplay={() => void start(run.scenario, true)}
+                onReplay={() => void start(run.scenario, true, run.playAs)}
                 onBack={() => setRun(undefined)}
                 recordHref={run.console}
               />
@@ -620,7 +635,9 @@ function useWalkthrough(run: Run | undefined, agentId: string) {
       unsubscribe = transport.subscribeAgent(
         run.id,
         (view) => {
-          const d = direct(view.state, agentId);
+          let d = direct(view.state, agentId);
+          // Playing the agent: the viewer makes the agent's moves; the caption says what to do.
+          if (run.playAs === "agent" && d.next?.actor === "agent") d = { ...d, caption: agentTurn(d.next.key), next: undefined };
           latest.current = { transport, decision: d, token };
           setDecision(d);
           setReached(reachedStages(view.state));
