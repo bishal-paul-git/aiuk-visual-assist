@@ -1,0 +1,43 @@
+name: Production check
+
+# Checks the live server from outside: what is switched on (AI, voice, SMS,
+# live video, database) and one real conversation end to end. Runs after every
+# push to main (once Render has redeployed), every morning, and on demand.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: production-check
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPLOYMENT_URL: https://visual-assist-7viw.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wait for Render to deploy this commit
+        if: github.event_name == 'push'
+        run: sleep 420
+      - name: Wake the server
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf "$DEPLOYMENT_URL/api/health" > /dev/null && exit 0
+            sleep 10
+          done
+          echo "The server did not answer /api/health" && exit 1
+      - name: What is switched on
+        run: node scripts/check-deployment.mjs "$DEPLOYMENT_URL"
+      - name: One real conversation, end to end
+        if: always()
+        run: node scripts/check-journey.mjs "$DEPLOYMENT_URL"

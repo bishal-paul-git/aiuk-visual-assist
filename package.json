@@ -13,6 +13,7 @@
     "build:static": "STATIC_EXPORT=1 next build",
     "test:e2e": "playwright test",
     "check:deployment": "node scripts/check-deployment.mjs",
+    "check:journey": "node scripts/check-journey.mjs",
     "test:e2e:server": "playwright test -c playwright.server.config.ts",
     "eval:photos": "tsx scripts/eval-photos.ts"
   },
