@@ -108,6 +108,13 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-11-04 — First real-photo accuracy result (live AI)
+
+- 63 freely licensed photos of real routers, modems and other things from Wikimedia Commons, labelled by eye (branch `eval-photos-v1`), each read by the live AI via `/api/qa/photo-check`.
+- First run: definite readings 97% right; two standalone cable modems were called "not a router". Fixed in the reading guide.
+- Second run: **definite readings 57 of 57 right (100%)**, never carried on with a wrong reading, all 29 routers and modems recognised, power, Wi-Fi and cables all right, never guessed at something it couldn't see. 3.4 s and about 1.3p per photo.
+- Still to improve: it asks for a retake fairly often (26 of 67), mostly on photos with no device at all (streets, landscapes), where "please show me the router" is the right answer, and on two internet lights it wasn't sure of. Needs photos from real homes.
+
 ### 2026-11-04 — Launch features
 
 - Company sign-in by email: `OIDC_EMAIL_ACCESS` gives an address or a whole domain a role (and client), so Microsoft, Google or Okta sign-in works without setting up groups.
