@@ -41,8 +41,9 @@ const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 /** GET with polite retries: Commons answers 429 when asked too fast. */
 async function get(url) {
   for (let attempt = 0; attempt < 4 && !outOfTime(); attempt++) {
-    const r = await fetch(url, { headers: { "User-Agent": UA } });
-    if (r.status !== 429 && r.status < 500) return r;
+    const r = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(20_000) }).catch(() => null);
+    if (r && r.status !== 429 && r.status < 500) return r;
+    if (!r) continue;
     await sleep(Number(r.headers.get("retry-after")) * 1000 || 5000 * (attempt + 1));
   }
   throw new Error(`Gave up on ${url}`);
