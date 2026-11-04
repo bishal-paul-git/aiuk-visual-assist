@@ -8,7 +8,10 @@ import { boilerFaultV1, homeDamageV1, routerTroubleshootingV2 } from "./workflow
  * behaviour is hard-coded into the runtime.
  */
 
-export const tenants: Tenant[] = [
+// Shared across server bundles (route handlers and pages load this module separately),
+// so a brand change made on the platform is seen everywhere.
+const gt = globalThis as unknown as { __aiukTenants?: Tenant[]; __aiukAgents?: AgentConfig[] };
+export const tenants: Tenant[] = (gt.__aiukTenants ??= [
   {
     id: "tnt_northline",
     name: "X Telecom",
@@ -45,7 +48,7 @@ export const tenants: Tenant[] = [
     createdAt: "2026-09-15T09:00:00.000Z",
     updatedAt: "2026-10-01T11:00:00.000Z",
   },
-];
+]);
 
 /**
  * Policy versions, process-wide like `workflows` so policy versioning
@@ -147,7 +150,7 @@ export const workflows: WorkflowDefinition[] = (g.__aiukWorkflows ??= [
   structuredClone(homeDamageV1),
 ]);
 
-export const agents: AgentConfig[] = [
+export const agents: AgentConfig[] = (gt.__aiukAgents ??= [
   {
     id: "agt_northline_router",
     tenantId: "tnt_northline",
@@ -187,7 +190,7 @@ export const agents: AgentConfig[] = [
     version: 1,
     status: "draft",
   },
-];
+]);
 
 export interface HumanTeam {
   id: string;

@@ -157,6 +157,8 @@ export interface SignInMethods {
   demo: boolean;
   /** Picking a demo account needs the staff password (STAFF_SIGNIN_PASSWORD). */
   staffPassword?: boolean;
+  /** The ready-made trial login is offered (TRIAL_LOGIN_ENABLED is not 0). */
+  trial?: boolean;
 }
 
 /** Server edition: which sign-in methods to offer. The static demo only has demo identities. */

@@ -428,3 +428,23 @@ describe("OIDC configuration", () => {
     expect(buildIdentityProviders({ ...env, ALLOW_DEMO_SIGNIN: "1" }).all.map((p) => p.id)).toEqual(["oidc", "demo"]);
   });
 });
+
+describe("OIDC access by email (no IdP groups needed)", () => {
+  const env = {
+    OIDC_ISSUER: "https://login.example.com",
+    OIDC_CLIENT_ID: "client",
+    OIDC_EMAIL_ACCESS: JSON.stringify({ "boss@aiuk.example": "aiuk_admin", "@agents.example": "agent:tnt_northline" }),
+  };
+  it("gives an exact address its role, and a whole domain a client role and tenant", () => {
+    const config = oidcConfigFromEnv(env)!;
+    const admin = mapClaimsToUser({ sub: "1", email: "Boss@aiuk.example" }, config);
+    expect(admin).toMatchObject({ ok: true, user: { role: "aiuk_admin" } });
+    const agent = mapClaimsToUser({ sub: "2", email: "sam@agents.example", name: "Sam Lee" }, config);
+    expect(agent).toMatchObject({ ok: true, source: "jit", user: { role: "agent", tenantId: "tnt_northline", name: "Sam Lee" } });
+    expect(mapClaimsToUser({ sub: "3", email: "who@else.example" }, config)).toMatchObject({ ok: false, code: "no_role" });
+    expect(mapClaimsToUser({ sub: "4", email: "sam@agents.example", email_verified: false }, config)).toMatchObject({ ok: false });
+  });
+  it("refuses a client role without a tenant", () => {
+    expect(() => oidcConfigFromEnv({ ...env, OIDC_EMAIL_ACCESS: JSON.stringify({ "@x.example": "agent" }) })).toThrow(/needs a tenant/);
+  });
+});

@@ -1,0 +1,23 @@
+name: Uptime
+
+# Every 15 minutes: is the live server answering and ready? A failed run sends
+# GitHub's failure email to the repository owner (Settings → Notifications →
+# Actions). The full end-to-end check runs daily in production-check.yml.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Server answers and is ready
+        run: |
+          for i in 1 2 3; do
+            body=$(curl -sf -m 20 https://visual-assist-7viw.onrender.com/api/health) && echo "$body" | grep -q '"ready":true' && echo "OK: $body" && exit 0
+            sleep 20
+          done
+          echo "The live server did not answer as ready three times in a row." && exit 1

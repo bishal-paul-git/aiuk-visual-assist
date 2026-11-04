@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
+import { BrandEditor } from "@/components/platform/brand-editor";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Lock, ShieldCheck } from "lucide-react";
 import { platformScope } from "@/lib/server/platform-data";
+import { STATIC_EXPORT } from "@/lib/server/platform-data";
 import { agents, getTenant, integrations, policies, teams, tenants, users, workflows } from "@/lib/config/catalog";
 import { computeMetrics, dailySeries } from "@/lib/analytics/metrics";
 import { ESCALATION_REASON_LABELS, humanize } from "@/lib/domain/labels";
@@ -182,6 +184,17 @@ export default async function ClientDetailPage({ params }: Props) {
               ["Last updated", formatDateTime(tenant.updatedAt)],
             ]}
           />
+          {!STATIC_EXPORT && (
+            <BrandEditor
+              tenantId={tenant.id}
+              initial={{
+                displayName: tenant.brand.displayName,
+                primaryColor: tenant.brand.primaryColor,
+                supportLine: tenant.brand.supportLine,
+                assistantName: agents.find((a) => a.tenantId === tenant.id)?.name ?? `${tenant.brand.displayName} Assistant`,
+              }}
+            />
+          )}
         </Panel>
 
         <Panel title="Retention policy" description="Per-tenant retention (docs/06 §3)">

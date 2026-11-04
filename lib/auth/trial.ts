@@ -23,6 +23,8 @@ export interface TrialConfig {
   /** Fill the login form in for the tester. Set TRIAL_PREFILL=0 to make them type it. */
   prefill: boolean;
   maxSessionsPerDay: number;
+  /** TRIAL_LOGIN_ENABLED=0 switches the public trial login off (at launch, staff use company sign-in). */
+  enabled: boolean;
 }
 
 export function trialConfig(env: Env = process.env): TrialConfig {
@@ -32,5 +34,6 @@ export function trialConfig(env: Env = process.env): TrialConfig {
     password: env.TRIAL_LOGIN_PASSWORD || DEFAULT_TRIAL_PASSWORD,
     prefill: env.TRIAL_PREFILL !== "0",
     maxSessionsPerDay: Number.isFinite(max) && max >= 0 ? Math.round(max) : DEFAULT_TRIAL_MAX_SESSIONS_PER_DAY,
+    enabled: env.TRIAL_LOGIN_ENABLED !== "0",
   };
 }

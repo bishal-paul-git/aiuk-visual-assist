@@ -75,6 +75,12 @@ export interface OidcProviderConfig {
   roleMap: Record<string, UserRole>;
   /** Claim value → tenant id. Empty: claim values must equal catalog tenant ids. */
   tenantMap: Record<string, string>;
+  /**
+   * Access by verified email, for a simple setup without IdP groups: an exact
+   * address or "@domain" → role and, for client roles, tenant. Used when the
+   * token carries no mapped role (the IdP's own roles still win).
+   */
+  emailAccess?: Record<string, { role: UserRole; tenantId?: string }>;
   /** Require one of `mfaAmrValues` in the ID token `amr` claim. */
   requireMfa: boolean;
   mfaAmrValues: string[];

@@ -9,12 +9,13 @@ vi.mock("next/headers", () => ({
 
 describe("trial configuration", () => {
   it("has a ready-made login and lets the owner change it", () => {
-    expect(trialConfig({})).toEqual({ email: DEFAULT_TRIAL_EMAIL, password: DEFAULT_TRIAL_PASSWORD, prefill: true, maxSessionsPerDay: 40 });
+    expect(trialConfig({})).toEqual({ email: DEFAULT_TRIAL_EMAIL, password: DEFAULT_TRIAL_PASSWORD, prefill: true, maxSessionsPerDay: 40, enabled: true });
     expect(trialConfig({ TRIAL_LOGIN_EMAIL: " Tester@Example.com ", TRIAL_LOGIN_PASSWORD: "x y z", TRIAL_PREFILL: "0", TRIAL_MAX_SESSIONS_PER_DAY: "5" })).toEqual({
       email: "tester@example.com",
       password: "x y z",
       prefill: false,
       maxSessionsPerDay: 5,
+      enabled: true,
     });
     expect(trialConfig({ TRIAL_MAX_SESSIONS_PER_DAY: "nope" }).maxSessionsPerDay).toBe(40);
   });
@@ -142,5 +143,13 @@ describe("staff password for the person-picker", () => {
     process.env.STAFF_SIGNIN_PASSWORD = "correct horse battery";
     for (let i = 0; i < 8; i++) await pick("usr_james", "guess");
     expect((await pick("usr_james", "correct horse battery")).status).toBe(429);
+  });
+});
+
+describe("switching the trial login off at launch", () => {
+  it("is on by default and off with TRIAL_LOGIN_ENABLED=0", async () => {
+    const { trialConfig } = await import("@/lib/auth/trial");
+    expect(trialConfig({}).enabled).toBe(true);
+    expect(trialConfig({ TRIAL_LOGIN_ENABLED: "0" }).enabled).toBe(false);
   });
 });

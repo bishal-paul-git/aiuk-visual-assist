@@ -1,5 +1,6 @@
 import { Check, Info, Minus } from "lucide-react";
-import { platformScope } from "@/lib/server/platform-data";
+import { platformScope, STATIC_EXPORT } from "@/lib/server/platform-data";
+import { ResetTestData } from "@/components/platform/reset-test-data";
 import { RETENTION_INTERVAL_MS } from "@/lib/server/runtime";
 import type { RetentionStatus } from "@/lib/runtime/session-runtime";
 import { formatDateTime } from "@/lib/format";
@@ -146,6 +147,12 @@ export default async function SettingsPage() {
       </div>
 
       <RetentionPanel status={rt.retentionStatus} tenants={tenants} />
+
+      {!STATIC_EXPORT && (
+        <Panel title="Reset test data" className="mt-4">
+          <ResetTestData clients={tenants.map((t) => ({ id: t.id, name: t.name, sessions: rt.summaries({ tenantId: t.id }).length }))} />
+        </Panel>
+      )}
       <AccessPanel />
 
       <Panel title="Notifications" className="mt-4" bodyClassName="p-0">

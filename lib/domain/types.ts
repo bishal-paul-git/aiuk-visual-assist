@@ -591,6 +591,7 @@ export type DomainEventType =
   | "security.sign_in_failed"
   | "security.permission_denied"
   | "security.connector_changed"
+  | "security.test_data_reset"
   | "privacy.redacted"
   | "privacy.retention_purged"
   | "audit.exported"

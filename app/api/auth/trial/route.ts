@@ -1,5 +1,5 @@
 import { toPublicUser } from "@/lib/auth/identity";
-import { TRIAL_USER_ID } from "@/lib/auth/trial";
+import { TRIAL_USER_ID, trialConfig } from "@/lib/auth/trial";
 import { recordSecurityEvent } from "@/lib/auth/security-log";
 import { authError, safeNextPath, startSession } from "@/lib/server/auth";
 import { identityProviders } from "@/lib/server/identity-provider";
@@ -15,6 +15,7 @@ import { checkTrialCredentials, trialFailures } from "@/lib/server/trial";
 export async function POST(request: Request) {
   const { demo } = identityProviders();
   if (!demo) return authError(403, "Trial login is disabled; use single sign-on");
+  if (!trialConfig().enabled) return authError(403, "The trial login is switched off");
   const client = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
   if (trialFailures.blocked(client)) return Response.json({ error: "Too many attempts. Please wait a few minutes and try again." }, { status: 429 });
 

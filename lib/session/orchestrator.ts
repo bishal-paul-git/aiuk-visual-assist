@@ -20,6 +20,7 @@ import type {
   WorkflowDefinition,
   WorkflowStep,
 } from "@/lib/domain/types";
+import { withBrand } from "@/lib/config/brand";
 import type { EvidenceRequest, MediaState, SessionState, StepRecord } from "@/lib/domain/session";
 import { assessEvidence, getStep, selectNext, type StepFacts } from "@/lib/workflow/engine";
 import { canReturnToAi, checkTool, detectHumanRequest, findDuplicate, isMandatoryHuman } from "@/lib/policy/engine";
@@ -836,7 +837,8 @@ class Ctx {
   }
 
   /** AI speech: transcript + current instruction + TTS cost. */
-  say(text: string) {
+  say(raw: string) {
+    const text = withBrand(raw, this.deps.workflow.tenantId);
     this.addTranscript("ai", this.deps.agent.name, text, 1);
     this.s.instruction = { text, from: "ai", at: this.now };
     this.cost("text_to_speech", this.deps.agent.voice.provider, text.length, "character");

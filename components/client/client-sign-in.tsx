@@ -41,7 +41,7 @@ function ClientSignIn({ prefill, methods: initial }: { prefill?: TrialPrefill; m
   const [error, setError] = useState<string>();
   const methods = initial;
   const sso = methods?.sso ?? null;
-  const showTrial = Boolean(methods?.demo);
+  const showTrial = Boolean(methods?.demo) && methods?.trial !== false;
 
   function go(to: string) {
     // Full navigation in the server edition so server-rendered pages see the new session.

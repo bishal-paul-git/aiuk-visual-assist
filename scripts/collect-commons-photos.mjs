@@ -10,6 +10,10 @@ import path from "node:path";
 
 const out = process.argv[2] ?? "eval/router-photos/commons";
 const PER_TERM = Number(process.env.PER_TERM ?? 6);
+/** Stop after this long and keep what was downloaded (Commons limits request rates). */
+const BUDGET_MS = Number(process.env.BUDGET_MS ?? 12 * 60_000);
+const startedAt = Date.now();
+const outOfTime = () => Date.now() - startedAt > BUDGET_MS;
 const TERMS = [
   "broadband router front lights",
   "wireless router LED",
@@ -36,7 +40,7 @@ const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 /** GET with polite retries: Commons answers 429 when asked too fast. */
 async function get(url) {
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < 4 && !outOfTime(); attempt++) {
     const r = await fetch(url, { headers: { "User-Agent": UA } });
     if (r.status !== 429 && r.status < 500) return r;
     await sleep(Number(r.headers.get("retry-after")) * 1000 || 5000 * (attempt + 1));
@@ -55,6 +59,10 @@ const seen = new Set();
 const rows = [["file", "search", "title", "author", "licence", "source"]];
 let n = 0;
 for (const term of TERMS) {
+  if (outOfTime()) {
+    console.log("Time budget used up; keeping what was downloaded.");
+    break;
+  }
   let res;
   try {
     res = await api({
@@ -74,7 +82,7 @@ for (const term of TERMS) {
   const pages = Object.values(res.query?.pages ?? {});
   let taken = 0;
   for (const p of pages) {
-    if (taken >= PER_TERM) break;
+    if (taken >= PER_TERM || outOfTime()) break;
     const info = p.imageinfo?.[0];
     if (!info || seen.has(p.title) || !/image\/(jpeg|png)/.test(info.mime) || (info.width ?? 0) < 400) continue;
     const meta = info.extmetadata ?? {};

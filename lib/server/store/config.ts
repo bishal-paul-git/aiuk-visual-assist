@@ -8,6 +8,7 @@ import type { AuditEvent, Policy, WorkflowDefinition } from "@/lib/domain/types"
 import { getConnectorRegistry } from "@/lib/integrations/config";
 import { getSecretVault } from "@/lib/integrations/secret-vault";
 import { log } from "@/lib/server/log";
+import { loadBrands, setBrandListener, storedBrands, type BrandSettings } from "@/lib/config/brand";
 import type { PgDatabase } from "./pg/db";
 import { LatestWriter } from "./pg/writer";
 
@@ -33,6 +34,8 @@ interface ConfigFile {
   connectors?: unknown[];
   /** Connector secrets entered on Platform → Integrations, AES-256-GCM sealed (lib/integrations/secret-vault.ts). */
   secrets?: Record<string, string>;
+  /** Client branding set on the platform (lib/config/brand.ts). */
+  brands?: Record<string, BrandSettings>;
 }
 
 /** Put saved configuration into the registries. Returns false when the body is not a usable config. */
@@ -47,6 +50,7 @@ function applyConfig(saved: ConfigFile | undefined): boolean {
   polReg.audit.splice(0, polReg.audit.length, ...(saved.policyAudit ?? []));
   if (saved.connectors) getConnectorRegistry().setStored(saved.connectors);
   if (saved.secrets) getSecretVault().load(saved.secrets);
+  loadBrands(saved.brands);
   return true;
 }
 
@@ -83,6 +87,7 @@ function currentConfig(): ConfigFile {
     policyAudit: getPolicyRegistry().audit,
     connectors: getConnectorRegistry().storedEntries(),
     secrets: getSecretVault().entries(),
+    brands: storedBrands(),
   };
 }
 
@@ -91,6 +96,7 @@ function onAnyChange(save: () => void) {
   getPolicyRegistry().onChange = save;
   getConnectorRegistry().onChange = save;
   getSecretVault().onChange = save;
+  setBrandListener(save);
 }
 
 export function attachConfigStore(dir: string): { restored: boolean } {

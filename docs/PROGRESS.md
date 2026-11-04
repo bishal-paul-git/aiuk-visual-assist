@@ -108,6 +108,16 @@ The table comes from `/api/capabilities` (reported by the owner, 2026-10-23) and
 
 ## Log
 
+### 2026-11-04 — Launch features
+
+- Company sign-in by email: `OIDC_EMAIL_ACCESS` gives an address or a whole domain a role (and client), so Microsoft, Google or Okta sign-in works without setting up groups.
+- `TRIAL_LOGIN_ENABLED=0` switches the public trial login off.
+- Platform → Settings → **Reset test data** deletes every conversation of a client (database too).
+- Platform → Clients → **Edit brand**: name customers see, assistant name, colour, support line; the AI's greeting follows it.
+- Uptime check every 15 minutes (GitHub emails on failure); daily full check continues.
+- Fixed: clients and assistants were held separately by different parts of the server, so a change made in one place wasn't seen in another; now shared.
+- `docs/LAUNCH.md`: the exact settings for each launch step.
+
 ### 2026-10-30 — Fixes from the owner's live test
 
 - Found in the live sessions: the phone camera sent black pictures (540×960, ~4.8 KB each), so the AI could not see anything and handed over after three tries. Now black frames are never sent; the customer is told to check nothing covers the camera; after 8 s the AI carries on by description.

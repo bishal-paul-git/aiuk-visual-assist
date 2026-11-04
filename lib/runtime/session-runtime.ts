@@ -182,6 +182,20 @@ export class SessionRuntime {
     return true;
   }
 
+  /**
+   * Forget a session completely (test data reset): its state, link and frames.
+   * Listeners are told so lists update. The caller removes it from the store.
+   */
+  removeSession(sessionId: string): boolean {
+    const e = this.sessions.get(sessionId);
+    if (!e) return false;
+    this.sessions.delete(sessionId);
+    this.tokens.delete(e.token);
+    for (const [frameId, f] of this.frames) if (f.sessionId === sessionId) this.frames.delete(frameId);
+    this.notifyGlobal();
+    return true;
+  }
+
   liveSessionIds(): string[] {
     return [...this.sessions.values()].filter((e) => e.live).map((e) => e.state.session.id);
   }

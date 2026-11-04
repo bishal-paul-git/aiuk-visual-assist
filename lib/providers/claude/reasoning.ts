@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { withBrand } from "@/lib/config/brand";
 import type { ModelUsage, ModelUsageParts, ObservationStatus, WorkflowDefinition, WorkflowStep } from "@/lib/domain/types";
 import { OBSERVATION_STATUSES } from "@/lib/domain/types";
 import type { ObservationInput } from "@/lib/session/orchestrator";
@@ -116,7 +117,7 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
         ? `Checkpoint: "${step.evidence?.checkpoint}" — ${step.evidence?.description}. Expected view: ${step.evidence?.view}.`
         : `An agent asked the customer: "${input.state.evidenceRequest?.prompt ?? "show the item"}".`,
       "Report one observation for each of these items, using only the allowed values:",
-      types.map((t) => `- ${t}: ${vocab[t].description}. Allowed values: ${vocab[t].values.join(", ")}${vocab[t].guide ? `\n  How to read it: ${vocab[t].guide}` : ""}`).join("\n"),
+      types.map((t) => `- ${t}: ${vocab[t].description}. Allowed values: ${vocab[t].values.join(", ")}${vocab[t].guide ? `\n  How to read it: ${withBrand(vocab[t].guide!, input.workflow.tenantId)}` : ""}`).join("\n"),
       [
         "Rules:",
         "- Describe only what is actually visible in this image. Never guess or infer from context.",
@@ -230,7 +231,7 @@ export class ClaudeReasoningProvider implements ReasoningProvider {
 }
 
 export function systemPrompt(workflow: WorkflowDefinition): string {
-  const notes = (workflow.aiNotes ?? []).map((n) => n.trim()).filter(Boolean);
+  const notes = (workflow.aiNotes ?? []).map((n) => withBrand(n.trim(), workflow.tenantId)).filter(Boolean);
   return [
     "You are the perception and language layer of a visual support assistant. A customer is showing a problem through their phone camera.",
     "You never decide what happens next: an approved workflow and policy engine does that, using your structured output.",

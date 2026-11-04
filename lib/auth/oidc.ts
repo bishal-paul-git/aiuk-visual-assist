@@ -123,8 +123,20 @@ export function oidcConfigFromEnv(env: Env = process.env): OidcProviderConfig | 
     if (!tenants.some((t) => t.id === tenantId)) throw new OidcConfigError(`OIDC_TENANT_MAP: "${tenantId}" is not a known tenant id`);
   }
 
+  // OIDC_EMAIL_ACCESS: {"jo@company.co.uk": "aiuk_admin", "@client.co.uk": "agent:tnt_northline"}
+  const emailRaw = parseJsonMap("OIDC_EMAIL_ACCESS", env.OIDC_EMAIL_ACCESS);
+  const emailAccess: Record<string, { role: UserRole; tenantId?: string }> = {};
+  for (const [who, value] of Object.entries(emailRaw)) {
+    const [role, tenantId] = value.split(":").map((x) => x.trim());
+    if (!ROLES.includes(role as UserRole)) throw new OidcConfigError(`OIDC_EMAIL_ACCESS: "${role}" is not a role (${ROLES.join(", ")})`);
+    if (tenantId && !tenants.some((t) => t.id === tenantId)) throw new OidcConfigError(`OIDC_EMAIL_ACCESS: "${tenantId}" is not a known tenant id`);
+    if (!isPlatformRole(role as UserRole) && !tenantId) throw new OidcConfigError(`OIDC_EMAIL_ACCESS: "${who}" needs a tenant, e.g. "${role}:tnt_northline"`);
+    emailAccess[who.trim().toLowerCase()] = { role: role as UserRole, ...(tenantId ? { tenantId } : {}) };
+  }
+
   const clientSecret = env.OIDC_CLIENT_SECRET || undefined;
   return {
+    emailAccess,
     issuer,
     clientId,
     clientSecret,
@@ -262,7 +274,8 @@ export function mapClaimsToUser(claims: Record<string, unknown>, config: OidcPro
     .map((v) => (hasRoleMap ? config.roleMap[v] : ROLES.includes(v as UserRole) ? (v as UserRole) : undefined))
     .filter((r): r is UserRole => Boolean(r));
   const claimRole = ROLES.find((r) => mappedRoles.includes(r));
-  const role = claimRole ?? catalogUser?.role;
+  const byEmail = email && emailTrusted ? (config.emailAccess?.[email.toLowerCase()] ?? config.emailAccess?.[`@${email.toLowerCase().split("@")[1]}`]) : undefined;
+  const role = claimRole ?? byEmail?.role ?? catalogUser?.role;
   if (!role) {
     const seen = roleValues.length ? roleValues.slice(0, 10).join(", ") : "none";
     return { ok: false, code: "no_role", reason: `No Visual Assist role mapped from claim "${config.roleClaim}" (values: ${seen})` };
@@ -287,7 +300,7 @@ export function mapClaimsToUser(claims: Record<string, unknown>, config: OidcPro
     if (mappedTenants.length > 1) {
       return { ok: false, code: "no_tenant", reason: `Claim "${config.tenantClaim}" maps to more than one tenant (${mappedTenants.join(", ")})` };
     }
-    tenantId = mappedTenants[0] ?? catalogUser?.tenantId;
+    tenantId = mappedTenants[0] ?? byEmail?.tenantId ?? catalogUser?.tenantId;
     tenantFrom = mappedTenants[0] ? "claim" : "catalog";
     if (!tenantId || tenantId === PLATFORM_TENANT_ID) {
       return {
@@ -312,7 +325,7 @@ export function mapClaimsToUser(claims: Record<string, unknown>, config: OidcPro
     status: "active",
     ...(catalogUser?.teamId && catalogUser.tenantId === tenantId ? { teamId: catalogUser.teamId } : {}),
   };
-  return { ok: true, user, source: catalogUser ? "catalog" : "jit", roleFrom: claimRole ? "claim" : "catalog", tenantFrom };
+  return { ok: true, user, source: catalogUser ? "catalog" : "jit", roleFrom: claimRole || byEmail ? "claim" : "catalog", tenantFrom };
 }
 
 // ---------------------------------------------------------------------------
