@@ -60,7 +60,7 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
       description: "What device is shown",
       values: ["router", "other_device"],
       guide:
-        "A router (also called a hub) is a box, usually white or black, with a row of small status lights or one status light on the front, and cable ports on the back. Report router for any broadband hub, including BT Smart Hub, Sky Hub, Virgin Hub, TalkTalk, Vodafone and {brand} Hub 4. Report other_device for a TV box, Wi-Fi extender or booster plug, smart speaker, phone, laptop or games console. A separate small box on the wall (fibre ONT or master socket) is other_device.",
+        "A router (also called a hub) is a box, usually white or black, with a row of small status lights or one status light on the front, and cable ports on the back. Report router for any broadband hub, including BT Smart Hub, Sky Hub, Virgin Hub, TalkTalk, Vodafone and {brand} Hub 4. Also report router for a standalone broadband modem with status lights (cable modem such as Arris or Motorola, ADSL/VDSL modem, nbn or cable connection box): it is the customer's broadband equipment and its lights are read the same way. Report other_device for a TV box or set-top box, Wi-Fi extender or booster plug, smart speaker, phone, laptop or games console. A phone socket or master socket on the wall, or a small fibre box with no status lights, is other_device. If no device at all is in the picture (a room, a street, a landscape), report not_visible so the customer is asked to show the router.",
     },
     power_light: {
       description: "Router power indicator",
