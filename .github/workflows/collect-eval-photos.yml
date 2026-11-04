@@ -3,11 +3,9 @@ name: Collect router photos (Wikimedia Commons)
 # Downloads freely licensed router photos for the photo evaluation and
 # commits them, with attribution, to the eval-photos branch (never main).
 
+# Manual only: re-collecting replaces the photo set, so its labels must be redone.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: [scripts/collect-commons-photos.mjs]
 
 permissions:
   contents: write
