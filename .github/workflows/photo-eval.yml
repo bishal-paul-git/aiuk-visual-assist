@@ -1,0 +1,46 @@
+name: Photo evaluation (live AI)
+
+# Sends every labelled photo on the eval-photos branch to the live server's AI
+# (POST /api/qa/photo-check, same model and prompt as a real session) and
+# commits the accuracy report back to that branch.
+
+on:
+  push:
+    branches: [eval-photos]
+    paths: [eval/router-photos/commons/labels.csv]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: photo-eval
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEPLOYMENT_URL: https://visual-assist-7viw.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: eval-photos
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check the labels
+        run: npm run eval:photos -- --dir eval/router-photos/commons --dry-run
+      - name: Read every photo with the live AI
+        run: npm run eval:photos -- --dir eval/router-photos/commons --remote "$DEPLOYMENT_URL" --concurrency 2 --out eval/router-photos/commons/reports/live
+      - name: Commit the report
+        if: always()
+        run: |
+          git config user.name "photo-eval"
+          git config user.email "actions@users.noreply.github.com"
+          git add -f eval/router-photos/commons/reports || true
+          git commit -m "Photo evaluation report (live AI)" || echo "no report"
+          git push origin HEAD:eval-photos

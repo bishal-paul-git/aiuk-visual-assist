@@ -9,7 +9,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const out = process.argv[2] ?? "eval/router-photos/commons";
-const PER_TERM = Number(process.env.PER_TERM ?? 8);
+const PER_TERM = Number(process.env.PER_TERM ?? 6);
 const TERMS = [
   "broadband router front lights",
   "wireless router LED",
