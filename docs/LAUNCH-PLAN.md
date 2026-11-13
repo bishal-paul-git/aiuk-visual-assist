@@ -4,33 +4,45 @@ Decided (13 Nov 2026):
 - **Model:** managed SaaS. One platform; we onboard each client company (own space, brand, staff logins, rules). Setup fee + monthly fee. Self-serve sign-up comes later.
 - **Route to market:** paid pilot (60–90 days) → yearly contract.
 - **Markets:** broadband/telecom first (AI trained and tested), then energy (boiler flow exists) and home appliances / insurers (home-damage flow exists).
-- **Company:** UK Ltd, ICO registered. First pilot company named.
+- **Company:** UK Ltd, ICO registered. First pilot: **Home Telecom** (TAL group, see `MARKET-RESEARCH.md`).
+- **First use case:** "My internet is down", then "setting up a new router".
+- **Hosting:** stay on Render Starter ($7) but move to Frankfurt; free nightly backup instead of paid Supabase Pro until there are paying clients.
+- **Staff sign-in (Microsoft/Google):** skipped for now; pilot staff use the platform's own sign-in with the staff password.
 
 Owner key: **You** = you do it · **Build** = Claude builds it · **Both** = you decide, Claude builds.
 
 ---
 
+## Phase 0 — Discovery with Home Telecom (1–2 weeks, before building more)
+
+- [ ] **You** — Meeting with Home Telecom's customer service lead. Ask the 7 questions in `MARKET-RESEARCH.md` §8 (contacts per month, call length and cost, engineer visits and no-fault rate, router models, top faults, systems, who approves).
+- [ ] **You** — Ask to listen to 5–10 recorded "internet down" calls, or sit with an agent for an hour. This shows the real process.
+- [ ] **Both** — Agree the success measures and the baseline (their numbers today) in writing.
+- [ ] **Both** — Decide how customers get the link (agent texts it during the call, or it appears in their app/website). Only after seeing their process.
+- [ ] **Build** — A one-page value calculator from their numbers (calls saved, visits saved, £ per month).
+- [ ] **You** — Ask whether the other TAL group brands could join if the pilot works.
+
 ## Phase 1 — Ready for the first pilot (target: 2–3 weeks)
 
 ### Platform and hosting
 - [ ] **You** — Choose the web address (e.g. `assist.yourcompany.co.uk`) and add one DNS record. **Build** sets it up on Render.
-- [ ] **You** — Approve the Render upgrade: Standard server (1 CPU, 2 GB) in Frankfurt, about $25/month. **Build** moves it and checks everything still works.
-- [ ] **You** — Supabase: turn on daily backups (Pro plan, about $25/month).
+- [ ] **Both** — Move the server to Frankfurt on the same Starter plan ($7/month, no extra cost). **You** copy the secret settings; **Build** checks everything still works.
+- [ ] **Build** — Free nightly database backup (GitHub job, encrypted). Supabase Pro ($25/month) later, once paid.
+- [ ] Later — Standard server ($25/month) only if monitoring shows the pilot is busy.
 - [x] Uptime check every 15 minutes, full AI check every morning (done).
 - [ ] **Build** — Error alerts by email when the AI, voice or database fails for a real customer.
 
 ### Sign-in and access
-- [ ] **You** — Pick Microsoft or Google for staff sign-in, and register the app (10 minutes, steps in `LAUNCH.md` §1).
-- [ ] **You** — Tell me the emails: you (admin) and the pilot company's staff (agents, supervisor, client admin).
+- [ ] Skipped for now — Microsoft/Google staff sign-in (`LAUNCH.md` §1). Revisit before a second client.
+- [ ] **Build** — Staff accounts for Home Telecom's pilot agents with the platform's own sign-in.
 - [ ] **Both** — Switch off the trial login and demo accounts on the live server (`TRIAL_LOGIN_ENABLED=0`).
 - [ ] **Build** — Keep the public demo separate (its own address with the trial login), so sales demos never touch client data.
 
 ### Client onboarding (the pilot company)
 - [ ] **Build** — "Add a client" screen in the admin portal: name, brand, flows, retention, staff. Today clients are added in code.
 - [ ] **You** — Get the pilot company's logo, colour, assistant name and support phone number. **Build** sets them up.
-- [ ] **You** — Get the pilot company's router models, light patterns and top 10 faults. **Build** trains the AI on them and re-runs the photo test.
+- [ ] **You** — Get Home Telecom's router models (per network: Openreach, CityFibre, Virgin Media), light patterns and top 10 faults. **Build** trains the AI on them and re-runs the photo test.
 - [ ] **Both** — Line test: the pilot company's API details, or keep the "no fault" stand-in for the pilot.
-- [ ] **Both** — How customers get the link: by text from us (needs our own UK number in Twilio), by text from their systems, or a button on their website or app.
 
 ### Legal and data (needed before real customers)
 - [ ] **You** — Pilot agreement: scope, price, dates, success measures, either side can stop.
