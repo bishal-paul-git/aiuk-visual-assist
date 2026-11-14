@@ -39,7 +39,7 @@ Owner key: **You** = you do it · **Build** = Claude builds it · **Both** = you
 - [ ] **Build** — Keep the public demo separate (its own address with the trial login), so sales demos never touch client data.
 
 ### Client onboarding (the pilot company)
-- [ ] **Build** — "Add a client" screen in the admin portal: name, brand, flows, retention, staff. Today clients are added in code.
+- [x] **Build** — "Add a client" screen (Platform → Clients): name, industry template (AI flow + safety rules), brand, retention, staff logins. Done.
 - [ ] **You** — Get the pilot company's logo, colour, assistant name and support phone number. **Build** sets them up.
 - [ ] **You** — Get Home Telecom's router models (per network: Openreach, CityFibre, Virgin Media), light patterns and top 10 faults. **Build** trains the AI on them and re-runs the photo test.
 - [ ] **Both** — Line test: the pilot company's API details, or keep the "no fault" stand-in for the pilot.

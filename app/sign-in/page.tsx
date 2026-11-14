@@ -74,7 +74,9 @@ function SignIn() {
     else window.location.assign(`${BASE_PATH}${target}`);
   }
 
-  const users = demoUsers();
+  const added = methods?.addedUsers ?? [];
+  const users = [...demoUsers(), ...added.filter((a) => !demoUsers().some((u) => u.id === a.id))];
+  const nameOf = (tenantId: string) => added.find((a) => a.tenantId === tenantId)?.tenantName ?? tenantName(tenantId);
 
   return (
     <main className="min-h-screen bg-canvas px-4 py-10">
@@ -246,7 +248,7 @@ function SignIn() {
                                   )}
                                 </span>
                                 <span className="block truncate text-xs text-muted">
-                                  {tenantName(u.tenantId)} · {u.email}
+                                  {nameOf(u.tenantId)} · {u.email}
                                 </span>
                               </span>
                               <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-brand">

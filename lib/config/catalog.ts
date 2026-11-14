@@ -10,7 +10,7 @@ import { boilerFaultV1, homeDamageV1, routerTroubleshootingV2 } from "./workflow
 
 // Shared across server bundles (route handlers and pages load this module separately),
 // so a brand change made on the platform is seen everywhere.
-const gt = globalThis as unknown as { __aiukTenants?: Tenant[]; __aiukAgents?: AgentConfig[] };
+const gt = globalThis as unknown as { __aiukTenants?: Tenant[]; __aiukAgents?: AgentConfig[]; __aiukTeams?: HumanTeam[]; __aiukUsers?: User[] };
 export const tenants: Tenant[] = (gt.__aiukTenants ??= [
   {
     id: "tnt_northline",
@@ -248,7 +248,7 @@ export interface HumanTeam {
   escalationReasons: string[];
 }
 
-export const teams: HumanTeam[] = [
+export const teams: HumanTeam[] = (gt.__aiukTeams ??= [
   {
     id: "team_nl_l1",
     tenantId: "tnt_northline",
@@ -294,9 +294,9 @@ export const teams: HumanTeam[] = [
     targetAnswerSec: 180,
     escalationReasons: ["customer_requested", "unresolved_after_workflow"],
   },
-];
+]);
 
-export const users: User[] = [
+export const users: User[] = (gt.__aiukUsers ??= [
   // Trial account for client testers (lib/auth/trial.ts): a supervisor, so one login can play both the customer's side and the agent's.
   { id: "usr_demo", tenantId: "tnt_northline", role: "supervisor", name: "Alex Morgan", email: "demo@xtelecom.example", status: "active", teamId: "team_nl_l1" },
   { id: "usr_sarah", tenantId: "tnt_northline", role: "agent", name: "Sarah Jennings", email: "sarah.jennings@xtelecom.example", status: "active", teamId: "team_nl_l1" },
@@ -315,7 +315,7 @@ export const users: User[] = [
   { id: "usr_ht_agent3", tenantId: "tnt_hometelecom", role: "agent", name: "Home Telecom Agent 3", email: "agent3@hometelecom.pilot", status: "active", teamId: "team_ht_support" },
   { id: "usr_james", tenantId: "aiuk", role: "aiuk_admin", name: "James Carter", email: "james.carter@absoluteintelligence.example", status: "active" },
   { id: "usr_nadia", tenantId: "aiuk", role: "qa_reviewer", name: "Nadia Rahman", email: "nadia.rahman@absoluteintelligence.example", status: "active" },
-];
+]);
 
 export interface Integration {
   id: string;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Lock } from "lucide-react";
-import { platformScope } from "@/lib/server/platform-data";
+import { platformScope, STATIC_EXPORT } from "@/lib/server/platform-data";
+import { AddClient } from "@/components/platform/add-client";
 import { agents, integrations, tenants, users, workflows } from "@/lib/config/catalog";
 import { computeMetrics } from "@/lib/analytics/metrics";
 import { formatDateTime, formatGBP, pct } from "@/lib/format";
@@ -41,6 +42,12 @@ export default async function ClientsPage() {
         }
         meta={<Badge tone="neutral">{visible.length === 1 ? "1 tenant" : `${visible.length} tenants`} · session figures last 14 days</Badge>}
       />
+
+      {!STATIC_EXPORT && scope.user?.role === "aiuk_admin" && (
+        <div className="mb-4">
+          <AddClient />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Active clients" value={visible.filter((t) => t.status === "active").length} hint={`${visible.filter((t) => t.status === "onboarding").length} onboarding`} />

@@ -9,6 +9,7 @@ import { getConnectorRegistry } from "@/lib/integrations/config";
 import { getSecretVault } from "@/lib/integrations/secret-vault";
 import { log } from "@/lib/server/log";
 import { loadBrands, setBrandListener, storedBrands, type BrandSettings } from "@/lib/config/brand";
+import { loadClients, setClientListener, storedClients, type StoredClient } from "@/lib/config/clients";
 import type { PgDatabase } from "./pg/db";
 import { LatestWriter } from "./pg/writer";
 
@@ -36,6 +37,8 @@ interface ConfigFile {
   secrets?: Record<string, string>;
   /** Client branding set on the platform (lib/config/brand.ts). */
   brands?: Record<string, BrandSettings>;
+  /** Clients added on the platform (lib/config/clients.ts). */
+  clients?: StoredClient[];
 }
 
 /** Put saved configuration into the registries. Returns false when the body is not a usable config. */
@@ -51,6 +54,7 @@ function applyConfig(saved: ConfigFile | undefined): boolean {
   polReg.audit.splice(0, polReg.audit.length, ...(saved.policyAudit ?? []));
   if (saved.connectors) getConnectorRegistry().setStored(saved.connectors);
   if (saved.secrets) getSecretVault().load(saved.secrets);
+  loadClients(saved.clients);
   loadBrands(saved.brands);
   return true;
 }
@@ -89,6 +93,7 @@ function currentConfig(): ConfigFile {
     connectors: getConnectorRegistry().storedEntries(),
     secrets: getSecretVault().entries(),
     brands: storedBrands(),
+    clients: storedClients(),
   };
 }
 
@@ -98,6 +103,7 @@ function onAnyChange(save: () => void) {
   getConnectorRegistry().onChange = save;
   getSecretVault().onChange = save;
   setBrandListener(save);
+  setClientListener(save);
 }
 
 export function attachConfigStore(dir: string): { restored: boolean } {

@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { users } from "@/lib/config/catalog";
 import { demoUsers, toPublicUser, type PublicUser } from "@/lib/auth/identity";
+import type { User } from "@/lib/domain/types";
 import { BASE_PATH, STATIC_DEMO } from "@/lib/paths";
 
 /**
@@ -176,6 +177,8 @@ export interface SignInMethods {
   staffPassword?: boolean;
   /** The ready-made trial login is offered (TRIAL_LOGIN_ENABLED is not 0). */
   trial?: boolean;
+  /** Staff of demo clients added on the platform after this page was built. */
+  addedUsers?: (User & { tenantName: string })[];
 }
 
 /** Server edition: which sign-in methods to offer. The static demo only has demo identities. */
