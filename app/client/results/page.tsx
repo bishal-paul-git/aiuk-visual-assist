@@ -3,6 +3,9 @@ import { staticSafeSearchParams } from "@/lib/server/platform-data";
 import { computeMetrics, escalationReasons, outcomeBreakdown } from "@/lib/analytics/metrics";
 import { ESCALATION_REASON_LABELS, OUTCOME_LABELS } from "@/lib/domain/labels";
 import { formatDuration, pct } from "@/lib/format";
+import { costPerSession, ratingStats, reportStates } from "@/lib/analytics/pilot-report";
+import { BASE_PATH } from "@/lib/paths";
+import { STATIC_EXPORT } from "@/lib/server/platform-data";
 import { Badge, PageHeader, Panel, Stat, Table, Td, Th } from "@/components/ui/primitives";
 import { PortalShell } from "@/components/client/portal-shell";
 
@@ -14,7 +17,9 @@ export default async function ClientResults({ searchParams }: { searchParams: Pr
   const { org } = await staticSafeSearchParams(searchParams);
   const scope = await clientScope("/client/results", org);
   const states = scope.states();
-  const live = states.filter((s) => !s.session.scenario);
+  const live = reportStates(states);
+  const ratings = ratingStats(live);
+  const perSession = costPerSession(live);
   const scripted = states.filter((s) => s.session.scenario);
   const m = computeMetrics(live);
   const sm = computeMetrics(scripted);
@@ -28,6 +33,8 @@ export default async function ClientResults({ searchParams }: { searchParams: Pr
     { label: "Wait for a person to answer", hint: "From asking to being picked up", live: has(m.avgQueueWaitSec, () => formatDuration(m.avgQueueWaitSec)), scripted: has(sm.avgQueueWaitSec, () => formatDuration(sm.avgQueueWaitSec)) },
     { label: "Photos checked", hint: "Photos the AI looked at", live: String(m.framesTotal), scripted: String(sm.framesTotal) },
     { label: "Readings the AI was unsure about", hint: "Share of all readings", live: has(m.framesTotal, () => pct(m.uncertainObservationRate)), scripted: has(sm.framesTotal, () => pct(sm.uncertainObservationRate)) },
+    { label: "Customers who found it helpful", hint: "Thumbs up at the end, of those who rated", live: has(ratings.rated, () => `${ratings.up} of ${ratings.rated} (${pct(ratings.positiveRate)})`), scripted: NONE },
+    { label: "AI and voice cost per session", hint: "What the AI and voice services cost us", live: has(m.sessions, () => `£${perSession.toFixed(2)}`), scripted: NONE },
     { label: "Business actions that worked", hint: "Tickets, bookings, line tests and so on", live: has(m.businessActions, () => `${m.businessActions} (${pct(m.businessActionSuccessRate)})`), scripted: has(sm.businessActions, () => `${sm.businessActions} (${pct(sm.businessActionSuccessRate)})`) },
   ];
 
@@ -39,14 +46,29 @@ export default async function ClientResults({ searchParams }: { searchParams: Pr
       <PageHeader
         title="Results"
         description={`How ${scope.tenant.name}'s sessions went. Real AI sessions show how the product really performs; guided examples always follow their script.`}
-        meta={<Badge tone="neutral">{live.length} real AI · {scripted.length} guided</Badge>}
+        meta={
+          <div className="flex items-center gap-2">
+            <Badge tone="neutral">
+              {live.length} real AI · {scripted.length} guided
+            </Badge>
+            {!STATIC_EXPORT && (
+              <a
+                href={`${BASE_PATH}/api/client/report${scope.previewing ? `?org=${scope.tenant.id}` : ""}`}
+                className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-2"
+                data-testid="download-report"
+              >
+                Download report (CSV)
+              </a>
+            )}
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Real AI sessions" value={m.sessions} hint={has(m.completed, () => `${m.completed} finished`)} />
         <Stat label="Fixed by the AI" value={has(m.completed, () => pct(m.aiResolutionRate))} hint={has(m.completed, () => `${m.aiResolved} of ${m.completed}`)} />
         <Stat label="Needed a person" value={has(m.sessions, () => pct(m.escalationRate))} hint={has(m.sessions, () => `${m.escalated} of ${m.sessions}`)} />
-        <Stat label="Average time" value={has(m.completed, () => formatDuration(m.avgDurationSec))} />
+        <Stat label="Customers helped" value={has(ratings.rated, () => pct(ratings.positiveRate))} hint={has(ratings.rated, () => `${ratings.up} of ${ratings.rated} ratings`)} />
       </div>
 
       <Panel title="Real AI compared with guided examples" className="mt-4" bodyClassName="p-0">
@@ -115,6 +137,21 @@ export default async function ClientResults({ searchParams }: { searchParams: Pr
           )}
         </Panel>
       </div>
+
+      {ratings.comments.length > 0 && (
+        <Panel title="What customers said" className="mt-4" bodyClassName="p-0">
+          <Table>
+            <tbody>
+              {ratings.comments.slice(0, 20).map((c) => (
+                <tr key={c.reference + c.at}>
+                  <Td className="w-32 text-xs text-muted">{c.reference}</Td>
+                  <Td>{c.comment}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Panel>
+      )}
 
       <p className="mt-4 text-xs text-muted">
         These numbers come from the sessions listed on the Sessions page. A handful of test sessions is a first impression, not proof: look at a few sessions in detail before drawing a

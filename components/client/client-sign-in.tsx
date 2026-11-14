@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, CheckCircle2, KeyRound, Loader2, ShieldAlert } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { ClientStaffSignIn } from "@/components/auth/client-staff-sign-in";
 import { buttonClass, cx } from "@/components/ui/primitives";
 import { tenants } from "@/lib/config/catalog";
 import { demoUsers } from "@/lib/auth/identity";
@@ -233,6 +234,9 @@ function ClientSignIn({ prefill, methods: initial }: { prefill?: TrialPrefill; m
             </details>
           )}
         </section>
+      </div>
+      <div className="mx-auto w-full max-w-5xl px-5 pb-12">
+        <ClientStaffSignIn next={next} />
       </div>
     </main>
   );

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, CheckCircle2, Info, KeyRound, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { ClientStaffSignIn } from "@/components/auth/client-staff-sign-in";
 import { Badge, Panel, buttonClass, cx } from "@/components/ui/primitives";
 import { tenantName } from "@/lib/config/catalog";
 import { demoUsers } from "@/lib/auth/identity";
@@ -163,6 +164,10 @@ function SignIn() {
             </div>
           </section>
         )}
+
+        <div className="mt-6">
+          <ClientStaffSignIn next={next} />
+        </div>
 
         {methods && !sso && !methods.demo && (
           <div className="mt-6 flex items-start gap-2 rounded-lg border border-warn/25 bg-warn-soft px-4 py-3 text-sm text-ink" role="alert">

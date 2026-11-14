@@ -1,0 +1,61 @@
+name: Nightly database backup
+
+# Free backup: every night, a copy of the visual_assist database schema is
+# taken, compressed, encrypted with a passphrase and kept as a private
+# workflow artifact for 30 days (Actions → this workflow → a run → Artifacts).
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   BACKUP_DATABASE_URL  the same database address the server uses (Render → Environment → DATABASE_URL)
+#   BACKUP_PASSPHRASE    a long passphrase; keep it safe: without it a backup cannot be opened
+# Until both are set the job only prints a reminder (it does not fail).
+#
+# Restore: download the artifact, then
+#   openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in backup.sql.gz.enc -out backup.sql.gz -pass pass:'<passphrase>'
+#   gunzip backup.sql.gz && psql "<database url>" -f backup.sql
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check the secrets are set
+        id: cfg
+        env:
+          DB: ${{ secrets.BACKUP_DATABASE_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DB" ] || [ -z "$PASS" ]; then
+            echo "::warning::Backups are not set up yet: add BACKUP_DATABASE_URL and BACKUP_PASSPHRASE as repository secrets."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Dump, compress and encrypt
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          DB: ${{ secrets.BACKUP_DATABASE_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          docker run --rm -e DB postgres:17 sh -c 'pg_dump --no-owner --no-privileges --schema=visual_assist "$DB"' | gzip -9 > backup.sql.gz
+          size=$(stat -c %s backup.sql.gz)
+          [ "$size" -gt 1000 ] || { echo "Backup is suspiciously small ($size bytes)"; exit 1; }
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in backup.sql.gz -out backup.sql.gz.enc -pass env:PASS
+          rm backup.sql.gz
+          echo "Encrypted backup: $(stat -c %s backup.sql.gz.enc) bytes"
+      - name: Keep for 30 days
+        if: steps.cfg.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-assist-db-${{ github.run_number }}
+          path: backup.sql.gz.enc
+          retention-days: 30
+          if-no-files-found: error

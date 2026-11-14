@@ -1,6 +1,7 @@
 "use client";
 
-import { Camera, Clock, EyeOff, Headset, ImageIcon, Lock, Mic, MonitorSmartphone } from "lucide-react";
+import { useState } from "react";
+import { Camera, Clock, EyeOff, Headset, ImageIcon, Lock, Mic, MonitorSmartphone, ThumbsDown, ThumbsUp } from "lucide-react";
 import type { CustomerView } from "@/lib/session/projections";
 
 export const NOTICE_VERSION = "privacy-notice@2";
@@ -113,7 +114,7 @@ export function PermissionScreen({
   );
 }
 
-export function EndedScreen({ view }: { view: CustomerView }) {
+export function EndedScreen({ view, onRate }: { view: CustomerView; onRate?: (score: "up" | "down", comment?: string) => Promise<boolean> }) {
   const resolved = view.transcript.length > 0 && view.status === "completed";
   return (
     <div className="flex min-h-[100dvh] flex-col bg-white text-ink">
@@ -130,6 +131,7 @@ export function EndedScreen({ view }: { view: CustomerView }) {
           Reference <span className="font-semibold text-ink">{view.reference}</span>
         </p>
         <p className="mt-2 text-xs text-muted">Quote this if you contact {view.brandName} again — you won&apos;t need to start over.</p>
+        {onRate && <Rating rated={view.rated} onRate={onRate} />}
       </main>
     </div>
   );
@@ -158,5 +160,69 @@ function Item({ icon, title, children }: { icon: React.ReactNode; title: string;
         <span className="mt-0.5 block text-ink-2">{children}</span>
       </span>
     </li>
+  );
+}
+
+function Rating({ rated, onRate }: { rated: boolean; onRate: (score: "up" | "down", comment?: string) => Promise<boolean> }) {
+  const [score, setScore] = useState<"up" | "down">();
+  const [comment, setComment] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "done">(rated ? "done" : "idle");
+  if (state === "done")
+    return (
+      <p className="mt-8 text-sm font-medium text-ok" role="status" data-testid="rating-thanks">
+        Thank you for your feedback.
+      </p>
+    );
+  async function submit(s: "up" | "down", text?: string) {
+    setState("sending");
+    const ok = await onRate(s, text?.trim() || undefined);
+    setState(ok ? "done" : "idle");
+  }
+  return (
+    <section className="mt-8 w-full rounded-xl border border-line p-4" aria-labelledby="rating-title" data-testid="rating">
+      <h2 id="rating-title" className="text-[15px] font-semibold">
+        Did this help?
+      </h2>
+      <div className="mt-3 flex justify-center gap-3">
+        {(["up", "down"] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => (s === "up" ? submit("up") : setScore("down"))}
+            disabled={state === "sending"}
+            aria-pressed={score === s}
+            className={`flex h-12 min-w-28 items-center justify-center gap-2 rounded-lg border text-sm font-medium ${score === s ? "border-brand bg-brand-soft" : "border-line-strong"}`}
+            data-testid={`rate-${s}`}
+          >
+            {s === "up" ? <ThumbsUp className="size-5" aria-hidden /> : <ThumbsDown className="size-5" aria-hidden />}
+            {s === "up" ? "Yes" : "No"}
+          </button>
+        ))}
+      </div>
+      {score === "down" && (
+        <div className="mt-3 text-left">
+          <label className="block text-sm text-ink-2">
+            What went wrong? <span className="text-muted">(optional)</span>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              maxLength={500}
+              rows={3}
+              className="mt-1 w-full rounded-md border border-line-strong p-2 text-sm"
+              data-testid="rating-comment"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => submit("down", comment)}
+            disabled={state === "sending"}
+            className="mt-2 h-10 w-full rounded-md bg-navy text-sm font-medium text-white"
+            data-testid="rating-send"
+          >
+            Send
+          </button>
+        </div>
+      )}
+    </section>
   );
 }

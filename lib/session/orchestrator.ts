@@ -94,6 +94,8 @@ export type Command =
    * why something didn't work for a tester. No customer content.
    */
   | { type: "client.report"; kind: ClientReportKind; detail?: string }
+  /** The customer's thumbs up/down at the end; accepted once, after the session has ended too. */
+  | { type: "customer.rating"; score: "up" | "down"; comment?: string }
   | {
       type: "frame.captured";
       trigger: FrameTrigger;
@@ -201,7 +203,7 @@ export function createSession(input: CreateSessionInput, deps: OrchestratorDeps)
 const TERMINAL = new Set(["completed", "failed"]);
 
 export function handleCommand(state: SessionState, command: Command, actor: Actor, deps: OrchestratorDeps): CommandResult {
-  if (TERMINAL.has(state.session.status) && command.type !== "human.note") {
+  if (TERMINAL.has(state.session.status) && command.type !== "human.note" && command.type !== "customer.rating") {
     return { state, effects: [], error: "Session has ended" };
   }
   const ctx = new Ctx(structuredClone(state), deps, actor);
@@ -238,6 +240,14 @@ function dispatch(ctx: Ctx, cmd: Command): string | undefined {
       ctx.audit("session.started", {});
       ctx.audit("workflow.started", { workflowId: ctx.deps.workflow.id, version: ctx.deps.workflow.version });
       ctx.enterStep(ctx.deps.workflow.startStep);
+      return;
+    }
+
+    case "customer.rating": {
+      if (ctx.actor.type !== "customer") return "Only the customer can rate the session";
+      if (s.rating) return "Already rated";
+      s.rating = { score: cmd.score, ...(cmd.comment ? { comment: cmd.comment } : {}), at: ctx.now };
+      ctx.audit("customer.rating", { score: cmd.score, ...(cmd.comment ? { comment: cmd.comment } : {}) });
       return;
     }
 

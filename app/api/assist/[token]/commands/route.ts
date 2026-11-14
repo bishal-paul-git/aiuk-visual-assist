@@ -30,6 +30,11 @@ function parse(c: Record<string, unknown>): Command | string {
     }
     case "session.end":
       return { type: c.type, reason: "Customer ended the session" };
+    case "customer.rating": {
+      if (c.score !== "up" && c.score !== "down") return "Invalid rating";
+      const comment = typeof c.comment === "string" ? c.comment.trim().slice(0, 500) : "";
+      return { type: c.type, score: c.score, ...(comment ? { comment } : {}) };
+    }
     case "client.report": {
       const kind = str(c.kind, 40);
       if (!kind || !(CLIENT_REPORT_KINDS as readonly string[]).includes(kind)) return "Unknown report";

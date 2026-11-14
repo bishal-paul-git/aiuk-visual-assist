@@ -1,7 +1,7 @@
 import { bootedAt, getPersistence, getRuntime } from "@/lib/server/runtime";
 import { getNotifications } from "@/lib/server/notifications";
 import { getProviderStats } from "@/lib/server/telemetry";
-import { requestLogger } from "@/lib/server/log";
+import { recentAlerts, requestLogger } from "@/lib/server/log";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +46,8 @@ export async function GET(request: Request) {
         lastErrorAt: store.lastErrorAt ?? null,
       },
       sessions: { total: rt.allSessionIds().length, live: live.length },
+      // Failures customers could notice, last 15 minutes (names only). The uptime check emails when this is high.
+      alerts: recentAlerts(),
       providers: {
         reasoning: { live: reasoning.available, model: reasoning.model ?? null, simulator: "available", calls: providerCalls.reduce((n, r) => n + r.calls, 0), errors: recentErrors },
         notifications: getNotifications().status(),

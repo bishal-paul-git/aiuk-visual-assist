@@ -9,6 +9,7 @@ import { identityProviders } from "@/lib/server/identity-provider";
 import { readJson, str } from "@/lib/server/http";
 import { TRIAL_USER_ID } from "@/lib/auth/trial";
 import { checkStaffPassword, staffPasswordRequired } from "@/lib/server/staff-password";
+import { checkClientPassword, isPrivateUser, privateUserByEmail } from "@/lib/auth/private-clients";
 import { trialFailures } from "@/lib/server/trial";
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -50,7 +51,27 @@ export async function POST(request: Request) {
   const { demo } = identityProviders();
   if (!demo) return authError(403, "Demo sign-in is disabled; use single sign-on");
   const body = await readJson(request, 4_000);
+  const email = str(body?.email, 200);
+  const clientKey = `client:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local"}`;
+  // Client staff (private clients with real customer data): email + the client's password.
+  if (email !== undefined && email !== null) {
+    if (trialFailures.blocked(clientKey)) return Response.json({ error: "Too many attempts. Please wait a few minutes and try again." }, { status: 429 });
+    const staff = privateUserByEmail(email);
+    if (!staff || !checkClientPassword(staff.tenantId, str(body?.password, 200) ?? "")) {
+      trialFailures.record(clientKey);
+      recordSecurityEvent({ eventType: "security.sign_in_failed", payload: { provider: demo.id, attemptedUserId: staff?.id ?? null, reason: "client_password" } });
+      return Response.json({ error: "That email and password don't match. Check with your manager or Absolute Intelligence." }, { status: 401 });
+    }
+    const claims = await startSession(staff, demo, request);
+    recordSecurityEvent({ eventType: "security.signed_in", user: staff, payload: { provider: "client_password", sessionId: claims.sid } });
+    return Response.json({ user: toPublicUser(staff), next: safeNextPath(body?.next) ?? homePathFor(staff) });
+  }
   const userId = str(body?.userId, 80) ?? undefined;
+  // Private-client staff never sign in from the picker, even by calling the API directly.
+  if (isPrivateUser(users.find((u) => u.id === userId))) {
+    recordSecurityEvent({ eventType: "security.sign_in_failed", payload: { provider: demo.id, attemptedUserId: userId ?? null, reason: "private_client_picker" } });
+    return authError(401, "Sign-in failed");
+  }
   // With STAFF_SIGNIN_PASSWORD set, picking an admin account needs the password. Agents, supervisors and reviewers don't.
   const picked = users.find((u) => u.id === userId);
   if (staffPasswordRequired() && userId !== TRIAL_USER_ID && (!picked || needsStaffPassword(picked.role))) {

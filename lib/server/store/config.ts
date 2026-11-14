@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { BUILT_IN_WORKFLOWS, policies, workflows } from "@/lib/config/catalog";
+import { BUILT_IN_POLICIES, BUILT_IN_WORKFLOWS, policies, workflows } from "@/lib/config/catalog";
 import { getWorkflowRegistry } from "@/lib/workflow/registry";
 import { getPolicyRegistry } from "@/lib/policy/registry";
 import type { AuditEvent, Policy, WorkflowDefinition } from "@/lib/domain/types";
@@ -46,6 +46,7 @@ function applyConfig(saved: ConfigFile | undefined): boolean {
   // Replace in place: every reader holds a reference to these arrays.
   workflows.splice(0, workflows.length, ...refreshBuiltIns(saved.workflows, saved.workflowAudit ?? [], [...BUILT_IN_WORKFLOWS]));
   policies.splice(0, policies.length, ...saved.policies);
+  for (const p of BUILT_IN_POLICIES) if (!policies.some((x) => x.id === p.id)) policies.push(structuredClone(p));
   wfReg.audit.splice(0, wfReg.audit.length, ...(saved.workflowAudit ?? []));
   polReg.audit.splice(0, polReg.audit.length, ...(saved.policyAudit ?? []));
   if (saved.connectors) getConnectorRegistry().setStored(saved.connectors);

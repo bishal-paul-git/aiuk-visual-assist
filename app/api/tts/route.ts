@@ -1,4 +1,5 @@
 import { jsonError, readJson, str } from "@/lib/server/http";
+import { log } from "@/lib/server/log";
 import { clipKey, VOICES, type VoiceRole } from "@/lib/voice/voices";
 import { elevenLabsConfigured, synthesise, voiceHealth } from "@/lib/server/voice/elevenlabs";
 
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
   if (!audio) {
     const r = await synthesise(text, role);
     if (!r.ok) {
-      console.error(`[tts] ${r.error}`);
+      log.warn("tts.failed", { error: r.error, status: r.status });
       return jsonError(r.error, r.status);
     }
     audio = r.audio;

@@ -138,6 +138,23 @@ export async function signInDemo(userId: string, next?: string, password?: strin
   }
 }
 
+/** Client staff (private clients): email + the client's password. Server edition only. */
+export async function signInClientStaff(email: string, password: string, next?: string): Promise<{ ok: true; next: string } | { ok: false; error: string }> {
+  try {
+    const r = await fetch(`${BASE_PATH}/api/auth/sign-in`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, next }),
+    });
+    const d = (await r.json().catch(() => ({}))) as { user?: PublicUser; next?: string; error?: string };
+    if (!r.ok || !d.user) return { ok: false, error: d.error ?? "Sign-in failed" };
+    emit({ status: "signed_in", user: d.user, demo: false });
+    return { ok: true, next: d.next ?? "/" };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 /**
  * Server edition: end the local session. For single sign-on sessions the
  * result carries the identity provider's logout URL, to end the IdP session too.

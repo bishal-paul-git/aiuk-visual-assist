@@ -1,5 +1,5 @@
 import type { User, UserRole } from "@/lib/domain/types";
-import { users } from "@/lib/config/catalog";
+import { tenants, users } from "@/lib/config/catalog";
 
 /**
  * Identity provider abstraction (docs/06 §2: SSO, MFA).
@@ -88,7 +88,8 @@ export interface OidcProviderConfig {
 
 /** Demo users who can sign in: active workforce users in the catalog. */
 export function demoUsers(): User[] {
-  return users.filter((u) => u.status === "active");
+  // Staff of private clients (real customer data) are never offered on the pickers.
+  return users.filter((u) => u.status === "active" && !tenants.find((t) => t.id === u.tenantId)?.featureFlags.private_client);
 }
 
 export class DemoIdentityProvider implements IdentityProvider {

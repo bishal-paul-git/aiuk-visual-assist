@@ -7,7 +7,8 @@ import { BASE_PATH, STATIC_DEMO, getTransport, type LinkDelivery } from "@/lib/c
 import { normaliseEmail, normalisePhone } from "@/lib/notifications/validate";
 import { buttonClass, cx } from "@/components/ui/primitives";
 import { useIdentity } from "@/lib/client/identity";
-import { can } from "@/lib/auth/rbac";
+import { can, isPlatformRole } from "@/lib/auth/rbac";
+import { tenants } from "@/lib/config/catalog";
 
 interface Created {
   id: string;
@@ -20,13 +21,25 @@ interface Created {
  * Creates a real session on the runtime and hands out the secure customer
  * link. The scenario only drives the simulated vision provider.
  */
-export function TestSessionLauncher({
+export function TestSessionLauncher(props: Parameters<typeof Launcher>[0]) {
+  // Client staff always start sessions for their own client; a live client's sessions are real (live AI, no examples).
+  const id = useIdentity();
+  const own = id.status === "signed_in" && !isPlatformRole(id.user.role) ? tenants.find((t) => t.id === id.user.tenantId) : undefined;
+  if (!own || own.id === (props.tenantId ?? "tnt_northline")) return <Launcher {...props} />;
+  const real = Boolean(own.featureFlags.private_client);
+  return <Launcher {...props} tenantId={own.id} workflowName={`${own.brand.displayName} · Router Troubleshooting`} liveOnly real={real} />;
+}
+
+function Launcher({
   variant = "primary",
   tenantId = "tnt_northline",
   workflowKey = "router-troubleshooting",
   workflowName = "X Telecom · Router Troubleshooting",
   liveOnly = false,
+  real = false,
 }: {
+  /** A live client's real customers: the button reads "Send a customer link". */
+  real?: boolean;
   variant?: "primary" | "navy";
   /** Client the session is created for (the client portal passes its own). */
   tenantId?: string;
@@ -95,7 +108,7 @@ export function TestSessionLauncher({
   return (
     <>
       <button type="button" className={buttonClass(variant, "sm")} onClick={() => setOpen(true)}>
-        <Smartphone className="size-3.5" aria-hidden /> Start test session
+        <Smartphone className="size-3.5" aria-hidden /> {real ? "Send a customer link" : "Start test session"}
       </button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/50 p-4" role="dialog" aria-modal="true" aria-labelledby="launcher-title">

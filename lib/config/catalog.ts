@@ -1,5 +1,5 @@
 import type { AgentConfig, Policy, Tenant, User, WorkflowDefinition } from "@/lib/domain/types";
-import { routerTroubleshootingV3 } from "./workflows/router-troubleshooting";
+import { homeTelecomRouterV1, routerTroubleshootingV3 } from "./workflows/router-troubleshooting";
 import { boilerFaultV1, homeDamageV1, routerTroubleshootingV2 } from "./workflows/other-workflows";
 
 /**
@@ -47,6 +47,20 @@ export const tenants: Tenant[] = (gt.__aiukTenants ??= [
     featureFlags: { visual_assist: true, ai_copilot_after_takeover: false, sms_entry: true, qr_entry: true, voice_only_fallback: false },
     createdAt: "2026-09-15T09:00:00.000Z",
     updatedAt: "2026-10-01T11:00:00.000Z",
+  },
+  {
+    // First real pilot client. private_client: real customer data, so its staff
+    // are hidden from the demo pickers and need the client password (lib/auth/private-clients.ts).
+    id: "tnt_hometelecom",
+    name: "Home Telecom",
+    sector: "telecommunications",
+    status: "onboarding",
+    brand: { displayName: "Home Telecom", primaryColor: "#1D5BD8" },
+    region: "uk-south",
+    retention: { evidenceMode: "retained_evidence", evidenceRetentionDays: 30, transcriptRetentionDays: 90, auditRetentionDays: 730 },
+    featureFlags: { visual_assist: true, ai_copilot_after_takeover: true, sms_entry: true, qr_entry: true, voice_only_fallback: true, private_client: true },
+    createdAt: "2026-11-14T09:00:00.000Z",
+    updatedAt: "2026-11-14T09:00:00.000Z",
   },
 ]);
 
@@ -135,16 +149,35 @@ export const policies: Policy[] = (gp.__aiukPolicies ??= [
   },
 ]);
 
+// Home Telecom starts with the same safety rules as the standard broadband policy.
+if (!policies.some((p) => p.id === "pol_hometelecom_standard")) {
+  const base = policies.find((p) => p.id === "pol_northline_standard")!;
+  policies.push({
+    ...structuredClone(base),
+    id: "pol_hometelecom_standard",
+    tenantId: "tnt_hometelecom",
+    name: "Home Telecom Standard Support",
+    version: 1,
+    changeNote: "v1: pilot, copied from the standard broadband policy.",
+    publishedAt: "2026-11-14T09:00:00.000Z",
+    publishedBy: "Absolute Intelligence",
+  });
+}
+
+/** The policies shipped in the code; a saved config gains any it lacks (new clients). */
+export const BUILT_IN_POLICIES: readonly Policy[] = structuredClone(policies);
+
 /**
  * Process-wide so workflow versioning (lib/workflow/registry.ts) and every
  * reader see the same list, including across dev hot reloads.
  */
 const g = globalThis as unknown as { __aiukWorkflows?: WorkflowDefinition[] };
 /** The workflows shipped in the code, untouched by any platform edit. */
-export const BUILT_IN_WORKFLOWS: readonly WorkflowDefinition[] = [routerTroubleshootingV3, routerTroubleshootingV2, boilerFaultV1, homeDamageV1];
+export const BUILT_IN_WORKFLOWS: readonly WorkflowDefinition[] = [routerTroubleshootingV3, homeTelecomRouterV1, routerTroubleshootingV2, boilerFaultV1, homeDamageV1];
 
 export const workflows: WorkflowDefinition[] = (g.__aiukWorkflows ??= [
   structuredClone(routerTroubleshootingV3),
+  structuredClone(homeTelecomRouterV1),
   structuredClone(routerTroubleshootingV2),
   structuredClone(boilerFaultV1),
   structuredClone(homeDamageV1),
@@ -190,6 +223,19 @@ export const agents: AgentConfig[] = (gt.__aiukAgents ??= [
     version: 1,
     status: "draft",
   },
+  {
+    id: "agt_hometelecom_router",
+    tenantId: "tnt_hometelecom",
+    name: "Home Telecom Assistant",
+    model: { provider: "mock", model: "aiuk-reasoning-sim-1", visionModel: "aiuk-vision-sim-1" },
+    voice: { provider: "browser", voiceId: "en-GB-default", speakingRate: 1 },
+    language: { primary: "en-GB", supported: ["en-GB"] },
+    policyIds: ["pol_hometelecom_standard"],
+    workflowIds: ["wf_ht_router_v1"],
+    promptVersion: "router-assist-prompt@7",
+    version: 1,
+    status: "active",
+  },
 ]);
 
 export interface HumanTeam {
@@ -231,6 +277,15 @@ export const teams: HumanTeam[] = [
     escalationReasons: ["safety_policy", "unresolved_after_workflow", "customer_requested"],
   },
   {
+    id: "team_ht_support",
+    tenantId: "tnt_hometelecom",
+    name: "Home Telecom Support",
+    skills: ["router", "wifi", "cabling", "line_faults", "engineer_booking"],
+    hours: "Mon–Sun 08:00–20:00",
+    targetAnswerSec: 90,
+    escalationReasons: ["customer_requested", "low_visual_confidence", "unresolved_after_workflow", "out_of_scope", "workflow_failure"],
+  },
+  {
     id: "team_hb_claims",
     tenantId: "tnt_harbour",
     name: "Home Claims Handlers",
@@ -252,6 +307,12 @@ export const users: User[] = [
   { id: "usr_owen", tenantId: "tnt_brightwater", role: "client_admin", name: "Owen Price", email: "owen.price@brightwater.example", status: "active" },
   { id: "usr_lena", tenantId: "tnt_brightwater", role: "agent", name: "Lena Morris", email: "lena.morris@brightwater.example", status: "invited", teamId: "team_bw_heating" },
   { id: "usr_grace", tenantId: "tnt_harbour", role: "client_admin", name: "Grace Okafor", email: "grace.okafor@harbour.example", status: "active" },
+  // Home Telecom pilot staff (private client): sign in with email + the client password. Rename when real staff are known.
+  { id: "usr_ht_admin", tenantId: "tnt_hometelecom", role: "client_admin", name: "Home Telecom Manager", email: "manager@hometelecom.pilot", status: "active" },
+  { id: "usr_ht_lead", tenantId: "tnt_hometelecom", role: "supervisor", name: "Home Telecom Team Leader", email: "teamlead@hometelecom.pilot", status: "active", teamId: "team_ht_support" },
+  { id: "usr_ht_agent1", tenantId: "tnt_hometelecom", role: "agent", name: "Home Telecom Agent 1", email: "agent1@hometelecom.pilot", status: "active", teamId: "team_ht_support" },
+  { id: "usr_ht_agent2", tenantId: "tnt_hometelecom", role: "agent", name: "Home Telecom Agent 2", email: "agent2@hometelecom.pilot", status: "active", teamId: "team_ht_support" },
+  { id: "usr_ht_agent3", tenantId: "tnt_hometelecom", role: "agent", name: "Home Telecom Agent 3", email: "agent3@hometelecom.pilot", status: "active", teamId: "team_ht_support" },
   { id: "usr_james", tenantId: "aiuk", role: "aiuk_admin", name: "James Carter", email: "james.carter@absoluteintelligence.example", status: "active" },
   { id: "usr_nadia", tenantId: "aiuk", role: "qa_reviewer", name: "Nadia Rahman", email: "nadia.rahman@absoluteintelligence.example", status: "active" },
 ];

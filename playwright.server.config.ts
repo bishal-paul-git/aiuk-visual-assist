@@ -29,6 +29,7 @@ Object.assign(serverEnv, {
   DATA_DIR: dataDir,
   AUTH_SECRET: "e2e-server-test-secret-0123456789abcdefghijklmnop",
   NODE_ENV: "production",
+  CLIENT_SIGNIN_PASSWORDS: JSON.stringify({ tnt_hometelecom: "e2e-home-telecom-pass" }),
 });
 
 export default defineConfig({

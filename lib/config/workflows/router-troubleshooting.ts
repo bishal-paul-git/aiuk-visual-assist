@@ -364,3 +364,11 @@ export const routerTroubleshootingV3: WorkflowDefinition = {
     },
   ],
 };
+
+/** Home Telecom pilot: the same trained router flow, owned by the Home Telecom client so it can be tuned for their routers. */
+export const homeTelecomRouterV1: WorkflowDefinition = {
+  ...routerTroubleshootingV3,
+  id: "wf_ht_router_v1",
+  tenantId: "tnt_hometelecom",
+  version: 1,
+};

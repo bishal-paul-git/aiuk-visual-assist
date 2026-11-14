@@ -124,6 +124,8 @@ export interface SessionState {
   audit: AuditEvent[];
   costs: CostEvent[];
   consent?: { acceptedAt: ISODateString; noticeVersion: string; evidenceMode: string };
+  /** The customer's rating of the session, given once at the end. */
+  rating?: { score: "up" | "down"; comment?: string; at: ISODateString };
   /** What the retention job has deleted from this session (docs/06 §3). */
   retention?: RetentionRecord;
 }

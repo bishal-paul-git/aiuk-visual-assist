@@ -27,6 +27,42 @@ export default async function ClientHome({ searchParams }: { searchParams: Promi
   const recent = scope.summaries().slice(0, 4);
   const operators = users.filter((u) => u.tenantId === tenant.id && (u.role === "supervisor" || u.role === "agent") && u.status === "active" && u.id !== "usr_demo");
 
+  if (tenant.featureFlags.private_client) {
+    const operator = scope.allows("session.create");
+    return (
+      <PortalShell scope={scope} active="home">
+        <PageHeader title={`${tenant.brand.displayName} · Visual Assist`} description="Your live service: real customers, real AI, your team." />
+        <div className="grid gap-4 md:grid-cols-3" data-testid="live-service">
+          <Panel title="Help a customer now">
+            <p className="text-sm text-ink-2">
+              {operator
+                ? "Open the agent console. Press “Send a customer link” to text the customer a secure link while you are on the phone. You get an alert when someone needs a person."
+                : "Your agents and team leaders work in the agent console."}
+            </p>
+            {operator && (
+              <Link href="/console" className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">
+                Open the agent console <ArrowRight className="size-3.5" aria-hidden />
+              </Link>
+            )}
+          </Panel>
+          <Panel title="Pilot results">
+            <p className="text-sm text-ink-2">Fixed by the AI, handed to a person, customer ratings and cost. Download the report as a spreadsheet.</p>
+            <Link href={portalHref(scope, "/client/results")} className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">
+              See results <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          </Panel>
+          <Panel title="Every conversation">
+            <p className="text-sm text-ink-2">Transcript, what the AI saw, steps taken and the outcome of each customer session.</p>
+            <Link href={portalHref(scope, "/client/sessions")} className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">
+              See conversations <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          </Panel>
+        </div>
+        <RecentPanel scope={scope} recent={recent} />
+      </PortalShell>
+    );
+  }
+
   return (
     <PortalShell scope={scope} active="home">
       <PageHeader
@@ -58,6 +94,28 @@ export default async function ClientHome({ searchParams }: { searchParams: Promi
         </Panel>
       )}
 
+      <RecentPanel scope={scope} recent={recent} />
+
+      <details className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+        <summary className="cursor-pointer text-[13px] font-medium text-ink-2 select-none">What&apos;s included in this trial</summary>
+        <ul className="mt-3 grid gap-2.5 sm:grid-cols-2">
+          {readiness.map((r) => (
+            <li key={r.label} className="flex items-start gap-2 text-[13px]">
+              {r.state === "on" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-label="On" /> : r.state === "demo" ? <FlaskConical className="mt-0.5 size-4 shrink-0 text-brand" aria-label="Demo" /> : <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted" aria-label="Off" />}
+              <span className="min-w-0">
+                <span className="block font-medium text-ink">{r.label}</span>
+                <span className="block text-xs text-muted">{r.detail}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </PortalShell>
+  );
+}
+
+function RecentPanel({ scope, recent }: { scope: Awaited<ReturnType<typeof clientScope>>; recent: ReturnType<Awaited<ReturnType<typeof clientScope>>["summaries"]> }) {
+  return (
       <div className="mt-4">
         <Panel
           title="Your latest conversations"
@@ -95,21 +153,5 @@ export default async function ClientHome({ searchParams }: { searchParams: Promi
           )}
         </Panel>
       </div>
-
-      <details className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
-        <summary className="cursor-pointer text-[13px] font-medium text-ink-2 select-none">What&apos;s included in this trial</summary>
-        <ul className="mt-3 grid gap-2.5 sm:grid-cols-2">
-          {readiness.map((r) => (
-            <li key={r.label} className="flex items-start gap-2 text-[13px]">
-              {r.state === "on" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-ok" aria-label="On" /> : r.state === "demo" ? <FlaskConical className="mt-0.5 size-4 shrink-0 text-brand" aria-label="Demo" /> : <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted" aria-label="Off" />}
-              <span className="min-w-0">
-                <span className="block font-medium text-ink">{r.label}</span>
-                <span className="block text-xs text-muted">{r.detail}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </details>
-    </PortalShell>
   );
 }

@@ -71,8 +71,43 @@ function format(level: LogLevel, msg: string, fields: LogFields): string {
   }
 }
 
+/**
+ * Failures a customer could notice (AI, voice, speech, database, text
+ * messages, client systems). Kept in memory, names only (no content), so the
+ * health check can report them and the 15-minute uptime check can email.
+ */
+const ALERT_WARNINGS = new Set(["provider.call_failed", "stt.failed", "tts.failed", "notification.failed", "integration.call_failed"]);
+const ALERT_WINDOW_MS = 60 * 60 * 1000;
+const ga = globalThis as unknown as { __aiukAlerts?: { msg: string; at: number }[] };
+const alerts = (ga.__aiukAlerts ??= []);
+
+function recordAlert(level: LogLevel, msg: string): void {
+  if (level !== "error" && !(level === "warn" && ALERT_WARNINGS.has(msg))) return;
+  const now = Date.now();
+  alerts.push({ msg, at: now });
+  while (alerts.length && (alerts[0].at < now - ALERT_WINDOW_MS || alerts.length > 500)) alerts.shift();
+}
+
+/** Alert-worthy failures in the last `windowMs` (default 15 minutes), counted by name. */
+export function recentAlerts(windowMs = 15 * 60 * 1000, now = Date.now()): { total: number; byName: Record<string, number> } {
+  const byName: Record<string, number> = {};
+  let total = 0;
+  for (const a of alerts) {
+    if (a.at < now - windowMs) continue;
+    byName[a.msg] = (byName[a.msg] ?? 0) + 1;
+    total++;
+  }
+  return { total, byName };
+}
+
+/** Tests only. */
+export function clearAlerts(): void {
+  alerts.length = 0;
+}
+
 function make(base: LogFields): Logger {
   const emit = (level: LogLevel, msg: string, fields: LogFields = {}) => {
+    recordAlert(level, msg);
     if (ORDER[level] < threshold()) return;
     sink(level, format(level, msg, { ...base, ...fields }));
   };

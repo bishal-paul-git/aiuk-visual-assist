@@ -42,6 +42,8 @@ export interface CustomerView {
   /** Simulation only: what the demo camera should render. */
   demoScene?: RouterScene;
   seq: number;
+  /** True once the customer has rated the session. */
+  rated: boolean;
 }
 
 export function toCustomerView(state: SessionState, brand: { name: string; color: string }, evidenceMode: string): CustomerView {
@@ -71,6 +73,7 @@ export function toCustomerView(state: SessionState, brand: { name: string; color
     demoScene: demoSceneFor(state),
     seen: latestSeen(state),
     seq: state.seq,
+    rated: Boolean(state.rating),
   };
 }
 

@@ -351,7 +351,7 @@ export function AssistApp({ token, initial, serverNow }: { token: string; initia
   }, []);
 
   // --- Render ----------------------------------------------------------------
-  if (ended) return <EndedScreen view={view} />;
+  if (ended) return <EndedScreen view={view} onRate={(score, comment) => send({ type: "customer.rating", score, comment })} />;
   if (phase === "consent")
     return (
       <ConsentScreen
