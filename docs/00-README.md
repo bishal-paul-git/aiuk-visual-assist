@@ -4,6 +4,8 @@ This folder contains the core project-development documents for **Absolute Intel
 
 The product enables a customer to open a secure browser session, speak naturally with AI, show a real-world issue through their phone camera, receive guided support through approved workflows, and escalate into a human-assisted session with full context when required.
 
+> **Start with `SYSTEM-AND-PRODUCT.md`**: the whole system and product in one place (what it is, architecture, flows, clients, hosting and costs, operations, status, next steps, decisions). Legal drafts are in `legal/`, and the Google Sheet generator is in `worksheet/`.
+
 ## Document set
 
 1. `01-PRD.md` — Product Requirements Document

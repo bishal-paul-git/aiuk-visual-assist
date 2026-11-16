@@ -4,10 +4,11 @@ import { useState } from "react";
 import { Camera, Clock, EyeOff, Headset, ImageIcon, Lock, Mic, MonitorSmartphone, ThumbsDown, ThumbsUp } from "lucide-react";
 import type { CustomerView } from "@/lib/session/projections";
 
-export const NOTICE_VERSION = "privacy-notice@2";
+export const NOTICE_VERSION = "privacy-notice@3";
 
 export function ConsentScreen({ view, onAccept, onDecline }: { view: CustomerView; onAccept: () => void; onDecline: () => void }) {
   const retained = view.evidenceMode === "retained_evidence";
+  const [notice, setNotice] = useState(false);
   return (
     <div className="flex min-h-[100dvh] flex-col bg-white text-ink">
       <BrandBar view={view} />
@@ -46,8 +47,12 @@ export function ConsentScreen({ view, onAccept, onDecline }: { view: CustomerVie
             No thanks
           </button>
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted">
-            <Lock className="size-3" aria-hidden /> Secure session {view.reference} · Privacy notice v2
+            <Lock className="size-3" aria-hidden /> Secure session {view.reference} ·{" "}
+            <button type="button" data-testid="privacy-open" className="underline" onClick={() => setNotice(!notice)}>
+              Privacy notice
+            </button>
           </p>
+          {notice && <PrivacyNotice view={view} />}
         </div>
       </main>
     </div>
@@ -223,6 +228,51 @@ function Rating({ rated, onRate }: { rated: boolean; onRate: (score: "up" | "dow
           </button>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * The full privacy notice for the customer (docs/legal/PRIVACY-NOTICE.md is
+ * the master text; keep them in step and bump NOTICE_VERSION on a change).
+ */
+export function PrivacyNotice({ view }: { view: CustomerView }) {
+  const brand = view.brandName;
+  const days = view.retention;
+  const retained = view.evidenceMode === "retained_evidence";
+  return (
+    <section data-testid="privacy-notice" aria-label="Privacy notice" className="mt-4 max-h-80 space-y-2.5 overflow-y-auto rounded-lg border border-line bg-surface-2 p-4 text-[13px] leading-relaxed text-ink-2">
+      <h2 className="text-sm font-semibold text-ink">Privacy notice</h2>
+      <p>
+        <strong>Who is responsible.</strong> {brand} is responsible for your information (the controller). Absolute Intelligence UK Ltd runs this visual support
+        service for {brand} and only uses your information on {brand}&apos;s instructions (the processor).
+      </p>
+      <p>
+        <strong>What we use.</strong> Your camera pictures and microphone during the session, what you say and type, the still pictures needed for each step, what
+        the assistant read in them, the steps taken and the session reference. We don&apos;t record video and we don&apos;t use your information for marketing.
+      </p>
+      <p>
+        <strong>Why.</strong> To help with the problem you contacted {brand} about, to hand over to a member of the team when needed, to keep a record of the
+        help given, and to check and improve the quality of the service. The legal basis is {brand}&apos;s legitimate interest in supporting its customers and,
+        where you are a customer, providing the service under your contract.
+      </p>
+      <p>
+        <strong>Who else sees it.</strong> {brand}&apos;s support team; Anthropic (the AI that reads the pictures and words); ElevenLabs (the assistant&apos;s
+        voice); and our hosting, database and text message providers. Some are in the United States; transfers are protected by the UK International Data
+        Transfer Addendum or the UK–US data bridge. None of them may use your information for their own purposes.
+      </p>
+      <p>
+        <strong>How long.</strong>{" "}
+        {retained
+          ? `Still pictures are kept for ${days?.evidenceDays ?? 30} days and the conversation transcript for ${days?.transcriptDays ?? 90} days, then deleted.`
+          : `Pictures are used during the session only and not kept. The conversation transcript is kept for ${days?.transcriptDays ?? 90} days, then deleted.`}{" "}
+        A short record that the session took place is kept for audit.
+      </p>
+      <p>
+        <strong>Your choices and rights.</strong> You can say no, use voice only, ask for a person, or end the session at any time. You can ask {brand} for a copy
+        of your information, to correct or delete it, or object to its use{view.supportLine ? ` (call ${view.supportLine})` : ""}. Quote your reference {view.reference}.
+        You can also complain to the Information Commissioner&apos;s Office (ico.org.uk).
+      </p>
     </section>
   );
 }

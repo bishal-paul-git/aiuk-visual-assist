@@ -29,6 +29,18 @@ test("add a client, then its agent starts a session for it", async ({ page }) =>
   expect(me.user).toMatchObject({ tenantId: "tnt_demofibre", role: "agent" });
   const created = await page.request.post("/api/sessions", { data: { workflowKey: "router-troubleshooting", tenantId: "tnt_demofibre", channel: "secure_link", customerLabel: "Demo customer" } });
   expect(created.ok(), await created.text()).toBe(true);
+  const { customerPath } = (await created.json()) as { customerPath: string };
+
+  // The send-link dialog offers both broadband flows for the new client.
+  await page.goto("/console");
+  await page.getByRole("button", { name: /Start test session|Send a customer link/ }).first().click();
+  await expect(page.getByTestId("launcher-flow").locator("option")).toHaveText(["Router Troubleshooting", "New Router Setup"]);
+
+  // The customer sees the full privacy notice, with this client's name and retention.
+  await page.goto(customerPath);
+  await page.getByTestId("privacy-open").click();
+  await expect(page.getByTestId("privacy-notice")).toContainText("Demo Fibre is responsible");
+  await expect(page.getByTestId("privacy-notice")).toContainText("30 days");
 
   // Client staff cannot add clients.
   const denied = await page.request.post("/api/platform/clients", { data: { name: "Sneaky Co", template: "broadband", staff: [{ name: "Sam", email: "sam@sneaky.example" }] } });

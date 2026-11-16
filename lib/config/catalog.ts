@@ -1,6 +1,7 @@
 import type { AgentConfig, Policy, Tenant, User, WorkflowDefinition } from "@/lib/domain/types";
 import { homeTelecomRouterV1, routerTroubleshootingV3 } from "./workflows/router-troubleshooting";
 import { boilerFaultV1, homeDamageV1, routerTroubleshootingV2 } from "./workflows/other-workflows";
+import { homeTelecomRouterSetupV1, routerSetupV1 } from "./workflows/router-setup";
 
 /**
  * Seed configuration catalog. In production this is served by the data
@@ -173,11 +174,13 @@ export const BUILT_IN_POLICIES: readonly Policy[] = structuredClone(policies);
  */
 const g = globalThis as unknown as { __aiukWorkflows?: WorkflowDefinition[] };
 /** The workflows shipped in the code, untouched by any platform edit. */
-export const BUILT_IN_WORKFLOWS: readonly WorkflowDefinition[] = [routerTroubleshootingV3, homeTelecomRouterV1, routerTroubleshootingV2, boilerFaultV1, homeDamageV1];
+export const BUILT_IN_WORKFLOWS: readonly WorkflowDefinition[] = [routerTroubleshootingV3, routerSetupV1, homeTelecomRouterV1, homeTelecomRouterSetupV1, routerTroubleshootingV2, boilerFaultV1, homeDamageV1];
 
 export const workflows: WorkflowDefinition[] = (g.__aiukWorkflows ??= [
   structuredClone(routerTroubleshootingV3),
+  structuredClone(routerSetupV1),
   structuredClone(homeTelecomRouterV1),
+  structuredClone(homeTelecomRouterSetupV1),
   structuredClone(routerTroubleshootingV2),
   structuredClone(boilerFaultV1),
   structuredClone(homeDamageV1),
@@ -192,7 +195,7 @@ export const agents: AgentConfig[] = (gt.__aiukAgents ??= [
     voice: { provider: "browser", voiceId: "en-GB-default", speakingRate: 1 },
     language: { primary: "en-GB", supported: ["en-GB"] },
     policyIds: ["pol_northline_standard"],
-    workflowIds: ["wf_router_v3"],
+    workflowIds: ["wf_router_v3", "wf_router_setup_v1"],
     promptVersion: "router-assist-prompt@7",
     version: 5,
     status: "active",
@@ -231,7 +234,7 @@ export const agents: AgentConfig[] = (gt.__aiukAgents ??= [
     voice: { provider: "browser", voiceId: "en-GB-default", speakingRate: 1 },
     language: { primary: "en-GB", supported: ["en-GB"] },
     policyIds: ["pol_hometelecom_standard"],
-    workflowIds: ["wf_ht_router_v1"],
+    workflowIds: ["wf_ht_router_v1", "wf_ht_router_setup_v1"],
     promptVersion: "router-assist-prompt@7",
     version: 1,
     status: "active",

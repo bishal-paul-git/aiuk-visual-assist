@@ -8,7 +8,7 @@ import { normaliseEmail, normalisePhone } from "@/lib/notifications/validate";
 import { buttonClass, cx } from "@/components/ui/primitives";
 import { useIdentity } from "@/lib/client/identity";
 import { can, isPlatformRole } from "@/lib/auth/rbac";
-import { tenants } from "@/lib/config/catalog";
+import { tenants, workflows } from "@/lib/config/catalog";
 
 interface Created {
   id: string;
@@ -24,10 +24,12 @@ interface Created {
 export function TestSessionLauncher(props: Parameters<typeof Launcher>[0]) {
   // Client staff always start sessions for their own client; a live client's sessions are real (live AI, no examples).
   const id = useIdentity();
-  const own = id.status === "signed_in" && !isPlatformRole(id.user.role) ? tenants.find((t) => t.id === id.user.tenantId) : undefined;
-  if (!own || own.id === (props.tenantId ?? "tnt_northline")) return <Launcher {...props} />;
-  const real = Boolean(own.featureFlags.private_client);
-  return <Launcher {...props} tenantId={own.id} workflowName={`${own.brand.displayName} · Router Troubleshooting`} liveOnly real={real} />;
+  // (Clients added on the platform are not in this page's built-in catalog; the dialog asks the server about them.)
+  const ownId = id.status === "signed_in" && !isPlatformRole(id.user.role) ? id.user.tenantId : undefined;
+  if (!ownId || ownId === (props.tenantId ?? "tnt_northline")) return <Launcher {...props} />;
+  const own = tenants.find((t) => t.id === ownId);
+  const real = Boolean(own?.featureFlags.private_client);
+  return <Launcher {...props} tenantId={ownId} workflowName={own ? `${own.brand.displayName} · Router Troubleshooting` : "Router Troubleshooting"} liveOnly real={real} />;
 }
 
 function Launcher({
@@ -55,10 +57,38 @@ function Launcher({
   const [error, setError] = useState<string>();
   const [created, setCreated] = useState<Created>();
   const [copied, setCopied] = useState(false);
+  // What the customer needs help with: the client's published flows (e.g. troubleshooting, new router setup).
+  const [flows, setFlows] = useState<{ key: string; name: string }[]>();
+  const [flowKey, setFlowKey] = useState(workflowKey);
+  const [client, setClient] = useState<{ tenantName: string; private: boolean }>();
+  const isReal = real || Boolean(client?.private);
+  const flowName = (() => {
+    const f = flows?.find((x) => x.key === flowKey);
+    if (!f) return workflowName;
+    return `${client?.tenantName ?? workflowName.split(" · ")[0]} · ${f.name}`;
+  })();
   const [live, setLive] = useState<{ liveReasoning: boolean; model: string | null }>();
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const id = useIdentity();
+
+  useEffect(() => {
+    if (!open || flows) return;
+    if (STATIC_DEMO) {
+      const keys = new Map<string, string>();
+      for (const w of workflows) if (w.tenantId === tenantId && w.status === "published") keys.set(w.key, w.name);
+      setFlows([...keys].map(([key, name]) => ({ key, name })));
+      return;
+    }
+    fetch(`${BASE_PATH}/api/client/flows?tenant=${encodeURIComponent(tenantId)}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : undefined))
+      .then((d: { tenantName: string; private: boolean; flows: { key: string; name: string }[] } | undefined) => {
+        setFlows(d?.flows ?? []);
+        if (d) setClient({ tenantName: d.tenantName, private: d.private });
+        if (d?.flows.length && !d.flows.some((f) => f.key === workflowKey)) setFlowKey(d.flows[0].key);
+      })
+      .catch(() => setFlows([]));
+  }, [open, flows, tenantId, workflowKey]);
 
   useEffect(() => {
     if (!open || live) return;
@@ -85,7 +115,7 @@ function Launcher({
     try {
       const t = await getTransport();
       const r = await t.createSession({
-        workflowKey,
+        workflowKey: flowKey,
         tenantId,
         scenario,
         channel,
@@ -108,14 +138,14 @@ function Launcher({
   return (
     <>
       <button type="button" className={buttonClass(variant, "sm")} onClick={() => setOpen(true)}>
-        <Smartphone className="size-3.5" aria-hidden /> {real ? "Send a customer link" : "Start test session"}
+        <Smartphone className="size-3.5" aria-hidden /> {isReal ? "Send a customer link" : "Start test session"}
       </button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/50 p-4" role="dialog" aria-modal="true" aria-labelledby="launcher-title">
           <div className="w-full max-w-lg rounded-xl bg-surface shadow-2xl">
             <div className="flex items-center justify-between border-b border-line px-5 py-3">
               <h2 id="launcher-title" className="text-sm font-semibold text-ink">
-                {liveOnly ? `Start a ${workflowName} session` : "Start a Router Visual Support session"}
+                {liveOnly ? `Start a ${flowName} session` : "Start a Router Visual Support session"}
               </h2>
               <button
                 type="button"
@@ -132,11 +162,23 @@ function Launcher({
             {!created ? (
               <div className="space-y-4 p-5">
                 <p className="text-xs text-muted">
-                  Creates a live session on <strong>{workflowName}</strong> (current published version) and issues a secure customer link.{" "}
+                  Creates a live session on <strong>{flowName}</strong> (current published version) and issues a secure customer link.{" "}
                   {liveOnly
                     ? "This workflow runs on live AI: what the AI sees is what you show the camera."
                     : "Choose live AI, or a simulation scenario that decides what the vision model “sees” so every branch can be tested."}
                 </p>
+                {flows && flows.length > 1 && (
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-ink-2">What does the customer need help with?</span>
+                    <select data-testid="launcher-flow" value={flowKey} onChange={(e) => setFlowKey(e.target.value)} className="h-9 w-full rounded-md border border-line-strong bg-surface px-2 text-sm">
+                      {flows.map((f) => (
+                        <option key={f.key} value={f.key}>
+                          {f.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <label
                   className={cx(
                     "flex gap-3 rounded-md border px-3 py-2",

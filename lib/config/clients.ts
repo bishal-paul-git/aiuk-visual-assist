@@ -22,7 +22,8 @@ export type ClientTemplate = "broadband" | "boiler" | "home_damage";
 interface TemplateDef {
   label: string;
   sector: Sector;
-  workflowId: string;
+  /** Flows copied for the client; the first is the main one. */
+  workflowIds: string[];
   policyId: string;
   teamName: string;
   skills: string[];
@@ -33,7 +34,7 @@ export const CLIENT_TEMPLATES: Record<ClientTemplate, TemplateDef> = {
   broadband: {
     label: "Broadband: internet down / router lights",
     sector: "telecommunications",
-    workflowId: "wf_router_v3",
+    workflowIds: ["wf_router_v3", "wf_router_setup_v1"],
     policyId: "pol_northline_standard",
     teamName: "Broadband Support",
     skills: ["router", "wifi", "cabling", "line_faults", "engineer_booking"],
@@ -42,7 +43,7 @@ export const CLIENT_TEMPLATES: Record<ClientTemplate, TemplateDef> = {
   boiler: {
     label: "Energy: boiler fault code",
     sector: "utilities",
-    workflowId: "wf_boiler_v1",
+    workflowIds: ["wf_boiler_v1"],
     policyId: "pol_brightwater_safety",
     teamName: "Heating Advisers",
     skills: ["boilers", "gas_safety", "engineer_booking"],
@@ -51,7 +52,7 @@ export const CLIENT_TEMPLATES: Record<ClientTemplate, TemplateDef> = {
   home_damage: {
     label: "Insurance: home damage photos for a claim",
     sector: "insurance",
-    workflowId: "wf_home_damage_v1",
+    workflowIds: ["wf_home_damage_v1"],
     policyId: "pol_harbour_claims",
     teamName: "Claims Handlers",
     skills: ["home_claims", "evidence_review"],
@@ -123,18 +124,20 @@ function slug(name: string): string {
 }
 
 /** Build every record for a new client. Pure: nothing is added to the catalog. */
-export function buildClient(input: NewClientInput, now: string): { client: StoredClient; workflow: WorkflowDefinition; policy: Policy } {
+export function buildClient(input: NewClientInput, now: string): { client: StoredClient; workflows: WorkflowDefinition[]; policy: Policy } {
   const tpl = CLIENT_TEMPLATES[input.template];
   const tenantId = slug(input.name);
   const short = tenantId.slice(4);
-  const sourceWf = workflows.find((w) => w.id === tpl.workflowId);
+  const sources = tpl.workflowIds.map((id) => workflows.find((w) => w.id === id));
   const sourcePol = policies.find((p) => p.id === tpl.policyId);
-  if (!sourceWf || !sourcePol) throw new Error("The template for this industry is missing.");
+  if (sources.some((w) => !w) || !sourcePol) throw new Error("The template for this industry is missing.");
+  const policyId = `pol_${short}_standard`;
 
-  const workflow: WorkflowDefinition = {
-    ...structuredClone(sourceWf),
-    id: `wf_${short}_${sourceWf.key.replace(/[^a-z0-9]+/g, "_")}_v1`,
+  const copied: WorkflowDefinition[] = (sources as WorkflowDefinition[]).map((src) => ({
+    ...structuredClone(src),
+    id: `wf_${short}_${src.key.replace(/[^a-z0-9]+/g, "_")}_v1`,
     tenantId,
+    policyId,
     version: 1,
     status: "published",
     basedOnVersion: undefined,
@@ -142,8 +145,7 @@ export function buildClient(input: NewClientInput, now: string): { client: Store
     submittedBy: undefined,
     submittedById: undefined,
     retiredAt: undefined,
-  };
-  const policyId = `pol_${short}_standard`;
+  }));
   const policy: Policy = {
     ...structuredClone(sourcePol),
     id: policyId,
@@ -189,7 +191,7 @@ export function buildClient(input: NewClientInput, now: string): { client: Store
     voice: { provider: "browser", voiceId: "en-GB-default", speakingRate: 1 },
     language: { primary: "en-GB", supported: ["en-GB"] },
     policyIds: [policyId],
-    workflowIds: [workflow.id],
+    workflowIds: copied.map((w) => w.id),
     promptVersion: "router-assist-prompt@7",
     version: 1,
     status: "active",
@@ -203,7 +205,7 @@ export function buildClient(input: NewClientInput, now: string): { client: Store
     status: "active",
     ...(i === 0 ? {} : { teamId: team.id }),
   }));
-  return { client: { tenant, agent, team, users: staffUsers }, workflow, policy };
+  return { client: { tenant, agent, team, users: staffUsers }, workflows: copied, policy };
 }
 
 function addToCatalog(c: StoredClient) {
@@ -215,8 +217,9 @@ function addToCatalog(c: StoredClient) {
 
 /** Create a client from the platform; saved with the configuration. */
 export function createClient(input: NewClientInput, now = new Date().toISOString()): StoredClient {
-  const { client, workflow, policy } = buildClient(input, now);
-  workflows.push(workflow);
+  const built = buildClient(input, now);
+  const { client, policy } = built;
+  workflows.push(...built.workflows);
   policies.push(policy);
   storedClients().push(client);
   addToCatalog(client);

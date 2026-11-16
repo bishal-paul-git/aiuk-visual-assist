@@ -347,8 +347,9 @@ export class SessionRuntime {
     const tenant = getTenant(e.state.session.tenantId);
     return toCustomerView(
       e.state,
-      { name: tenant?.brand.displayName ?? "Support", color: tenant?.brand.primaryColor ?? "#1D5BD8" },
+      { name: tenant?.brand.displayName ?? "Support", color: tenant?.brand.primaryColor ?? "#1D5BD8", supportLine: tenant?.brand.supportLine },
       tenant?.retention.evidenceMode ?? "live_only",
+      tenant ? { evidenceDays: tenant.retention.evidenceRetentionDays, transcriptDays: tenant.retention.transcriptRetentionDays } : undefined,
     );
   }
 

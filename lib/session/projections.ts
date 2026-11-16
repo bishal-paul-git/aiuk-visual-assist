@@ -44,9 +44,18 @@ export interface CustomerView {
   seq: number;
   /** True once the customer has rated the session. */
   rated: boolean;
+  /** How long the client keeps pictures and transcripts (shown in the privacy notice). */
+  retention?: { evidenceDays: number; transcriptDays: number };
+  /** Client's support phone line, for privacy questions. */
+  supportLine?: string;
 }
 
-export function toCustomerView(state: SessionState, brand: { name: string; color: string }, evidenceMode: string): CustomerView {
+export function toCustomerView(
+  state: SessionState,
+  brand: { name: string; color: string; supportLine?: string },
+  evidenceMode: string,
+  retention?: { evidenceDays: number; transcriptDays: number },
+): CustomerView {
   const human = state.participants.find((p) => p.type === "human_agent" && !p.leftAt);
   const req = state.evidenceRequest;
   return {
@@ -69,6 +78,8 @@ export function toCustomerView(state: SessionState, brand: { name: string; color
     previewRequested: Boolean(human) || Boolean(state.escalation),
     liveVideo: callEligibility(state).eligible,
     evidenceMode,
+    ...(retention ? { retention } : {}),
+    ...(brand.supportLine ? { supportLine: brand.supportLine } : {}),
     scenario: state.session.scenario,
     demoScene: demoSceneFor(state),
     seen: latestSeen(state),

@@ -10,7 +10,7 @@ const QUALITIES = ["good", "fair", "poor", "lost"] as const;
 function parse(c: Record<string, unknown>): Command | string {
   switch (c.type) {
     case "customer.consent":
-      return { type: c.type, accepted: c.accepted === true, noticeVersion: str(c.noticeVersion, 40) ?? "privacy-notice@2" };
+      return { type: c.type, accepted: c.accepted === true, noticeVersion: str(c.noticeVersion, 40) ?? "privacy-notice@3" };
     case "customer.utterance": {
       const text = str(c.text, 1000)?.trim();
       if (!text) return "Invalid utterance";

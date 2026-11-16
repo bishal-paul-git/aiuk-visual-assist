@@ -201,6 +201,7 @@ export function scenarioObservations(sc: ScenarioDefinition, f: FrameContext): O
       ];
     case "router_lights":
     case "router_lights_recheck":
+    case "setup_lights":
     case "human_request": {
       if (unclear) {
         return [
@@ -230,6 +231,7 @@ export function scenarioObservations(sc: ScenarioDefinition, f: FrameContext): O
       ];
     }
     case "router_rear":
+    case "setup_cables":
       return [
         {
           observationType: "broadband_cable",

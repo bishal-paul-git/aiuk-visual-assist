@@ -24,12 +24,15 @@ describe("add a client", () => {
     const before = tenants.length;
     const input = validateNewClient({ ...base, name: "Build Only Co" });
     if (typeof input === "string") throw new Error(input);
-    const { client, workflow, policy } = buildClient(input, "2026-11-14T10:00:00.000Z");
+    const { client, workflows: flows, policy } = buildClient(input, "2026-11-14T10:00:00.000Z");
+    const workflow = flows[0];
+    expect(flows.map((w) => w.key)).toEqual(["router-troubleshooting", "router-setup"]);
+    expect(flows.every((w) => w.policyId === policy.id)).toBe(true);
     expect(tenants.length).toBe(before);
     expect(client.tenant.id).toBe("tnt_buildonlyco");
     expect(workflow).toMatchObject({ tenantId: "tnt_buildonlyco", status: "published", version: 1, key: "router-troubleshooting" });
     expect(policy).toMatchObject({ tenantId: "tnt_buildonlyco", status: "active" });
-    expect(client.agent.workflowIds).toEqual([workflow.id]);
+    expect(client.agent.workflowIds).toEqual(flows.map((w) => w.id));
     expect(client.agent.policyIds).toEqual([policy.id]);
     expect(client.users.map((u) => u.role)).toEqual(["client_admin", "agent"]);
   });

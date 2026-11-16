@@ -5,7 +5,7 @@ Decided (13 Nov 2026):
 - **Route to market:** paid pilot (60–90 days) → yearly contract.
 - **Markets:** broadband/telecom first (AI trained and tested), then energy (boiler flow exists) and home appliances / insurers (home-damage flow exists).
 - **Company:** UK Ltd, ICO registered. First pilot: **Home Telecom** (TAL group, see `MARKET-RESEARCH.md`).
-- **First use case:** "My internet is down", then "setting up a new router".
+- **First use cases:** "My internet is down" and "setting up a new router" (both built).
 - **Hosting:** stay on Render Starter ($7) but move to Frankfurt; free nightly backup instead of paid Supabase Pro until there are paying clients.
 - **Staff sign-in (Microsoft/Google):** skipped for now; pilot staff use the platform's own sign-in with the staff password.
 
@@ -26,17 +26,17 @@ Owner key: **You** = you do it · **Build** = Claude builds it · **Both** = you
 
 ### Platform and hosting
 - [ ] **You** — Choose the web address (e.g. `assist.yourcompany.co.uk`) and add one DNS record. **Build** sets it up on Render.
-- [ ] **Both** — Move the server to Frankfurt on the same Starter plan ($7/month, no extra cost). **You** copy the secret settings; **Build** checks everything still works.
-- [ ] **Build** — Free nightly database backup (GitHub job, encrypted). Supabase Pro ($25/month) later, once paid.
+- [ ] Skipped for now — Move the server to Frankfurt. Not needed while building; the cheap option is Render's free plan in Frankfurt.
+- [x] **Build** — Free nightly database backup (GitHub job, encrypted). Supabase Pro ($25/month) later, once paid.
 - [ ] Later — Standard server ($25/month) only if monitoring shows the pilot is busy.
 - [x] Uptime check every 15 minutes, full AI check every morning (done).
-- [ ] **Build** — Error alerts by email when the AI, voice or database fails for a real customer.
+- [x] **Build** — Error alerts by email when the AI, voice or database fails for a real customer.
 
 ### Sign-in and access
 - [ ] Skipped for now — Microsoft/Google staff sign-in (`LAUNCH.md` §1). Revisit before a second client.
-- [ ] **Build** — Staff accounts for Home Telecom's pilot agents with the platform's own sign-in.
+- [x] **Build** — Staff accounts for Home Telecom's pilot agents with the platform's own sign-in.
 - [ ] **Both** — Switch off the trial login and demo accounts on the live server (`TRIAL_LOGIN_ENABLED=0`).
-- [ ] **Build** — Keep the public demo separate (its own address with the trial login), so sales demos never touch client data.
+- [x] **Build** — Keep the public demo separate: the free static demo on GitHub Pages (runs in the browser, no client data).
 
 ### Client onboarding (the pilot company)
 - [x] **Build** — "Add a client" screen (Platform → Clients): name, industry template (AI flow + safety rules), brand, retention, staff logins. Done.
@@ -47,8 +47,8 @@ Owner key: **You** = you do it · **Build** = Claude builds it · **Both** = you
 ### Legal and data (needed before real customers)
 - [ ] **You** — Pilot agreement: scope, price, dates, success measures, either side can stop.
 - [ ] **You** — Data Processing Agreement with the pilot company (they are the controller, we are the processor).
-- [ ] **Build** drafts, **you** check — Privacy notice for end customers (shown before the camera starts).
-- [ ] **Build** drafts, **you** check — DPIA (data protection impact assessment) template the client can reuse.
+- [x] **Build** drafts, **you** check — Privacy notice for end customers, shown before the camera starts (`legal/PRIVACY-NOTICE.md`). Needs your check.
+- [x] **Build** drafts, **you** check — DPIA template (`legal/DPIA.md`) and sub-processor list (`legal/SUB-PROCESSORS.md`). Needs your check.
 - [ ] **You** — Sub-processor list and their DPAs: Anthropic (AI), ElevenLabs (voice), Render (server), Supabase (database), Twilio (texts). Anthropic processes data in the US, so add the UK international data transfer addendum.
 - [ ] **Both** — Retention for the pilot: e.g. photos 30 days, transcripts 90 days (already supported, just set it).
 
@@ -62,8 +62,8 @@ Owner key: **You** = you do it · **Build** = Claude builds it · **Both** = you
 ## Phase 2 — Run the pilot (60–90 days)
 
 - [ ] **Both** — Agree success measures up front, e.g. % of calls fixed without an engineer visit, average handling time, customer rating, engineer visits avoided.
-- [ ] **Build** — Pilot report page: sessions, resolved by AI, handed to a person, outcomes, cost, exportable as PDF/CSV for the client.
-- [ ] **Build** — Customer rating at the end (thumbs up/down + optional comment).
+- [x] **Build** — Pilot report page: sessions, resolved by AI, handed to a person, outcomes, cost, exportable as PDF/CSV for the client.
+- [x] **Build** — Customer rating at the end (thumbs up/down + optional comment).
 - [ ] **You** — Weekly 30-minute review with the pilot company. **Build** fixes what comes up.
 - [ ] **Build** — Re-train the AI monthly using real (consented) pilot photos, and re-run the accuracy test.
 - [ ] **You** — Support: a support email and agreed response times (e.g. same working day).

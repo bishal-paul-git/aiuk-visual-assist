@@ -1,8 +1,8 @@
 import { agents, getPolicy, getWorkflow } from "@/lib/config/catalog";
 import { SimulationHarness } from "@/lib/simulation/harness";
 
-export function routerHarness(scenario: string) {
-  const workflow = getWorkflow("wf_router_v3")!;
+export function routerHarness(scenario: string, workflowId = "wf_router_v3") {
+  const workflow = getWorkflow(workflowId)!;
   const policy = getPolicy(workflow.policyId)!;
   const agent = agents.find((a) => a.id === "agt_northline_router")!;
   return new SimulationHarness(

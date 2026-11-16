@@ -371,4 +371,5 @@ export const homeTelecomRouterV1: WorkflowDefinition = {
   id: "wf_ht_router_v1",
   tenantId: "tnt_hometelecom",
   version: 1,
+  policyId: "pol_hometelecom_standard",
 };
